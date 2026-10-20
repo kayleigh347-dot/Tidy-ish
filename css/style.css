@@ -274,3 +274,46 @@ body{letter-spacing:.01em}
  .guardian-tap.is-reacting{animation:none!important}
  .guardian-tap.is-reacting .guardian-speech{transition:none!important}
 }
+
+/* Stage 08: one-row task choices, compact saved-task tabs and tools. */
+#editor .add-task-tabs {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;margin:7px 0 13px;}
+#editor .add-task-tabs button {font-size:clamp(.63rem,2.5vw,.82rem);line-height:1.15;min-width:0;white-space:normal;padding:8px 3px;}
+#editor .add-task-options {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:6px 0;}
+#editor .add-task-options .check {min-width:0;min-height:42px;line-height:1.1;font-size:clamp(.65rem,2.4vw,.78rem);gap:4px;align-items:center;}
+#editor .add-task-options input[type=checkbox] {width:18px;height:18px;}
+#editor .compact-tools {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px 7px;}
+#editor .compact-tools .check {min-width:0;min-height:33px;font-size:.75rem;overflow-wrap:anywhere;}
+#editor .schedule-entry {border:1px solid var(--plum);border-radius:10px;padding:5px 9px;margin:8px 0;}
+#editor .schedule-entry .small {margin:0 0 6px;}
+
+/* Stage 08F | Josefin Sans readability update. Image logos and illustrations remain unchanged. */
+@font-face {
+  font-family: "Tidy Josefin Sans";
+  src: url("../assets/fonts/JosefinSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Tidy Josefin Sans";
+  src: url("../assets/fonts/JosefinSans-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Tidy Josefin Sans";
+  src: url("../assets/fonts/JosefinSans-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+:root, body, button, input, textarea, select, option, optgroup, dialog, summary,
+.doing-board, .calendar-view, .schedule-view, .task-data-page, .phone-timer-panel h3 {
+  font-family: "Tidy Josefin Sans", "Trebuchet MS", system-ui, sans-serif;
+}
+/* The old handwritten font made the smallest navigation labels hard to read. */
+.simple-nav .nav-label {
+  font-size: clamp(.66rem, 2.7vw, .75rem);
+  line-height: 1.1;
+}
