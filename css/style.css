@@ -317,3 +317,17 @@ body{letter-spacing:.01em}
   font-size: clamp(.66rem, 2.7vw, .75rem);
   line-height: 1.1;
 }
+
+/* Stage 09A | Task Data read-only, mobile-friendly history and trend. */
+.task-data-page .task-data-filter {margin:4px 0 9px;max-width:360px}
+.task-data-page .task-data-filter select {font-size:.92rem}
+.task-data-page .data-trend {height:116px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;align-items:end;padding:4px 0 2px}
+.task-data-page .data-trend-day {min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:end;gap:4px}
+.task-data-page .data-trend-track {height:72px;width:100%;max-width:36px;background:var(--twilight);border-radius:6px;display:flex;align-items:end;overflow:hidden}
+.task-data-page .data-trend-track>span {width:100%;display:block;background:linear-gradient(160deg,var(--gold),var(--pacific));border-radius:6px 6px 0 0}
+.task-data-page .data-trend-count {font-size:.76rem;min-height:16px;color:var(--gold)}
+.task-data-page .data-trend-label {font-size:clamp(.62rem,2.4vw,.75rem);color:var(--text);white-space:nowrap}
+.task-data-page .bar-row {grid-template-columns:minmax(85px,35%) minmax(0,1fr)}
+.task-data-page .bar-row>span {overflow-wrap:anywhere}
+.task-data-page .bar-track .bar {flex:none}
+.task-data-page .data-completion span {overflow-wrap:anywhere}
