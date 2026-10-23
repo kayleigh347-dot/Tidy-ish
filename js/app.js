@@ -1,8 +1,11 @@
 /* Tidy-ish 0.23 HTML: shared renderers for Home, room tasks, Doing Now and laundry. */
 (function(){
 'use strict';
-const M=window.TidyModel, S=window.TidySchedule, B=window.TidyBackup, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const M=window.TidyModel, S=window.TidySchedule, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,scheduleWeek=0;
+// Stage 10A: preview settings live only in memory. No board writes or storage changes.
+let scheduleRestDays=new Set(),scheduleOneRoom=false,schedulePreviewMinutes='',scheduleSelected=null;
+let wizardStep=-1,wizardDraft=null,wizardWeek=0;const WIZARD_KEY=KEY+'-maker-draft-v1';
 let board,storageError='',lastSaved='',route='home',roomId='kitchen',tab='tasks',doingTab='doing',sideTab='all',search='',detailed=false,deleted=null,openTasks=new Set(),collapsed=new Set(),dialogDirty=false,dialogSave=null,dialogCleanup=null,pendingExternal=null,noticeTimer,music=null;
 // Doing Now is a personal display preference, not a household task or sync mutation.
 const DOING_VIEW_KEY=KEY+'-doing-view';
@@ -61,10 +64,10 @@ function taskToolbar(){return `<div class="toolbar">${button(detailed?'Detailed 
 let uiSearch=false;
 function visibleTasks(){let list=route==='doing'?(doingTab==='attention'?board.tasks.filter(t=>t.attention&&!M.paused(t)):M.doing(board)):route==='room'?board.tasks.filter(t=>t.room===roomId&&!M.paused(t)&&(tab==='side'?t.side:tab==='homeless'?false:!t.side)):board.tasks.filter(t=>t.side&&!M.paused(t)&&(sideTab==='all'||t.sideKind===sideTab));
 if(route==='room'&&tab==='side'&&sideTab!=='all')list=list.filter(t=>t.sideKind===sideTab);if(search)list=list.filter(t=>(t.title+' '+t.notes+' '+t.children.map(c=>c.title).join(' ')).toLowerCase().includes(search.toLowerCase()));return [...list.filter(t=>!t.done),...list.filter(t=>t.done)];}
-function taskList(list){if(!list.length)return '<p class="empty">No tasks to show</p>';return list.map(t=>taskCard(t)).join('');}
-function taskCard(t){if(route==='doing')return doingTaskCard(t);const expanded=openTasks.has(t.id);return `<article class="task ${t.done?'done':''}" data-task-id="${esc(t.id)}" draggable="${!t.done}"><div class="row">${button(t.doing?'Not on it':"I’m on it!",'select-task',t.id,'select-task',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}${button(`${esc(t.title)}${t.children.length?` <span class="small">${t.children.filter(c=>c.done).length}/${t.children.length} ${expanded?'▾':'▸'}</span>`:''}`,'expand',t.id,'ghost grow task-title',`aria-expanded="${expanded}"`)}${button('+','add-child',t.id,'ghost','aria-label="Add subtask to '+esc(t.title)+'"')}</div>${detailed?`<div class="task-meta">${esc(room(t.room)?.name||'Homeless')} · Priority ${t.priority}${t.estimate?' · '+t.estimate+' min':''}${t.assigned?' · '+esc(t.assigned):''}${t.dueDate?' · '+esc(t.dueDate):''}</div>`:''}${expanded?childrenHtml(t):''}<div class="actions">${!t.done?button('First','first',t.id,'first')+button('Last','last',t.id,'last'):''}${button(stopwatch,'timer',t.id,'icon-button',`aria-label="Stopwatch for ${esc(t.title)}"`)}${button('✎','edit-task',t.id,'edit-icon',`aria-label="Edit ${esc(t.title)}"`)}${button('⌫','delete-task',t.id,'delete-icon',`aria-label="Delete ${esc(t.title)}"`)}${button(t.done?'Undo':route==='doing'?'✓ Done It':'✓ I did a thing!','complete',t.id,'complete')}</div>${detail('Details & options',`${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}<div class="row">${button('Save reusable','save-template',t.id,'ghost')}${button(t.paused?'Resume task':'Pause task','pause-task',t.id,'ghost')}</div>`)}</article>`;}
+function taskList(list){if(!list.length)return '<p class="empty">No tasks to show</p>';return list.map((t,i)=>taskCard(t,i)).join('');}
+function taskCard(t,pos=0){if(route==='doing')return doingTaskCard(t,pos);const expanded=openTasks.has(t.id);return `<article class="task position-colour-${D.palette(pos)} ${t.done?'done':''}" data-task-id="${esc(t.id)}"><div class="row">${button(t.doing?'Not on it':"I’m on it!",'select-task',t.id,'select-task',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}${button(`${esc(t.title)}${t.children.length?` <span class="small">${t.children.filter(c=>c.done).length}/${t.children.length} ${expanded?'▾':'▸'}</span>`:''}`,'expand',t.id,'ghost grow task-title',`aria-expanded="${expanded}"`)}${button('+','add-child',t.id,'ghost','aria-label="Add subtask to '+esc(t.title)+'"')}</div>${detailed?`<div class="task-meta">${esc(room(t.room)?.name||'Homeless')} · Priority ${t.priority}${t.estimate?' · '+t.estimate+' min':''}${t.assigned?' · '+esc(t.assigned):''}${t.dueDate?' · '+esc(t.dueDate):''}</div>`:''}${expanded?childrenHtml(t):''}<div class="actions">${!t.done?button('First','first',t.id,'first')+button('Last','last',t.id,'last'):''}${button(stopwatch,'timer',t.id,'icon-button',`aria-label="Stopwatch for ${esc(t.title)}"`)}${button('✎','edit-task',t.id,'edit-icon',`aria-label="Edit ${esc(t.title)}"`)}${button('⌫','delete-task',t.id,'delete-icon',`aria-label="Delete ${esc(t.title)}"`)}${button(t.done?'Undo':t.children.length?'✓ I did many things!':'✓ I did a thing!','complete',t.id,'complete')}</div>${detail('Details & options',`${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}<div class="row">${button('Save reusable','save-template',t.id,'ghost')}${button(t.paused?'Resume task':'Pause task','pause-task',t.id,'ghost')}</div>`)}</article>`;}
 function safeImage(src){return /^(data:image\/(png|jpeg|webp|gif);base64,|blob:)/.test(src)?esc(src):'';}
-function childrenHtml(t,parent='',depth=0){return t.children.filter(c=>(c.parentId||'')===parent).map(c=>`<div class="child ${depth?'nested-child':''}"><div class="row"><span class="grow ${c.done?'muted':''}">${c.done?'✓ ':''}${esc(c.title)}</span>${button(c.done?'Undo':'I did a thing','child-complete',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>${detail('Options',`<div class="row">${button('First','child-first',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('Last','child-last',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button(stopwatch,'timer',t.id,'icon-button',`data-child="${esc(c.id)}" aria-label="Stopwatch for ${esc(c.title)}"`)}${button('Edit','edit-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('+ Subtask','add-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>`)}${childrenHtml(t,c.id,depth+1)}</div>`).join('');}
+function childrenHtml(t,parent='',depth=0){return t.children.filter(c=>(c.parentId||'')===parent).map(c=>`<div class="child room-child ${depth?'nested-child':''}" data-child-id="${esc(c.id)}" data-root-id="${esc(t.id)}" data-parent-id="${esc(parent)}"><div class="row"><button type="button" class="child-grip" aria-label="Drag ${esc(c.title)} out or reorder" title="Drag out to main tasks or rearrange subtasks; Alt + arrow keys to reorder">⠿</button><span class="grow ${c.done?'muted':''}">${c.done?'✓ ':''}${esc(c.title)}</span>${button(c.done?'Undo':'Done it!','child-complete',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>${detail('Options',`<div class="row">${button('First','child-first',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('Last','child-last',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button(stopwatch,'timer',t.id,'icon-button',`data-child="${esc(c.id)}" aria-label="Stopwatch for ${esc(c.title)}"`)}${button('Edit','edit-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('+ Subtask','add-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>`)}${childrenHtml(t,c.id,depth+1)}</div>`).join('');}
 function roomPage(){const r=room(roomId);if(!r)return '<p class="empty">Choose a room from House.</p>';return `<div class="row spread"><h1>${esc(r.name)}</h1>${button('◎ Focus!','focus',r.id)}</div>${roomScene(r)}${tabs([['tasks','Tasks'],['side','Side quests'],['homeless','Homeless']],tab,'room-tab','nested')}${tab==='side'?tabs(sideChoices(),sideTab,'side-tab','nested'):''}${tab==='homeless'?homelessPage(r):`${taskToolbar()}${taskList(visibleTasks())}`}${detail('Room options',button('Adjust mess level','calibrate',r.id)+button('Schedule · later','later','schedule','ghost'))}`;}
 function sideChoices(){return [['all','All'],...M.sideTabs.map(t=>[t.id,t.name]),...F().sideTabs.map(t=>[t.id,t.name])];}
 // Use locally rendered clock time for the daily clear-down. A Monday completion stays
@@ -82,9 +85,9 @@ function completedDeadline(t){
 }
 function dateLabel(value){const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Not recorded';}
 function creatorLabel(t){const from=t.createdByName||t.addedByName||t.creatorName||t.createdBy?.name||t.createdBy||t.androidTask?.createdByName||t.androidTask?.addedByName;return typeof from==='string'&&from.trim()?from:'Not recorded';}
-function doingTaskCard(t){
+function doingTaskCard(t,pos=0){
  const expanded=openTasks.has(t.id),count=t.children.filter(c=>c.done).length;
- return `<article class="task doing-task" data-task-id="${esc(t.id)}" draggable="true">
+ return `<article class="task doing-task position-colour-${D.palette(pos)}" data-task-id="${esc(t.id)}">
  <div class="doing-task-main">
  ${button(t.doing?'Not on it':"I'm on it!",'select-task',t.id,'select-task doing-select',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}
  ${button(esc(t.title)+(t.children.length?` <span class="expand-indicator" aria-hidden="true">${expanded?'▾':'▸'}</span>`:''),'expand',t.id,'ghost doing-task-title',`aria-expanded="${expanded}"`)}
@@ -96,15 +99,15 @@ function doingTaskCard(t){
  ${button('First','first',t.id,'first doing-order')}${button('Last','last',t.id,'last doing-order')}
  ${button('⋯','task-menu',t.id,'doing-more',`aria-label="More actions for ${esc(t.title)}"`)}
  ${button(phoneClock,'timer',t.id,'doing-timer',`aria-label="Set phone alarm timer for ${esc(t.title)}"`)}
- ${button('✓ I did a thing!','complete',t.id,'complete doing-complete')}
+ ${button(t.children.length?'✓ I did many things!':'✓ I did a thing!','complete',t.id,'complete doing-complete')}
  </div></article>`;
 }
 function doingChildren(t,parent='',depth=0){
  return t.children.filter(c=>(c.parentId||'')===parent).sort((a,b)=>Number(a.done)-Number(b.done)).map(c=>`
  <div class="child doing-child ${c.done?'child-finished':''} ${depth?'nested-child':''}" data-child-id="${esc(c.id)}" data-root-id="${esc(t.id)}" data-parent-id="${esc(parent)}">
- <button type="button" class="child-grip" draggable="true" aria-label="Drag to reorder ${esc(c.title)}" title="Drag to reorder; Alt + arrow keys also work">⠿</button>
+ <button type="button" class="child-grip" draggable="false" aria-label="Drag to reorder ${esc(c.title)}" title="Drag to reorder; Alt + arrow keys also work">⠿</button>
  <span class="doing-child-title ${c.done?'muted':''}">${c.done?'✓ ':''}${esc(c.title)}</span>
- ${button(c.done?'Undo':'✓ I did a thing!','child-complete',t.id,c.done?'child-undo':'child-done',`data-child="${esc(c.id)}"`)}
+ ${button(c.done?'Undo':'✓ Done it!','child-complete',t.id,c.done?'child-undo':'child-done',`data-child="${esc(c.id)}"`)}
  </div>${doingChildren(t,c.id,depth+1)}`).join('');
 }
 function completedDoingList(tasks){
@@ -168,13 +171,72 @@ function calendarDay(iso){
  const rows=entry?.items.map(t=>`<div class="calendar-detail-row"><div class="grow"><strong>${esc(t.title)}</strong><div class="small">${esc(room(t.room)?.name||'General')}${t.minutes!=null?' · '+esc(t.minutes)+' min':''}</div></div>${button('Skip this time','skip-date',t.taskId,'ghost',`data-date="${esc(t.due)}"`)}</div>`).join('')||'<p>No repeating tasks planned on this date.</p>';
  dialog(dayHeading(iso),rows);
 }
-function schedulePage(){
- if(!S)return card('Scheduling module unavailable. No tasks have been modified.');
- const date=new Date();date.setDate(date.getDate()-((date.getDay()+6)%7)+scheduleWeek*7);
- const from=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
- const plan=S.preview(board,{from,days:7});
- return `<section class="schedule-view">${card(`<div class="row spread"><h2>Recurring task preview</h2><div class="row">${button('‹ Week','schedule-prev','','ghost')}${button('Week ›','schedule-next','','ghost')}</div></div><p class="small">${esc(dayHeading(from))} · Read-only. Only tasks you have saved are shown. No preset tasks are added.</p>`)}${plan.days.map(d=>card(`<div class="row spread"><strong>${esc(dayHeading(d.date))}</strong><span class="small">${d.minutes?esc(d.minutes)+' min':'No time estimate'}</span></div>${d.items.map(t=>`<div class="schedule-line">${esc(t.title)}<span>${esc(room(t.room)?.name||'General')}</span></div>`).join('')}`)).join('')||'<p class="empty">No repeating work planned for this week. Scheduling functions are ready for tasks you create later.</p>'}<p class="small">Preview only. Daily caps, rest days and one-room-per-day options are supported in the scheduling engine but are not applied or saved here.</p></section>`;
+// Stage 10C · Draft-only guided Schedule Maker, recovered from the earlier calendar reference.
+// All steps operate only on wizardDraft. No board save, task creation or Apply path exists.
+function wizardSections(){return [{id:'general',title:'General · Whole house',room:''},...rooms().map(r=>({id:r.id,title:r.name,room:r.id})),{id:'settings',title:'Planning settings'},{id:'review',title:'Calendar preview'}];}
+function wizardTaskRow(t){
+ const opt=wizardDraft.taskOptions[t.id];if(!opt)return '';
+ const isPreset=t.source==='preset',isCustom=t.source==='custom';
+ const label=isPreset?'Suggested · '+(t.presetMinutes||0)+' min base':isCustom?'Your custom task':W.recurring(t)?'Saved recurring task':'Saved one-off task';
+ return `<div class="wizard-task ${opt.selected?'wizard-selected':''}"><label class="wizard-task-select"><input type="checkbox" data-maker-field="task-selected" data-id="${esc(t.id)}" ${opt.selected?'checked':''}><span><strong>${esc(t.title)}</strong><small>${esc(label)}</small></span></label>${opt.selected?`<details class="wizard-task-settings"><summary>Edit repeat, tools & time</summary>${isCustom?`<label class="field">Task name<input type="text" maxlength="180" data-maker-field="task-title" data-id="${esc(t.id)}" value="${esc(t.title)}"></label>`:''}<div class="columns"><label class="field">Repeat every<input type="number" min="1" max="3650" data-maker-field="task-count" data-id="${esc(t.id)}" value="${esc(opt.count)}"></label><label class="field">Unit<select data-maker-field="task-unit" data-id="${esc(t.id)}">${[['days','Days'],['weeks','Weeks'],['months','Months']].map(([id,label])=>`<option value="${id}" ${opt.unit===id?'selected':''}>${label}</option>`).join('')}</select></label></div><label class="field">Time estimate (minutes, optional)<input type="number" min="0" max="100000" step="1" data-maker-field="task-minutes" data-id="${esc(t.id)}" value="${esc(opt.minutes)}"></label><label class="field">Tools needed (one per line)<textarea data-maker-field="task-tools" data-id="${esc(t.id)}">${esc(opt.tools)}</textarea></label></details>`:''}${isCustom?`<div class="wizard-task-actions">${button('Remove custom task','wizard-remove-custom',t.id,'ghost')}</div>`:''}</div>`;
 }
+function wizardTaskRows(section){
+ const existing=W.candidates(board).filter(t=>(t.room||'')===section.room);
+ const suggestions=W.suggestions(board,section.room),custom=W.customFor(wizardDraft,section.room);
+ const selected=suggestions.filter(t=>wizardDraft.taskOptions[t.id]?.selected);
+ const featured=[...selected,...suggestions.filter(t=>!selected.includes(t)).slice(0,5)];
+ const overflow=suggestions.filter(t=>!featured.includes(t));
+ const suggested=`<div class="row spread wizard-section-head"><h3>Suggested cleaning tasks</h3><small>${suggestions.length} suggestions</small></div><p class="small">From your cleaning-routine reference. A few starters are ticked for preview only. Uncheck anything you don't want.</p><div class="wizard-quick-actions">${button('Add all suggestions','wizard-select-room','','ghost')}${button('Clear suggestions','wizard-clear-room','','ghost')}</div>${featured.map(wizardTaskRow).join('')}${overflow.length?`<details class="wizard-more"><summary>More suggestions (${overflow.length})</summary>${overflow.map(wizardTaskRow).join('')}</details>`:''}`;
+ return `<section class="wizard-tasks">${existing.length?`<h3>Already saved in Tidyish</h3>${existing.map(wizardTaskRow).join('')}`:''}${suggested}<div class="wizard-custom-section"><h3>My custom tasks ${custom.length?'('+custom.length+')':''}</h3>${custom.map(wizardTaskRow).join('')}<details class="wizard-add-custom"><summary>+ Add Custom Task</summary><div data-wizard-custom-form class="wizard-custom-fields"><label class="field">Task name<input type="text" data-custom="title" maxlength="180" placeholder="e.g. Wipe the bannister"></label><div class="columns"><label class="field">Repeat every<input data-custom="count" type="number" min="1" max="3650" value="1"></label><label class="field">Unit<select data-custom="unit"><option value="weeks">Weeks</option><option value="days">Days</option><option value="months">Months</option></select></label></div><label class="field">Minutes (your estimate)<input data-custom="minutes" type="number" min="0" max="100000" value="10"></label><label class="field">Tools (optional)<textarea data-custom="tools" placeholder="One per line"></textarea></label>${button('Add to this room','wizard-add-custom','','primary')}</div></details><p class="small">Suggestions and custom tasks are saved only in this Schedule Maker draft, never automatically in your household tasks.</p></div></section>`;
+}
+function wizardPlanningSettings(){const d=wizardDraft;
+ const weekdays=[['Mon',1],['Tue',2],['Wed',3],['Thu',4],['Fri',5],['Sat',6],['Sun',0]].map(([day,n])=>`<label class="wizard-day">${esc(day)}<input type="checkbox" data-maker-field="rest-day" data-day="${n}" ${d.restDays.includes(n)?'checked':''}></label>`).join('');
+ return `<div class="wizard-settings"><label class="field">Schedule start date<input type="date" data-maker-field="start-date" value="${esc(d.from)}"></label><fieldset><legend>Rest days</legend><div class="wizard-days">${weekdays}</div></fieldset><label class="check"> <input type="checkbox" data-maker-field="one-room" ${d.oneRoomPerDay?'checked':''}> One room per day</label><label class="field">Schedule Maker planning capacity (minutes per day, optional)<input type="number" min="0" max="1440" step="1" data-maker-field="maker-minutes" value="${esc(d.makerMinutes)}" placeholder="No limit"></label><label class="field">Multiplier for preset times only<select data-maker-field="preset-multiplier">${[1,2,3].map(n=>`<option value="${n}" ${d.presetMultiplier===n?'selected':''}>${n===1?'Standard (×1)':'×'+n}</option>`).join('')}</select></label><p class="small">Your daily task cap is separate from this planning setting. User-entered task estimates are never multiplied or padded.</p></div>`;
+}
+function wizardCalendar(){
+ const d=wizardDraft,from=d.from||M.date();if(!S.parseDay(from))return `<p class="error">Choose a valid start date in Planning settings.</p>`;
+ const displayStart=S.addDays(from,-((S.weekday(from)+6)%7)+7*wizardWeek);
+ const through=S.addDays(displayStart,27),requestedDays=Math.round((S.parseDay(through)-S.parseDay(from))/86400000)+1;
+ const plan=W.preview(board,d,S,{from,days:Math.min(366,Math.max(28,requestedDays))});
+ const byDay=new Map(plan.days.map(item=>[item.date,item]));
+ const cells=Array.from({length:28},(_,i)=>{
+  const date=S.addDays(displayStart,i),entries=byDay.get(date)?.items||[],rest=d.restDays.includes(S.weekday(date));
+  const total=entries.reduce((n,t)=>n+(t.minutes||0),0);
+  return `<div class="wizard-calendar-date ${rest?'rest':''}" aria-label="${esc(dayHeading(date))}: ${rest?'Rest day':entries.length+' scheduled task(s)'}"><strong>${esc(date.slice(8))}</strong>${rest?'<span class="wizard-leaf">✿</span><small>Rest day</small>':entries.length?`<span class="wizard-count">${entries.length}</span>${entries.slice(0,2).map(t=>`<small class="wizard-occurrence">${esc(room(t.room)?.name||'Whole house')} · ${esc(t.title)}</small>`).join('')}${entries.length>2?`<small>+${entries.length-2} more</small>`:''}<small>${total} min</small>`:'<small>Free</small>'}</div>`;
+ }).join('');
+ const chosen=W.chosen(d);
+ return `<div class="wizard-review"><div class="wizard-review-stats"><strong>${chosen.length} tasks selected</strong><span>${plan.unplaced.length} occurrence${plan.unplaced.length===1?'':'s'} not placed in the planned range</span></div><div class="row spread"><h3>Four-week view</h3><div class="row">${button('‹ Weeks','wizard-week-prev','','ghost',wizardWeek===0?'disabled':'')}${button('Weeks ›','wizard-week-next','','ghost',wizardWeek>=44?'disabled':'')}</div></div><div class="wizard-calendar"><div class="wizard-calendar-weekdays">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<span>${x}</span>`).join('')}</div><div class="wizard-calendar-grid">${cells}</div></div><p class="small">${esc(dayHeading(displayStart))} to ${esc(dayHeading(through))}. The plan starts with the first due date roughly one repeat interval after your chosen start date. Rest days and time capacity move previews later; nothing is saved to the household calendar.</p><div class="wizard-review-list">${W.allCandidates(board,wizardDraft).filter(t=>chosen.includes(t.id)).map(t=>`<div><strong>${esc(t.title)}</strong> <small>${esc(room(t.room)?.name||'Whole house')} · every ${wizardDraft.taskOptions[t.id].count} ${esc(wizardDraft.taskOptions[t.id].unit)}</small></div>`).join('')}</div><p class="error">Preview only. This stage cannot apply, replace or delete a recurring task. Final confirmation, backup and Undo will be built separately.</p></div>`;
+}
+function wizardPage(){const sections=wizardSections(),total=sections.length;
+ if(wizardStep<0){let saved=false;try{saved=!!localStorage.getItem(WIZARD_KEY)}catch{}
+  return `<section class="wizard-home">${card(`<h2>Schedule Maker</h2><p class="small">General tasks first, then your rooms, planning settings and a calendar preview. Keep all choices as a draft until you deliberately apply a schedule in a future stage.</p><div class="wizard-actions">${button('Start a new draft','wizard-start','','wide')}${button('Use current schedule','wizard-current','','wide ghost')}${saved?button('Resume saved draft','wizard-resume','','wide ghost'):''}</div>`)}${detail('Quick preview (Stage 10A)',schedulePageOld())}</section>`;
+ }
+ const current=sections[wizardStep],review=current.id==='review',settings=current.id==='settings';
+ const middle=review?wizardCalendar():settings?wizardPlanningSettings():wizardTaskRows(current);
+ const actions=`<div class="wizard-footer">${button('Back','wizard-back','','ghost',wizardStep===0?'disabled':'')}${!settings&&!review?button('Skip','wizard-next','','ghost'):''}${!review?button('Next','wizard-next','','primary'):''}${button('Save & finish later','wizard-save','','ghost')}${button('Cancel','wizard-cancel','','ghost')}</div>`;
+ return `<section class="schedule-wizard"><div class="wizard-progress" aria-label="Step ${wizardStep+1} of ${total}"><span>${wizardStep+1} / ${total}</span><div style="--wizard-progress:${Math.round((wizardStep+1)/total*100)}%"></div></div>${card(`<h2>${esc(current.title)}</h2>${middle}${actions}`)}</section>`;
+}
+function schedulePageOld(){
+
+ if(!S?.makerCandidates||!S?.makerPreview)return card('Schedule preview is unavailable. No tasks have been changed.');
+ const monday=new Date();monday.setHours(12,0,0,0);
+ monday.setDate(monday.getDate()-((monday.getDay()+6)%7)+scheduleWeek*7);
+ const from=[monday.getFullYear(),String(monday.getMonth()+1).padStart(2,'0'),String(monday.getDate()).padStart(2,'0')].join('-');
+ const existing=S.makerCandidates(board), ids=scheduleSelected===null?existing.map(t=>t.id):existing.filter(t=>scheduleSelected.has(t.id)).map(t=>t.id);
+ const minutes=schedulePreviewMinutes===''?0:Number(schedulePreviewMinutes);
+ const plan=S.makerPreview(board,ids,{from,days:7,restDays:[...scheduleRestDays],oneRoomPerDay:scheduleOneRoom,dailyCapMinutes:minutes});
+ const lookup=new Map(plan.days.map(day=>[day.date,day]));
+ const days=Array.from({length:7},(_,i)=>{
+  const date=S.addDays(from,i),entries=lookup.get(date)?.items||[],rest=scheduleRestDays.has(S.weekday(date));
+  const total=entries.reduce((n,t)=>n+(t.minutes||0),0),unknown=entries.some(t=>t.minutes===null);
+  return `<section class="schedule-day ${rest?'schedule-rest-day':''}"><header><strong>${esc(dayHeading(date))}</strong><small>${rest?'Rest day':entries.length?`${total} min${unknown?' + untimed':''}`:'Free'}</small></header>${entries.map(t=>`<div class="schedule-item"><strong>${esc(t.title)}</strong><span>${esc(room(t.room)?.name||'General')}${t.moved?' · moved from '+esc(dayHeading(t.due)):''}</span></div>`).join('')||`<span class="small schedule-quiet">${rest?'No automatically planned cleaning':'No planned tasks'}</span>`}</section>`;
+ }).join('');
+ const toggles=[['Mon',1],['Tue',2],['Wed',3],['Thu',4],['Fri',5],['Sat',6],['Sun',0]].map(([name,id])=>button(esc(name),'schedule-rest',String(id),scheduleRestDays.has(id)?'active':'ghost',`aria-pressed="${scheduleRestDays.has(id)}"`)).join('');
+ const choices=existing.length?existing.map(t=>button(`${ids.includes(t.id)?'✓ ':''}${esc(t.title)} <span class="small">${esc(room(t.room)?.name||'General')}</span>`,'schedule-pick',t.id,ids.includes(t.id)?'active':'ghost',`aria-pressed="${ids.includes(t.id)}"`)).join(''):'<p class="empty">No recurring cleaning tasks are saved yet. Use Add Scheduled Task to create your own tasks.</p>';
+ const controls=card(`<div class="row spread"><h2>Schedule maker · preview</h2>${button('Add scheduled task','schedule-add-task','','ghost')}</div><div class="schedule-preview-controls"><div class="row spread"><strong>Rest days</strong>${button('Clear','schedule-clear-rest','','ghost')}</div><div class="schedule-weekdays">${toggles}</div><div class="row spread schedule-setting"><span>One room per day</span>${button(scheduleOneRoom?'On':'Off','schedule-room-toggle','',scheduleOneRoom?'active':'ghost',`aria-pressed="${scheduleOneRoom}"`)}</div><label class="field">Planning capacity (minutes per day, optional)<input id="schedule-preview-minutes" type="number" min="1" max="1440" step="1" value="${esc(schedulePreviewMinutes)}" placeholder="No limit"></label><span class="small">This preview-only limit is separate from your daily task cap and task estimates. No settings are saved.</span></div>${detail('Choose saved recurring tasks',`<div class="schedule-choices"><div class="row">${button('Select all','schedule-pick-all','','ghost')}${button('Select none','schedule-pick-none','','ghost')}</div>${choices}</div>`)}`);
+ return `<section class="schedule-view schedule-maker-preview">${controls}${card(`<div class="row spread"><h2>Weekly plan</h2><div class="row">${button('‹ Week','schedule-prev','','ghost')}${button('Week ›','schedule-next','','ghost')}</div></div><span class="small">${esc(dayHeading(from))} to ${esc(dayHeading(S.addDays(from,6)))} · preview only</span><div class="schedule-week-grid">${days}</div>${plan.unplaced.length?`<p class="small">${plan.unplaced.length} occurrence${plan.unplaced.length===1?'':'s'} could not fit in this week. None were deleted.</p>`:''}`)}<p class="small">Preview only. Opening or adjusting this planner does not create, edit or replace any task or recurring schedule. The guided Schedule Maker and explicit Apply step come later.</p></section>`;
+}
+function schedulePage(){return W?wizardPage():schedulePageOld();}
 function dataPage(){
  if(!window.TidyTaskData)return card('Task Data summaries are unavailable. Saved completions have not been changed.');
  const d=window.TidyTaskData.summarize(board,{period:dataPeriod,roomId:dataRoom});
@@ -188,10 +250,10 @@ function dataPage(){
  const history=d.wins.slice(0,dataVisible).map(w=>`<div class="data-completion"><strong>${esc(w.title||'Completed task')}</strong><span>${esc(w.at&&Number.isFinite(Date.parse(w.at))?dateLabel(w.at):'Date not recorded')} · ${esc(w.person||'Unattributed')}</span></div>`).join('')||'<p>No recorded completions in these filters.</p>';
  return `<section class="task-data-page">${tabs([['7','7 Days'],['30','30 Days'],['90','90 Days'],['all','All']],dataPeriod,'data-period','nested')}${roomSelect}<div class="data-metrics">${card(`<strong>${d.count}</strong><span>Recorded completions</span>`)}${card(`<strong>${d.points}</strong><span>Recorded points</span>`)}${card(`<strong>${d.minutes}</strong><span>Recorded minutes</span>`)}</div>${card(`<h2>Last 7 days</h2>${trend}`)}${card(`<h2>By room</h2>${byRoom}`)}${card(`<h2>Completion history</h2>${history}${d.wins.length>dataVisible?button('Show 12 more','data-more','','ghost'):''}${d.undated?`<p class="small">${d.undated} record${d.undated===1?'':'s'} without a usable date appear only in All history, not time charts.</p>`:''}${d.archiveCount?`<p class="small">${d.archiveCount} archived completion${d.archiveCount===1?'':'s'} are preserved in summaries but excluded from these dated metrics because individual dates/rooms may not be available.</p>`:''}`)}</section>`;
 }
-function morePage(){return [['manage','Manage home'],['schedule','Schedule preview'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›','navigate',id,'wide ghost'))).join('');}
+function morePage(){return [['manage','Manage home'],['schedule','Schedule maker'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›','navigate',id,'wide ghost'))).join('');}
 const headerBounds={'Tidy-ish.png':[126,425],'cat-trays-header.png':[44,505],'entrance-header.png':[126,448],'living-header(1).png':[29,598],'bathroom-header.png':[109,437],'storage-header.png':[26,609],'bedroom-cat-header.png':[63,529],'bedroom-bigfoot-header.png':[7,641],'3d-printer-header.png':[75,507],'kitchen-header.png':[88,480]};
 function compactHeader(path,label){const key=path.split('/').at(-1),[top,height]=headerBounds[key]||[0,656];return `<svg class="brand-logo" viewBox="0 ${top} 1280 ${height}" role="img" aria-label="${esc(label)}" style="width:${1280/height*44}px"><image href="${asset(path)}" width="1280" height="656"/></svg>`;}
-function render(){const y=window.scrollY;document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule preview',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div>${title?`<h1>${title}</h1>`:''}</header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
+function render(){const y=window.scrollY;document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule maker',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div>${title?`<h1>${title}</h1>`:''}</header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
 // Simplified SVG icons require no image-loading fallback.
 window.scrollTo(0,y);updateClocks();}
 function dialog(title,body,onSave=null,{saveLabel='Save',dirty=false,afterSave=''}={}){if(editor.open)closeDialog(true);dialogSave=onSave;dialogDirty=dirty;editor.innerHTML=`<form id="modal-form"><header>${onSave?'<button type="submit" aria-label="Confirm changes">✓</button>':''}<h2>${esc(title)}</h2>${button('Close','close-dialog','','ghost')}</header><div class="dialog-body">${body}${onSave?`<div class="dialog-footer"><button type="submit">${esc(saveLabel)}</button>${button('Cancel','close-dialog','','ghost')}</div>`:''}${afterSave}</div></form>`;editor.showModal();editor.querySelector('input:not([type=checkbox]),textarea,select')?.focus({preventScroll:true});}
@@ -272,11 +334,32 @@ first();}
 function download(name,text,type='application/json'){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function exportBoard(){const copy=M.clone(board);delete copy.features.browserSync;delete copy.features.householdSync;delete copy.features.connectedHouse;if(board.features.browserSync?.base)copy.sharedSnapshot=M.clone(board.features.browserSync.base);download(`Tidy-ish-HTML-${M.date()}.json`,JSON.stringify(copy,null,2));}
 const actions={
+ 'wizard-start':()=>{wizardDraft=W.defaultDraft(board,M.date());wizardStep=0;wizardWeek=0;render();},
+ 'wizard-current':()=>{wizardDraft=W.defaultDraft(board,M.date(),{starterSelected:false});for(const t of W.candidates(board))if(W.recurring(t))wizardDraft.taskOptions[t.id].selected=true;wizardStep=0;wizardWeek=0;render();},
+ 'wizard-resume':()=>{let data=null;try{data=JSON.parse(localStorage.getItem(WIZARD_KEY)||'null');}catch{}wizardDraft=W.loadDraft(data,board,M.date());wizardStep=0;wizardWeek=0;render();},
+ 'wizard-next':()=>{wizardStep=Math.min(wizardSections().length-1,wizardStep+1);wizardWeek=0;render();},
+ 'wizard-back':()=>{wizardStep=Math.max(0,wizardStep-1);wizardWeek=0;render();},
+ 'wizard-save':()=>{try{localStorage.setItem(WIZARD_KEY,JSON.stringify(wizardDraft));wizardStep=-1;render();notice('Draft saved on this device. Household tasks are unchanged.');}catch(e){notice('Could not save draft locally: '+e.message);}},
+ 'wizard-cancel':()=>{if(confirm('Exit this draft? Unsaved choices in this session will not be saved.')){wizardStep=-1;wizardDraft=null;render();}},
+ 'wizard-week-prev':()=>{wizardWeek=Math.max(0,wizardWeek-1);render()},
+ 'wizard-week-next':()=>{wizardWeek=Math.min(44,wizardWeek+1);render()},
+ 'wizard-select-room':()=>{const section=wizardSections()[wizardStep];if(!section?.room&&section?.id!=='general')return;for(const t of W.suggestions(board,section.room))wizardDraft.taskOptions[t.id].selected=true;render()},
+ 'wizard-clear-room':()=>{const section=wizardSections()[wizardStep];if(!section?.room&&section?.id!=='general')return;for(const t of W.suggestions(board,section.room))wizardDraft.taskOptions[t.id].selected=false;render()},
+ 'wizard-add-custom':()=>{const section=wizardSections()[wizardStep],form=document.querySelector('[data-wizard-custom-form]');if(!section||!form)return;const value=name=>form.querySelector('[data-custom="'+name+'"]')?.value||'';try{W.addCustom(wizardDraft,section.room,{title:value('title'),count:value('count'),unit:value('unit'),minutes:value('minutes'),tools:value('tools')});render();notice('Custom task added to your draft.');}catch(e){notice(e.message);}},
+ 'wizard-remove-custom':el=>{const task=wizardDraft?.customTasks.find(t=>t.id===el.dataset.id);if(task&&confirm('Remove "'+task.title+'" from this schedule draft?')){W.removeCustom(wizardDraft,task.id);render();}},
+
  navigate:el=>navigate(el.dataset.id),room:el=>navigate('room',el.dataset.id),later:()=>notice('This feature will follow later.'),
  'calendar-month-prev':()=>{calendarOffset--;render()},'calendar-month-next':()=>{calendarOffset++;render()},
  'calendar-day':el=>calendarDay(el.dataset.id),
  'skip-date':el=>{const date=el.dataset.date,id=el.dataset.id;if(!id||!date)return;const ok=change(b=>{const t=b.tasks.find(t=>t.id===id);if(t){t.skippedDates=[...new Set([...(t.skippedDates||[]),date])];}});if(ok){closeDialog(true);notice('Skipped only this date; the recurring task and history remain.');}},
  'schedule-prev':()=>{scheduleWeek--;render()},'schedule-next':()=>{scheduleWeek++;render()},
+ 'schedule-rest':el=>{const n=Number(el.dataset.id);if(scheduleRestDays.has(n))scheduleRestDays.delete(n);else scheduleRestDays.add(n);render()},
+ 'schedule-clear-rest':()=>{scheduleRestDays.clear();render()},
+ 'schedule-room-toggle':()=>{scheduleOneRoom=!scheduleOneRoom;render()},
+ 'schedule-pick':el=>{if(scheduleSelected===null)scheduleSelected=new Set(S.makerCandidates(board).map(t=>t.id));const id=el.dataset.id;if(scheduleSelected.has(id))scheduleSelected.delete(id);else scheduleSelected.add(id);render()},
+ 'schedule-pick-all':()=>{scheduleSelected=null;render()},
+ 'schedule-pick-none':()=>{scheduleSelected=new Set();render()},
+ 'schedule-add-task':()=>taskEditor(null,false,'scheduled'),
  'data-period':el=>{dataPeriod=el.dataset.id;dataVisible=12;render()},
  'data-more':()=>{dataVisible+=12;render()},
  extra:()=>dialog('Extra rooms',rooms().filter(r=>!positions[houseKey(r)]).map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')||'<p>No extra rooms</p>'),
@@ -365,46 +448,229 @@ function reorderChild(rootId,from,to,after=false){
   remaining.splice(index+(after?1:0),0,...moving);root.children=remaining;
  });
 }
-let dragged=null,draggedChild=null,touchChildDrag=null;
-function clearChildOver(){document.querySelectorAll('.doing-child.drag-over').forEach(x=>x.classList.remove('drag-over'));}
-function eligibleChildTarget(el,info){const target=el?.closest?.('[data-child-id]');return target&&target.dataset.rootId===info.root&&target.dataset.parentId===info.parent&&target.dataset.childId!==info.child?target:null;}
-document.addEventListener('dragstart',e=>{
- const handle=e.target.closest('.child-grip');
- if(handle){const row=handle.closest('[data-child-id]');draggedChild={root:row.dataset.rootId,child:row.dataset.childId,parent:row.dataset.parentId};dragged=null;e.stopPropagation();e.dataTransfer?.setData('text/plain',row.dataset.childId);if(e.dataTransfer)e.dataTransfer.effectAllowed='move';return;}
- if(e.target.closest('.doing-child')){e.preventDefault();return;}
- const card=e.target.closest('[data-task-id]');if(card){dragged=card.dataset.taskId;e.dataTransfer?.setData('text/plain',dragged);if(e.dataTransfer)e.dataTransfer.effectAllowed='move';}
-});
-document.addEventListener('dragover',e=>{
- if(draggedChild){const hit=eligibleChildTarget(e.target,draggedChild);if(hit){e.preventDefault();clearChildOver();hit.classList.add('drag-over');}return;}
- if(dragged&&e.target.closest('[data-task-id]'))e.preventDefault();
-});
-document.addEventListener('drop',e=>{
- if(draggedChild){const hit=eligibleChildTarget(e.target,draggedChild),info=draggedChild;draggedChild=null;clearChildOver();if(hit){e.preventDefault();e.stopPropagation();reorderChild(info.root,info.child,hit.dataset.childId);}return;}
- const target=e.target.closest('[data-task-id]');if(!dragged||!target)return;
- e.preventDefault();const to=target.dataset.taskId,from=dragged;dragged=null;const a=task(from),b=task(to);
- if(a&&b&&a.room===b.room&&a.side===b.side&&!a.done&&!b.done)change(b=>M.move(b,from,to,route==='doing'&&doingTab==='doing'));
- else notice('Move tasks within the same room and task section.');
-});
-document.addEventListener('dragend',()=>{dragged=null;draggedChild=null;clearChildOver()});
-// Native HTML drag is unreliable on touch browsers: pointer events on the grip supply it.
+// Stage 10G: subtasks can be moved between siblings OR lifted back to a root task.
+// A subtask's ID and all of its descendants survive. No changes to wins/history.
+function liftChildToRoot(b,rootId,childId,targetId,after,view){
+ const root=b.tasks.find(t=>t.id===rootId),target=b.tasks.find(t=>t.id===targetId);
+ const child=root?.children?.find(c=>c.id===childId);
+ if(!root||!target||!child||child.done||root.done||root.paused||target.done||target.paused||M.repeat(root)||M.repeat(target))throw Error('Only active, non-recurring subtasks can be moved out.');
+ if(targetId!==rootId&&!D.canMove(b,rootId,targetId,view))throw Error('Keep subtasks in their current room and section.');
+ const family=new Set([childId]);
+ for(let i=0;i<root.children.length;i++)for(const c of root.children)if(family.has(c.parentId))family.add(c.id);
+ const branch=root.children.filter(c=>family.has(c.id));
+ const descendants=branch.filter(c=>c.id!==childId).map(c=>({...c,parentId:c.parentId===childId?'':c.parentId}));
+ const promoted=M.task({...child,id:child.id,room:root.room,side:root.side,sideKind:root.sideKind,
+  attention:root.attention,doing:root.doing,children:descendants,wasParent:descendants.length>0,
+  repeatDays:0,repeatMonths:0,repeatWeekdays:[],repeatRestDays:[],nextDue:'',dueDate:'',paused:false});
+ // Reject an ID collision before writing any part of the draft board.
+ if(b.tasks.some(t=>t.id===promoted.id))throw Error('This subtask already exists as a task. Nothing moved.');
+ const anchor=b.tasks.indexOf(target),insert=anchor+(after?1:0);
+ if(anchor<0)throw Error('Destination no longer exists.');
+ root.children=root.children.filter(c=>!family.has(c.id));
+ root.wasParent=true;
+ b.tasks.splice(insert,0,promoted);
+ if(promoted.doing){
+  b.doingOrder=b.doingOrder.filter(id=>id!==promoted.id);
+  const prefer=b.doingOrder.indexOf(targetId),fallback=b.doingOrder.indexOf(rootId);
+  const at=prefer>=0?prefer:fallback;
+  b.doingOrder.splice(at<0?b.doingOrder.length:at+(after?1:0),0,promoted.id);
+ }
+ return promoted.id;
+}
+let childGesture=null,childHover=null,childPendingTimer=0;
+function clearChildOver(){document.querySelectorAll('.child.drag-over').forEach(x=>x.classList.remove('drag-over'));}
+function resetChildGesture(){
+ clearTimeout(childPendingTimer);childPendingTimer=0;
+ const g=childGesture;childGesture=null;
+ g?.ghost?.remove();g?.row?.classList.remove('child-lifted');
+ if(g?.armed)document.body.classList.remove('task-dragging');
+ childHover=null;clearChildOver();hideRootInsertionLine();
+}
+function childTargetAt(g,x,y){
+ const underneath=document.elementFromPoint(x,y);
+ const row=underneath?.closest?.('[data-child-id]');
+ if(row&&row.dataset.rootId===g.root&&row.dataset.parentId===g.parent&&row.dataset.childId!==g.child){
+  return {kind:'sibling',id:row.dataset.childId};
+ }
+ // Only the edge of a card or the actual gap can lift a subtask to top-level.
+ // Do not accidentally promote when dragging across sibling rows or task buttons.
+ const cards=[...document.querySelectorAll('.task[data-task-id]')].filter(card=>{
+  const id=card.dataset.taskId,rect=card.getBoundingClientRect();
+  if(rect.width<=0||rect.height<=0)return false;
+  return (id===g.root||D.canMove(board,g.root,id,g.view))&&board.tasks.some(t=>t.id===id&&!t.done&&!t.paused&&!M.repeat(t));
+ });
+ const near=cards.map(card=>{
+  const rect=card.getBoundingClientRect(),distance=Math.max(0,rect.top-y,y-rect.bottom);
+  return {card,rect,distance};
+ }).filter(o=>x>=o.rect.left-24&&x<=o.rect.right+24&&o.distance<=64)
+ .sort((a,b)=>a.distance-b.distance)[0];
+ if(!near)return null;
+ const {card,rect}=near,edge=Math.min(26,rect.height*.2);
+ if(y>rect.top+edge&&y<rect.bottom-edge)return null;
+ return {kind:'root',id:card.dataset.taskId,after:y>=(rect.top+rect.bottom)/2,card};
+}
+function moveChildPreview(g,x,y){
+ const next=childTargetAt(g,x,y);childHover=next;
+ clearChildOver();hideRootInsertionLine();
+ if(next?.kind==='sibling')document.querySelector(`[data-child-id="${CSS.escape(next.id)}"]`)?.classList.add('drag-over');
+ if(next?.kind==='root')setRootInsertionLine(next.card,next.after?'after':'before');
+ if(g.ghost){g.ghost.style.left=Math.max(8,Math.min(innerWidth-200,x+12))+'px';g.ghost.style.top=Math.max(5,Math.min(innerHeight-45,y-32))+'px';}
+}
+function armChildDrag(g){
+ if(childGesture!==g||g.armed)return;
+ g.armed=true;g.row.classList.add('child-lifted');document.body.classList.add('task-dragging');
+ g.ghost=document.createElement('div');g.ghost.className='task-drag-ghost';g.ghost.textContent=g.title;
+ document.body.appendChild(g.ghost);moveChildPreview(g,g.x,g.y);
+}
+document.addEventListener('dragstart',e=>{if(e.target.closest('.child,.child-grip,.task'))e.preventDefault();});
 document.addEventListener('pointerdown',e=>{
- if(e.pointerType==='mouse')return;
- const handle=e.target.closest('.child-grip');if(!handle)return;
- const row=handle.closest('[data-child-id]');if(!row)return;
- e.preventDefault();touchChildDrag={pointer:e.pointerId,root:row.dataset.rootId,child:row.dataset.childId,parent:row.dataset.parentId,fromX:e.clientX,fromY:e.clientY,over:null};
- handle.setPointerCapture?.(e.pointerId);
-});
+ if(!rootDragPage()||editor.open||childGesture||e.button>0)return;
+ const row=e.target.closest('[data-child-id]');if(!row)return;
+ const grip=Boolean(e.target.closest('.child-grip'));
+ if(!grip&&e.target.closest('button,a,input,textarea,select,details,summary,[contenteditable]'))return;
+ const root=task(row.dataset.rootId),child=root?.children.find(c=>c.id===row.dataset.childId);
+ if(!root||!child||root.done||child.done||root.paused||M.repeat(root))return;
+ const g={pointer:e.pointerId,row,root:root.id,child:child.id,parent:child.parentId||'',title:child.title,view:rootDragView(),x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,armed:false,ghost:null};
+ childGesture=g;
+ if(grip){e.preventDefault();armChildDrag(g);row.setPointerCapture?.(e.pointerId);}
+ else childPendingTimer=setTimeout(()=>armChildDrag(g),430);
+},true);
 document.addEventListener('pointermove',e=>{
- const move=touchChildDrag;if(!move||move.pointer!==e.pointerId)return;
- if(Math.hypot(e.clientX-move.fromX,e.clientY-move.fromY)<6)return;
- const hit=eligibleChildTarget(document.elementFromPoint(e.clientX,e.clientY),move);
- clearChildOver();if(hit){hit.classList.add('drag-over');move.over=hit.dataset.childId;}else move.over=null;
-});
+ const g=childGesture;if(!g||g.pointer!==e.pointerId)return;
+ g.x=e.clientX;g.y=e.clientY;
+ if(!g.armed){if(Math.hypot(g.x-g.startX,g.y-g.startY)>11)resetChildGesture();return;}
+ if(e.cancelable)e.preventDefault();moveChildPreview(g,g.x,g.y);
+},{passive:false});
+document.addEventListener('touchmove',e=>{if(childGesture?.armed&&e.cancelable)e.preventDefault();},{passive:false});
 document.addEventListener('pointerup',e=>{
- const move=touchChildDrag;if(!move||move.pointer!==e.pointerId)return;
- touchChildDrag=null;clearChildOver();if(move.over)reorderChild(move.root,move.child,move.over);
+ const g=childGesture;if(!g||g.pointer!==e.pointerId)return;
+ const destination=g.armed&&childHover?{...childHover}:null;
+ if(g.armed)suppressDragClickUntil=Date.now()+550;
+ resetChildGesture();
+ if(!destination)return;
+ if(destination.kind==='sibling')reorderChild(g.root,g.child,destination.id);
+ else if(destination.kind==='root'){
+  if(change(b=>liftChildToRoot(b,g.root,g.child,destination.id,destination.after,g.view))){notice('Subtask moved back to main tasks.');openTasks.add(g.root);}
+ }
 });
-document.addEventListener('pointercancel',()=>{touchChildDrag=null;clearChildOver()});
+document.addEventListener('pointercancel',e=>{if(childGesture?.pointer===e.pointerId)resetChildGesture();});
+// STAGE 10B · Long-press card movement (mouse, touch, pen).
+// Arming after a hold allows ordinary taps and vertical page scrolling to remain normal.
+let rootGesture=null,rootDrop=null,rootHoverTimer=0,rootScrollTimer=0,suppressDragClickUntil=0,rootInsertionLine=null;
+// The insertion line lives on document.body, not inside a clipped task card.
+// It therefore remains visible above the first item and in the gaps between cards.
+function setRootInsertionLine(card,where){
+ if(!rootInsertionLine){rootInsertionLine=document.createElement('div');rootInsertionLine.className='tidy-task-insertion-line';rootInsertionLine.setAttribute('aria-hidden','true');document.body.appendChild(rootInsertionLine);}
+ const rect=card.getBoundingClientRect(),y=where==='before'?rect.top:rect.bottom;
+ rootInsertionLine.style.left=Math.max(5,rect.left+4)+'px';
+ rootInsertionLine.style.width=Math.max(20,rect.width-8)+'px';
+ rootInsertionLine.style.top=y+'px';
+ rootInsertionLine.hidden=false;
+}
+function hideRootInsertionLine(){if(rootInsertionLine)rootInsertionLine.hidden=true;}
+const rootDragView=()=>route==='doing'?(doingTab==='attention'?'attention':'doing'):'room';
+const rootDragPage=()=>route==='room'&&['tasks','side'].includes(tab)||route==='doing'&&['doing','attention'].includes(doingTab)||route==='side';
+function clearRootDrop(){
+ document.querySelectorAll('.task.drop-before,.task.drop-after,.task.drop-nest,.task.drop-hover').forEach(x=>x.classList.remove('drop-before','drop-after','drop-nest','drop-hover'));
+ hideRootInsertionLine();rootDrop=null;clearTimeout(rootHoverTimer);rootHoverTimer=0;
+}
+function resetRootGesture(){
+ const g=rootGesture;rootGesture=null;clearTimeout(g?.holdTimer);clearInterval(rootScrollTimer);rootScrollTimer=0;
+ g?.card?.classList.remove('drag-lifted');g?.ghost?.remove();document.body.classList.remove('task-dragging');clearRootDrop();
+}
+function offerRootNesting(from,to,view){
+ const target=task(to);
+ if(D.isParent(target)){
+  if(change(b=>D.nest(b,from,to,'',view,data=>M.task(data)))){openTasks.add(to);notice('Task added as a subtask.');}
+  return;
+ }
+ const item=task(from);
+ dialog('Group tasks',`<p class="small">Move <strong>${esc(item?.title)}</strong> onto <strong>${esc(target?.title)}</strong>.</p>${field('Parent name (optional)','parentName','','text','maxlength="500" placeholder="Leave blank to keep the target task as parent"')}<p class="small">A name makes a new parent containing both tasks. A blank name keeps ${esc(target?.title)} as parent. Cancel changes nothing.</p>`,fd=>{
+  const name=String(fd.get('parentName')||'').trim();
+  if(change(b=>D.nest(b,from,to,name,view,data=>M.task(data)))){closeDialog(true);notice('Tasks grouped.');}
+ },{saveLabel:'Group tasks'});
+}
+function indicateRootDrop(x,y){
+ const g=rootGesture;if(!g?.armed)return;
+ const under=document.elementFromPoint(x,y)?.closest?.('.task[data-task-id]');
+ // Moving within the dragged card itself is not a drop target.
+ if(under?.dataset.taskId===g.id){clearRootDrop();return;}
+ const cards=[...document.querySelectorAll('.task[data-task-id]')].filter(card=>{
+  const id=card.dataset.taskId,rect=card.getBoundingClientRect();
+  return id!==g.id&&rect.width>0&&rect.height>0&&D.canMove(board,g.id,id,g.view);
+ });
+ let hit=under&&cards.includes(under)?under:null;
+ if(!hit){
+  // elementFromPoint returns the page/background in a gap. Resolve that space
+  // to the nearest *eligible* task instead of discarding the drop.
+  const nearby=cards.map(card=>{
+   const rect=card.getBoundingClientRect();
+   const distance=Math.max(0,rect.top-y,y-rect.bottom);
+   const withinX=x>=rect.left-24&&x<=rect.right+24;
+   return {card,distance,withinX};
+  }).filter(item=>item.withinX&&item.distance<=64).sort((a,b)=>a.distance-b.distance);
+  hit=nearby[0]?.card||null;
+ }
+ if(!hit){clearRootDrop();return;}
+ const target=hit.dataset.taskId,rect=hit.getBoundingClientRect();
+ const ratio=(y-rect.top)/Math.max(1,rect.height);
+ const middle=y>=rect.top&&y<=rect.bottom&&ratio>.28&&ratio<.72;
+ const candidate=middle?'nest':'insert',kind=y<=rect.top||ratio<.5?'before':'after';
+ if(!rootDrop||rootDrop.id!==target||rootDrop.candidate!==candidate){
+  clearRootDrop();rootDrop={id:target,candidate,kind,since:Date.now()};
+  if(middle)rootHoverTimer=setTimeout(()=>{
+   if(!rootGesture?.armed||rootDrop?.id!==target||rootDrop.candidate!=='nest')return;
+   rootDrop.kind='nest';hideRootInsertionLine();
+   hit.classList.remove('drop-before','drop-after','drop-hover');hit.classList.add('drop-nest');
+  },480);
+ }
+ if(rootDrop.kind==='nest'){
+  hideRootInsertionLine();hit.classList.add('drop-nest');
+ }else{
+  rootDrop.kind=kind;
+  hit.classList.remove('drop-before','drop-after','drop-hover','drop-nest');
+  hit.classList.add(kind==='before'?'drop-before':'drop-after');
+  setRootInsertionLine(hit,kind);
+ }
+}
+function moveRootGhost(g){if(!g?.ghost)return;g.ghost.style.left=Math.max(8,Math.min(window.innerWidth-200,g.x+12))+'px';g.ghost.style.top=Math.max(5,Math.min(window.innerHeight-45,g.y-32))+'px';}
+function rootAutoscroll(){
+ const g=rootGesture;if(!g?.armed)return;
+ const edge=65,height=window.innerHeight||document.documentElement.clientHeight;
+ const direction=g.y<edge?-1:g.y>height-edge?1:0;
+ if(direction){window.scrollBy(0,direction*14);indicateRootDrop(g.x,g.y);}
+}
+document.addEventListener('pointerdown',e=>{
+ if(!rootDragPage()||editor.open||rootGesture||e.button>0||e.target.closest('.child,.child-grip,input,textarea,select,a,[contenteditable],details'))return;
+ const card=e.target.closest('.task[data-task-id]');if(!card)return;
+ const el=e.target.closest('button');if(el&&el.dataset.action!=='expand')return;
+ const id=card.dataset.taskId,t=task(id);if(!t||t.done||M.repeat(t)||t.paused)return;
+ const g={pointer:e.pointerId,id,view:rootDragView(),card,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,armed:false,holdTimer:null};
+ g.holdTimer=setTimeout(()=>{if(rootGesture!==g)return;g.armed=true;card.classList.add('drag-lifted');document.body.classList.add('task-dragging');
+  g.ghost=document.createElement('div');g.ghost.className='task-drag-ghost';g.ghost.textContent=t.title;document.body.appendChild(g.ghost);moveRootGhost(g);
+  rootScrollTimer=setInterval(rootAutoscroll,65);},430);
+ rootGesture=g;
+},true);
+document.addEventListener('pointermove',e=>{
+ const g=rootGesture;if(!g||g.pointer!==e.pointerId)return;
+ g.x=e.clientX;g.y=e.clientY;
+ if(!g.armed){if(Math.hypot(g.x-g.startX,g.y-g.startY)>11)resetRootGesture();return;}
+ if(e.cancelable)e.preventDefault();moveRootGhost(g);indicateRootDrop(g.x,g.y);
+},{passive:false});
+// Touch scrolling must be prevented only *after* the hold has armed the drag.
+document.addEventListener('touchmove',e=>{if(rootGesture?.armed&&e.cancelable)e.preventDefault();},{passive:false});
+document.addEventListener('pointerup',e=>{
+ const g=rootGesture;if(!g||g.pointer!==e.pointerId)return;
+ const done=g.armed&&rootDrop?{...rootDrop}:null;
+ if(g.armed)suppressDragClickUntil=Date.now()+550;
+ resetRootGesture();
+ if(!done||done.id===g.id)return;
+ if(done.kind==='nest')offerRootNesting(g.id,done.id,g.view);
+ else if(change(b=>D.reorder(b,g.id,done.id,done.kind==='after',g.view)))notice('Task order saved.');
+});
+document.addEventListener('pointercancel',e=>{if(rootGesture?.pointer===e.pointerId)resetRootGesture();});
+document.addEventListener('click',e=>{if(Date.now()<suppressDragClickUntil&&e.target.closest('.task')){e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
+// End Stage 10B.
 // Accessible alternative without extra visible options on subtasks.
 document.addEventListener('keydown',e=>{
  const grip=e.target.closest?.('.child-grip');if(!grip||!e.altKey||!['ArrowUp','ArrowDown'].includes(e.key))return;
@@ -412,7 +678,24 @@ document.addEventListener('keydown',e=>{
  const idx=siblings.indexOf(row),next=siblings[idx+(e.key==='ArrowUp'?-1:1)];if(!next)return;
  e.preventDefault();reorderChild(row.dataset.rootId,row.dataset.childId,next.dataset.childId,e.key==='ArrowDown');
 });
+document.addEventListener('change',e=>{
+ const el=e.target,kind=el.dataset?.makerField;if(!kind||!wizardDraft||wizardStep<0)return;
+ const d=wizardDraft,opt=d.taskOptions?.[el.dataset.id];
+ if(kind==='task-selected'&&opt)opt.selected=el.checked;
+ else if(kind==='task-title'&&opt){if(!W.renameCustom(wizardDraft,el.dataset.id,el.value)){notice('Enter a task name of up to 180 characters.');render();}}
+ else if(kind==='task-count'&&opt){const n=Number(el.value);if(Number.isInteger(n)&&n>=1&&n<=3650)opt.count=n;else{notice('Use a repeat interval between 1 and 3650.');el.value=opt.count;}}
+ else if(kind==='task-unit'&&opt&&['days','weeks','months'].includes(el.value))opt.unit=el.value;
+ else if(kind==='task-minutes'&&opt){const n=Number(el.value);if(Number.isFinite(n)&&n>=0&&n<=100000){opt.minutes=n;opt.timeEdited=true;}else{notice('Enter a valid time estimate.');el.value=opt.minutes;}}
+ else if(kind==='task-tools'&&opt)opt.tools=el.value.slice(0,1000);
+ else if(kind==='start-date'){if(S.parseDay(el.value))d.from=el.value;else{notice('Choose a valid start date.');el.value=d.from;}}
+ else if(kind==='one-room')d.oneRoomPerDay=el.checked;
+ else if(kind==='rest-day'){const n=Number(el.dataset.day);d.restDays=[...new Set([...d.restDays.filter(x=>x!==n),...(el.checked?[n]:[])])];}
+ else if(kind==='maker-minutes'){const n=Number(el.value);if(Number.isFinite(n)&&n>=0&&n<=1440)d.makerMinutes=n;else{notice('Planning capacity must be 0 to 1440 minutes.');el.value=d.makerMinutes;}}
+ else if(kind==='preset-multiplier'&&[1,2,3].includes(Number(el.value)))d.presetMultiplier=Number(el.value);
+ if(kind==='task-selected')render();
+});
 document.addEventListener('change',e=>{if(e.target.id==='data-room-filter'){dataRoom=e.target.value;dataVisible=12;render();}});
+document.addEventListener('change',e=>{if(e.target.id!=='schedule-preview-minutes')return;const raw=e.target.value.trim();if(raw!==''&&(!/^\d+$/.test(raw)||Number(raw)<1||Number(raw)>1440)){notice('Choose 1–1440 planning minutes or leave blank for no limit.');e.target.value=schedulePreviewMinutes;return;}schedulePreviewMinutes=raw;render();});
 document.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file||!['backup-file','csv-file'].includes(e.target.id))return;try{if(file.size>15*1024*1024)throw Error('Choose a backup smaller than 15 MB.');const text=await file.text();if(e.target.id==='backup-file'){if(!B)throw Error('Backup safety checker unavailable. Nothing was imported.');const preview=B.prepare(board,text,M);confirmDialog('Preview backup import',B.describe(preview.summary),()=>change(b=>Object.assign(b,B.apply(b,preview,M))),'Import and merge');}else{const rows=parseCSV(text),header=rows.shift()||[];if(!header.includes('title')||!header.includes('room'))throw Error('CSV needs title and room columns.');const added=rows.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]||'']))).map(r=>{const found=board.rooms.find(x=>x.id===r.room||x.name.toLowerCase()===r.room.toLowerCase());if(r.room&&!found)throw Error('Unknown room: '+r.room);if(!r.title.trim())throw Error('Every task needs a title.');if(r.sidequest&&!['true','false'].includes(r.sidequest.toLowerCase()))throw Error('sidequest must be true or false.');return M.task({title:r.title.trim(),room:found?.id||'',side:r.sidequest.toLowerCase()==='true',tools:r.tools||'',notes:r.notes||''})}).filter(t=>!board.tasks.some(x=>x.title===t.title&&x.room===t.room));confirmDialog('Preview task upload',`${added.length} new tasks. Existing tasks are kept and matching title/room pairs are skipped.`,()=>change(b=>added.reverse().forEach(t=>M.add(b,t))),'Add these tasks');}}catch(err){notice(err.message)}finally{e.target.value=''}});
 function parseCSV(text){const rows=[];let row=[],value='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){value+='"';i++}else quoted=!quoted;}else if(c===','&&!quoted){row.push(value);value='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);rows.push(row);row=[];value='';}else value+=c;}if(quoted)throw Error('CSV contains an unclosed quote.');if(value||row.length){row.push(value);rows.push(row)}return rows;}
 window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue||e.newValue===lastSaved)return;try{const incoming=M.normalize(JSON.parse(e.newValue));if(editor.open){pendingExternal=incoming;notice('Another tab saved changes. Your open form is kept; close and reopen it before saving.');}else{lastSaved=e.newValue;board=incoming;render();}}catch{notice('Another tab supplied invalid data. The open board has been preserved.')}});

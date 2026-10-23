@@ -331,3 +331,137 @@ body{letter-spacing:.01em}
 .task-data-page .bar-row>span {overflow-wrap:anywhere}
 .task-data-page .bar-track .bar {flex:none}
 .task-data-page .data-completion span {overflow-wrap:anywhere}
+
+/* Stage 10A | Scheduling preview. No changes to existing task-card, calendar or fonts. */
+.schedule-maker-preview .schedule-preview-controls {display:grid;gap:8px;margin-top:10px}
+.schedule-maker-preview .schedule-weekdays {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.schedule-maker-preview .schedule-weekdays button {min-width:0;padding:9px 2px;font-size:clamp(.68rem,2.5vw,.84rem);min-height:40px}
+.schedule-maker-preview button.active {background:var(--twilight);border-color:var(--gold);color:#fff}
+.schedule-maker-preview .schedule-setting {margin-top:5px;gap:8px}
+.schedule-maker-preview .schedule-setting span {font-weight:600}
+.schedule-maker-preview .schedule-setting button {min-width:62px}
+.schedule-maker-preview .schedule-choices {display:grid;gap:5px}
+.schedule-maker-preview .schedule-choices button {text-align:left;white-space:normal;overflow-wrap:anywhere}
+.schedule-maker-preview .schedule-choices .row {gap:6px}
+.schedule-maker-preview .schedule-choices button span {font-weight:400;margin-left:6px}
+.schedule-maker-preview .schedule-week-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
+.schedule-maker-preview .schedule-day {border:1px solid var(--plum);border-radius:10px;background:var(--bg);min-width:0;padding:6px 5px;min-height:100px}
+.schedule-maker-preview .schedule-day header {display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.schedule-maker-preview .schedule-day header strong {font-size:.76rem;white-space:normal}
+.schedule-maker-preview .schedule-day header small {font-size:.7rem;color:var(--gold)}
+.schedule-maker-preview .schedule-item {padding:5px 0;margin-top:5px;border-top:1px solid var(--plum);overflow-wrap:anywhere}
+.schedule-maker-preview .schedule-item strong {display:block;font-size:.76rem}
+.schedule-maker-preview .schedule-item span,.schedule-maker-preview .schedule-quiet {display:block;font-size:.68rem;line-height:1.3}
+.schedule-maker-preview .schedule-rest-day {background:color-mix(in srgb,var(--twilight),var(--bg) 55%)}
+@media(max-width:640px){
+ .schedule-maker-preview .schedule-week-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .schedule-maker-preview .schedule-day {min-height:80px;padding:9px}
+ .schedule-maker-preview .schedule-day header {flex-direction:row;justify-content:space-between;flex-wrap:wrap}
+ .schedule-maker-preview .schedule-day header strong {font-size:.85rem}
+ .schedule-maker-preview .schedule-item strong {font-size:.84rem}
+}
+@media(max-width:360px){.schedule-maker-preview .schedule-weekdays button {font-size:.64rem}}
+
+/* Stage 10B · Position-colour task cards and hold-to-drag previews. */
+.task.position-colour-0{--pos-card-bg:#473357;--pos-card-border:#9c7ab0}
+.task.position-colour-1{--pos-card-bg:#2c5159;--pos-card-border:#6faab0}
+.task.position-colour-2{--pos-card-bg:#343c64;--pos-card-border:#8999d1}
+.task.position-colour-3{--pos-card-bg:#633b55;--pos-card-border:#d38da8}
+.task.position-colour-4{--pos-card-bg:#31564e;--pos-card-border:#83b9a1}
+.task.position-colour-5{--pos-card-bg:#51466e;--pos-card-border:#b7a3d5}
+.task[class*="position-colour-"]{background:var(--pos-card-bg);border-color:var(--pos-card-border);position:relative;touch-action:pan-y}
+.task[class*="position-colour-"] .task-title,.task[class*="position-colour-"] .doing-task-title{color:#f7f4fc;font-weight:700}
+.task[class*="position-colour-"] .child{border-left-color:var(--pos-card-border)}
+.task.drop-before::before,.task.drop-after::after{content:"";position:absolute;left:4px;right:4px;height:5px;background:#ffe29a;border-radius:5px;box-shadow:0 0 0 2px #261535;z-index:20;pointer-events:none}
+.task.drop-before::before{top:-8px}.task.drop-after::after{bottom:-8px}
+.task.drop-hover{outline:1px dashed #ffe29a;outline-offset:2px}
+.task.drop-nest{outline:3px solid #f7cd85;outline-offset:1px;box-shadow:inset 0 0 0 3px #b084c0}
+.task.drop-nest::before{content:"↳ Add as subtask";display:block;position:absolute;top:5px;right:5px;padding:2px 6px;background:#2c2439;color:#ffeaaf;font-size:.75rem;border-radius:7px;z-index:10}
+.task.drag-lifted{z-index:30;transform:scale(1.015);box-shadow:0 0 0 2px #ffe29a,0 6px 22px #0008;animation:tidy-drag-shake .23s linear infinite alternate}
+@keyframes tidy-drag-shake{from{rotate:-.65deg}to{rotate:.65deg}}
+body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select:none}
+@media(prefers-reduced-motion:reduce){.task.drag-lifted{animation:none}}
+
+.task-drag-ghost{position:fixed;z-index:10010;min-width:140px;max-width:200px;pointer-events:none;padding:10px 14px;background:#3b3156;color:#fff;border:2px solid #ffe29a;border-radius:13px;box-shadow:0 8px 20px #0008;font-weight:700;transform:rotate(-1deg);white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+
+/* Stage 10C · Guided draft-only Schedule Maker. Compact mobile-first calendar. */
+.schedule-wizard,.wizard-home{padding-bottom:9px}
+.wizard-home .wizard-actions{display:grid;gap:8px}
+.wizard-home .wizard-actions button{width:100%}
+.wizard-progress{display:flex;align-items:center;gap:9px;margin:8px 0 14px;font-size:.84rem;color:#d8d7ef}
+.wizard-progress>div{flex:1;height:7px;background:#4c3d5a;border-radius:9px;overflow:hidden}
+.wizard-progress>div::after{content:"";display:block;width:var(--wizard-progress);height:100%;background:linear-gradient(90deg,#8bc9bd,#d19fcf);border-radius:9px}
+.schedule-wizard .card>h2{font-size:1.14rem;margin:4px 0 12px}
+.wizard-task{background:#3b2e4a;border:1px solid #746084;border-radius:12px;margin:8px 0;padding:7px 9px}
+.wizard-task-select{display:flex;align-items:center;gap:9px;min-height:44px}
+.wizard-task-select strong{display:block;font-size:.88rem;color:#f4edff}
+.wizard-task-select small{display:block;color:#b9d5df;font-size:.72rem;margin-top:2px}
+.wizard-task-settings{background:#2b2038;border-radius:9px;padding:2px 8px;margin-top:5px}
+.wizard-task-settings summary{font-size:.76rem;color:#e5c7df;min-height:32px}
+.wizard-task-settings .columns{gap:7px}
+.wizard-task-settings label.field{font-size:.75rem}
+.wizard-settings fieldset{border:1px solid #66587b;border-radius:12px;padding:7px 9px;margin:12px 0}
+.wizard-settings legend{padding:0 5px;font-size:.86rem}
+.wizard-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.wizard-day{display:flex;flex-direction:column;align-items:center;font-size:.75rem;gap:4px;padding:4px 0}
+.wizard-day input{margin:0;width:18px;height:18px}
+.wizard-settings .check{min-height:40px}
+.wizard-footer{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:17px;border-top:1px solid #66587b;padding-top:12px}
+.wizard-footer button{font-size:.78rem;min-height:39px;padding:6px 10px}
+.wizard-calendar{border:1px solid #5c4776;background:#1b112a;border-radius:13px;padding:6px;margin:10px 0}
+.wizard-calendar-weekdays,.wizard-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.wizard-calendar-weekdays{margin-bottom:5px}
+.wizard-calendar-weekdays span{text-align:center;font-size:clamp(.55rem,1.9vw,.75rem);color:#e1d4f2}
+.wizard-calendar-date{min-width:0;min-height:88px;padding:4px 2px;border-radius:8px;background:#302447;display:flex;flex-direction:column;align-items:center;gap:4px;overflow:hidden;border:1px solid #665180}
+.wizard-calendar-date:nth-child(7n+1){border-left-color:#c8a4d9}
+.wizard-calendar-date:nth-child(7n+3){border-left-color:#8ac6c5}
+.wizard-calendar-date:nth-child(7n+5){border-left-color:#e5c580}
+.wizard-calendar-date>strong{font-size:.71rem;color:#fff}
+.wizard-calendar-date small{font-size:clamp(.48rem,1.65vw,.65rem);line-height:1.1;max-width:100%;overflow-wrap:anywhere;text-align:center;color:#e8dff0}
+.wizard-calendar-date.rest{background:#243c3d;border-color:#5a8c82}
+.wizard-calendar-date.rest small{color:#b7e1cf}
+.wizard-calendar-date .wizard-leaf{font-size:1.1rem;color:#9ac89c}
+.wizard-count{display:block;border-radius:12px;min-width:20px;text-align:center;font-size:.7rem;padding:2px 4px;background:#744b93;color:#fff}
+.wizard-review-stats{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:#c7dbe5}
+.wizard-review-list{display:grid;gap:5px}
+.wizard-review-list>div{border:1px solid #57456f;border-radius:8px;padding:7px;font-size:.8rem}
+.wizard-review-list small{font-size:.7rem;color:#c0d4dc;display:block}
+@media(max-width:360px){.wizard-calendar-date{min-height:70px}.wizard-calendar-date small.wizard-occurrence:nth-of-type(n+2){display:none}}
+
+/* Stage 10D | Editable schedule suggestions and custom task draft */
+.wizard-section-head {gap:8px;margin-top:14px;flex-wrap:wrap}
+.wizard-section-head h3,.wizard-custom-section h3{margin:0;font-size:1rem}
+.wizard-quick-actions {display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.wizard-quick-actions button {font-size:.78rem;min-height:38px}
+.wizard-tasks .wizard-task {margin:5px 0}
+.wizard-tasks .wizard-selected {border-color:#9ec6ba}
+.wizard-more {border:1px solid #615171;border-radius:11px;margin:10px 0;padding:7px}
+.wizard-more summary,.wizard-add-custom summary {cursor:pointer;min-height:40px;display:flex;align-items:center;font-weight:600}
+.wizard-custom-section {border-top:1px solid #66587b;margin-top:18px;padding-top:14px}
+.wizard-add-custom {border:1px solid #93bca9;background:#302841;border-radius:12px;padding:7px 11px;margin:10px 0}
+.wizard-add-custom summary {color:#bce5d2}
+.wizard-custom-fields {display:grid;gap:9px;padding:8px 0 12px}
+.wizard-custom-fields .columns {gap:8px}
+.wizard-custom-fields button {justify-self:start}
+.wizard-task-actions {display:flex;justify-content:flex-end;margin-top:4px}
+.wizard-task-actions button {font-size:.75rem;min-height:35px}
+.wizard-task-select span {min-width:0;overflow-wrap:anywhere}
+
+/* Stage 10F: visible insertion slot, outside task overflow and including list edges. */
+.tidy-task-insertion-line{position:fixed;pointer-events:none;z-index:10020;height:5px;box-sizing:border-box;border-radius:99px;background:#ffe291;box-shadow:0 0 0 2px #24162f,0 0 15px 3px #fbd77a;transform:translateY(-50%);}
+.tidy-task-insertion-line::before,.tidy-task-insertion-line::after{content:"";position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;background:#ffe291;border:2px solid #24162f;box-sizing:border-box}
+.tidy-task-insertion-line::before{left:-6px}.tidy-task-insertion-line::after{right:-6px}
+.tidy-task-insertion-line[hidden]{display:none!important}
+/* Supersede clipped pseudo-insertion lines from Stage 10B. The fixed line is authoritative. */
+.task.drop-before::before{content:none!important}
+.task.drop-after::after{content:none!important}
+
+/* Stage 10G: restore textured, position-coloured gradients instead of solid task cards.
+   Colour is derived from the current list position, not saved on the task. */
+.task[class*="position-colour-"]{background:radial-gradient(circle at 95% -12%,#ffffff20,transparent 38%),linear-gradient(126deg,var(--pos-card-bg) 0%,color-mix(in srgb,var(--pos-card-bg),#242238 55%) 72%,#292238 100%);border-color:var(--pos-card-border)}
+.doing-board .doing-task[class*="position-colour-"]{background:radial-gradient(circle at 95% -10%,#f5e4fb22,transparent 40%),linear-gradient(125deg,var(--pos-card-bg) 0%,color-mix(in srgb,var(--pos-card-bg),#242238 48%) 65%,#292238 100%)}
+.child .child-grip{touch-action:none;cursor:grab;flex:0 0 auto}
+.child.child-lifted{outline:2px dashed #ffe291;outline-offset:1px;background:linear-gradient(120deg,#5a3c6244,#38446633)}
+.child.drag-over{outline:2px solid #f8c662;outline-offset:2px;border-radius:8px}
+.room-child .child-grip{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:30px;padding:0 4px;font-size:1.1rem;background:transparent;border:1px solid #89b7c27a;color:#f7e5ad;border-radius:8px}
+/* The Stage 10F body-level golden insertion line remains the only root insertion marker. */

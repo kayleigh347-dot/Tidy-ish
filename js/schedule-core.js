@@ -113,5 +113,18 @@
     return {days:[...byDay].sort(([a],[b])=>a.localeCompare(b)).map(([date,items])=>({date,items,minutes:items.reduce((n,x)=>n+(x.minutes||0),0)})),
       unplaced,sourceTaskCount:tasks.length,sourceCount:candidates.length,from,through:last};
   }
-  return {parseDay,addDays,addMonths,weekday,mondayWeekday,isRepeat,occurrenceDates,minutesFor,preview};
+  // Maker preparation is intentionally isolated from the live recurring calendar.
+  // Only existing, user-created recurring tasks may be considered; opening a maker
+  // never adds tasks or modifies the household board.
+  function makerCandidates(board) {
+    const focus=new Set((board?.features?.focusSessions||[]).flatMap(s=>[...(s.resetIds||[]),...(s.taskIds||[])]));
+    return (board?.tasks||[]).filter(t=>isRepeat(t)&&!t.side&&!t.paused&&!t.archived&&
+      t.room!=='laundry'&&!t.generatedFrom&&!focus.has(t.id));
+  }
+  function makerPreview(board, chosenIds, options={}) {
+    const ids=new Set(Array.isArray(chosenIds)?chosenIds:[]);
+    const tasks=makerCandidates(board).filter(t=>ids.has(t.id));
+    return preview({tasks},options);
+  }
+  return {parseDay,addDays,addMonths,weekday,mondayWeekday,isRepeat,occurrenceDates,minutesFor,preview,makerCandidates,makerPreview};
 });
