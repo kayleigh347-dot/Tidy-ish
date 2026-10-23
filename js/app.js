@@ -2,7 +2,37 @@
 (function(){
 'use strict';
 const M=window.TidyModel, S=window.TidySchedule, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,scheduleWeek=0;
+let calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='calendar',scheduleWeek=0;
+let activityLoadPromise=null,activityLoadAttempted=false,activityLoadError='',pendingActivityDate='';
+function activityReady(){return !!(window.TidyActivityData&&window.TidyActivityCalendar&&window.TidyActivityHost);}
+function ensureActivity(){
+ if(activityReady()||activityLoadPromise||activityLoadAttempted)return;
+ activityLoadAttempted=true;
+ activityLoadPromise=(async()=>{
+  for(const [globalName,path] of [['TidyActivityData','activity-calendar-data.js'],['TidyActivityCalendar','activity-calendar.js'],['TidyActivityHost','activity-calendar-host.js']]){
+   if(window[globalName])continue;
+   await new Promise((resolve,reject)=>{
+    const script=document.createElement('script');script.async=false;
+    script.src='js/'+path+'?repair=11B';
+    script.onload=()=>window[globalName]?resolve():reject(Error(path+' did not initialise'));
+    script.onerror=()=>reject(Error('Could not load '+path+' from your local site'));
+    document.head.appendChild(script);
+   });
+  }
+  if(!activityReady())throw Error('The diary scripts did not initialise.');
+  activityLoadError='';
+  if(pendingActivityDate){window.TidyActivityHost.jumpTo(pendingActivityDate);pendingActivityDate='';}
+  render();
+ })().catch(error=>{activityLoadError=String(error.message||error);render();}).finally(()=>{activityLoadPromise=null;});
+}
+function openActivityDate(date){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
+ dataView='calendar';route='data';
+ if(activityReady())window.TidyActivityHost.jumpTo(date);
+ else pendingActivityDate=date;
+ render();window.scrollTo(0,0);
+}
+
 // Stage 10A: preview settings live only in memory. No board writes or storage changes.
 let scheduleRestDays=new Set(),scheduleOneRoom=false,schedulePreviewMinutes='',scheduleSelected=null;
 let wizardStep=-1,wizardDraft=null,wizardWeek=0;const WIZARD_KEY=KEY+'-maker-draft-v1';
@@ -37,7 +67,50 @@ const phoneClock=`<svg class="phone-clock" viewBox="0 0 24 24" aria-hidden="true
 function notice(text){$('#notice').textContent=text;$('#notice').style.display='block';clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('#notice').style.display='none',6500);}
 function persist(next){if(storageError)throw Error('Browser storage is unavailable. The original saved data has been preserved. '+storageError);const current=localStorage.getItem(KEY)||'';if(current!==lastSaved)throw Error('This board changed in another tab. Close this form and reload before saving. Your form is still open.');const serialized=JSON.stringify(next);localStorage.setItem(KEY,serialized);lastSaved=serialized;board=next;}
 function change(edit,{redraw=true,sync=true}={}){try{const next=M.clone(board);edit(next);if(window.TidySharing?.transition)window.TidySharing.transition(board,next);persist(next);if(redraw)render();if(sync)window.TidySharing?.queue();return true;}catch(e){notice(e.message);return false;}}
-function navigate(next,id){if(editor.open)return;route=next;if(id)roomId=id;search='';tab='tasks';openTasks.clear();render();window.scrollTo(0,0);}
+/* TIDYISH-BACK-NAV-V1: browser history and in-app Back navigation */
+const backRouteNames=new Set(['home','room','doing','calendar','data','side','more','settings','help','backup','manage','schedule','laundry','laundry-settings']);
+function backState(depth){return {route,roomId,tab,doingTab,sideTab,dataView:typeof dataView==='string'?dataView:undefined,depth};}
+function rememberBackState(){
+ try{
+  const saved=window.history.state||{},depth=Number.isInteger(saved.tidyishBack?.depth)?Math.max(0,saved.tidyishBack.depth):0;
+  window.history.replaceState({...saved,tidyishBack:backState(depth)},'',window.location.href);
+  return depth;
+ }catch{return 0;}
+}
+function navigate(next,id){
+ if(editor.open||!backRouteNames.has(next))return;
+ if(route===next&&(!id||id===roomId))return;
+ const depth=rememberBackState();
+ route=next;if(id)roomId=id;search='';tab='tasks';openTasks.clear();
+ try{window.history.pushState({tidyishBack:backState(depth+1)},'',window.location.href);}catch{}
+ render();window.scrollTo(0,0);
+}
+function back(){
+ if(editor.open){closeDialog();return;}
+ const depth=window.history.state?.tidyishBack?.depth;
+ if(Number.isInteger(depth)&&depth>0){window.history.back();return;}
+ if(route!=='home')navigate('home');
+}
+window.addEventListener('popstate',event=>{
+ const previous=event.state?.tidyishBack;
+ if(!previous||!backRouteNames.has(previous.route))return;
+ if(editor.open&&!closeDialog()){
+  // Keep the unsaved dialog open, restoring the current history entry.
+  try{window.history.pushState({tidyishBack:backState((previous.depth||0)+1)},'',window.location.href);}catch{}
+  return;
+ }
+ route=previous.route;roomId=previous.roomId||roomId;
+ tab=previous.tab||'tasks';doingTab=previous.doingTab||'doing';sideTab=previous.sideTab||'all';
+ if(typeof dataView==='string'&&['calendar','history'].includes(previous.dataView))dataView=previous.dataView;
+ search='';openTasks.clear();render();window.scrollTo(0,0);
+});
+const savedBack=window.history.state?.tidyishBack;
+if(savedBack&&backRouteNames.has(savedBack.route)){
+ route=savedBack.route;roomId=savedBack.roomId||roomId;
+ tab=savedBack.tab||tab;doingTab=savedBack.doingTab||doingTab;sideTab=savedBack.sideTab||sideTab;
+ if(typeof dataView==='string'&&['calendar','history'].includes(savedBack.dataView))dataView=savedBack.dataView;
+}
+rememberBackState();
 function tabs(entries,chosen,action,cls=''){return `<div class="tabs ${cls}" role="tablist">${entries.map(([id,label])=>button(esc(label),action,id,id===chosen?'active':'',`role="tab" aria-selected="${id===chosen}"`)).join('')}</div>`;}
 function globals(home=false){return `<div class="global ${home?'home-global':''}">${button('⚙︎','navigate','settings','','aria-label="Settings"')}${button('?','navigate','help','','aria-label="Help"')}</div>`;}
 // Six compact hand-drawn icons replace the previous oversized illustrated strip.
@@ -59,7 +132,7 @@ function houseKey(r){return /(?:room-)?penny-/.test(r.art)?'penny':/(?:room-)?ma
 function home(){let body='';if(!F().simple){body=`<div class="house"><div class="house-canvas"><img src="assets/rooms/house.png" alt="Tidy-ish illustrated house with named rooms" fetchpriority="high">${rooms().map(r=>{const p=positions[houseKey(r)];if(!p)return '';const m=M.mess(board,r);return button(`<span class="home-meter"><span class="home-meter-fill" style="width:${M.cleanPercent(m)}%"></span><span class="phrase">${esc(M.phrase(m))}</span></span>`,'room',r.id,'house-hit',`style="left:${p[0]}%;top:${p[1]}%;width:${p[2]}%;height:${p[3]}%" aria-label="Open ${esc(r.name)}. Cleanliness ${Math.round(M.cleanPercent(m))} percent"`)}).join('')}</div></div>`;}else body=`<h1>Your house</h1><div class="padded">${rooms().map(r=>card(button(esc(r.name)+' ›','room',r.id,'wide')+meter(r))).join('')}</div>`;
 return body+`<div class="padded"><div class="meter-label">${esc(M.phrase(rooms().reduce((n,r)=>n+M.mess(board,r),0)/(rooms().length||1)))}</div><div class="home-links">${button('Extra rooms','extra')}${button('All rooms','all-rooms')}${button('Manage home','navigate','manage')}</div>${card(`<div class="row spread"><h2>Laundry</h2>${button('Open','navigate','laundry','ghost')}</div>${laundryContent(true)}`)}${button(`Doing Now · ${board.tasks.filter(t=>t.doing&&!t.done).length}`,'navigate','doing','wide')}${card(`${totalPoints()} points · ${F().wins.length} completed`,'small')}</div>`;}
 function totalPoints(){return F().wins.reduce((n,w)=>n+(w.points??1),0)+F().completionSummaries.reduce((n,w)=>n+w.count,0);}
-function roomScene(r){if(F().simple)return meter(r);const m=M.mess(board,r),state=m>=100?3:m>=5/14*100?2:m>0?1:0,key=houseKey(r)==='storage'?'craft':houseKey(r),suffix=['spotless','clean','messy','disaster'][state];const known=['craft','cats','print','penny','hall','bathroom','master','living','kitchen','entrance'].includes(key);const file=known?`room-art/room-${key}-${suffix}.${key==='penny'&&state===0?'jpg':'png'}`:r.art;return `<div class="room-scene"><img src="${asset(file)}" alt="${esc(r.name)} · ${esc(M.phrase(m))}" loading="lazy">${known?button('<span class="guardian-speech" aria-hidden="true"></span>','creature-react',r.id,'guardian guardian-tap',`data-state="${state}" style="background-image:url('${asset(`sprites/${key}-states.webp`)}')" aria-label="Tap ${esc(r.name)} creature for a reaction to the room's mess level"`):''}</div>${meter(r)}`;}
+function roomScene(r){if(F().simple)return meter(r);const m=M.mess(board,r),state=m>=100?3:m>=5/14*100?2:m>0?1:0,key=houseKey(r)==='storage'?'craft':houseKey(r),suffix=['spotless','clean','messy','disaster'][state];const known=['craft','cats','print','penny','hall','bathroom','master','living','kitchen','entrance'].includes(key);const file=known?`room-art/room-${key==='hall'?'main-landing':key}-${suffix}.${key==='penny'&&state===0?'jpg':'png'}`:r.art;return `<div class="room-scene"><img src="${asset(file)}" alt="${esc(r.name)} · ${esc(M.phrase(m))}" loading="lazy">${known?button('<span class="guardian-speech" aria-hidden="true"></span>','creature-react',r.id,'guardian guardian-tap',`data-state="${state}" style="background-image:url('${asset(`sprites/${key}-states.webp`)}')" aria-label="Tap ${esc(r.name)} creature for a reaction to the room's mess level"`):''}</div>${meter(r)}`;}
 function taskToolbar(){return `<div class="toolbar">${button(detailed?'Detailed view ✓':'Compact view ✓','view')}${button('⌕','search','','search-icon','aria-label="Search tasks"')}${button('＋ Add task','add-task')}${route==='doing'?button('Choose tasks','choose'):''}${route==='doing'?button('Tools','tools'):''}${deleted&&deleted.page===pageKey()?button('Undo deleted','undo-delete'):''}</div>${search!==null&&uiSearch?`<label class="field">Search ${route==='room'?'this room':'tasks'}<input id="task-search" value="${esc(search)}" placeholder="Search tasks"></label>`:''}`;}
 let uiSearch=false;
 function visibleTasks(){let list=route==='doing'?(doingTab==='attention'?board.tasks.filter(t=>t.attention&&!M.paused(t)):M.doing(board)):route==='room'?board.tasks.filter(t=>t.room===roomId&&!M.paused(t)&&(tab==='side'?t.side:tab==='homeless'?false:!t.side)):board.tasks.filter(t=>t.side&&!M.paused(t)&&(sideTab==='all'||t.sideKind===sideTab));
@@ -156,20 +229,32 @@ function plannedMonth(){
  const days=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();
  return {month,from,days,plan:S.preview(board,{from,days})};
 }
+function calendarToday(){return window.TidyActivityData?.today()||new Date().toLocaleDateString('sv-SE');}
 function calendarPage(){
- if(!S)return card('Scheduling module unavailable. Current saved tasks are unchanged.');
- const {month,from,days,plan}=plannedMonth(),lookup=new Map(plan.days.map(d=>[d.date,d]));
- const leading=(new Date(from+'T12:00:00').getDay()+6)%7;
- const cells=Array.from({length:leading},()=>'<span class="calendar-spacer" aria-hidden="true"></span>').join('')+
- Array.from({length:days},(_,i)=>{const day=S.addDays(from,i),entry=lookup.get(day),total=entry?.items.length||0;
- const today=new Date().toLocaleDateString('en-CA');
- return button(`<strong>${i+1}</strong>${total?`<span class="count">${total} planned</span>`:''}`,'calendar-day',day,'calendar-day'+(day===today?' today':''),`aria-label="${esc(dayHeading(day))}: ${total} recurring tasks"`);}).join('');
- return `<section class="calendar-view"><div class="calendar-month-head">${button('‹','calendar-month-prev','','ghost','aria-label="Previous month"')}<h2>${esc(month.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))}</h2>${button('›','calendar-month-next','','ghost','aria-label="Next month"')}</div><div class="calendar-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(s=>`<strong class="calendar-heading">${s}</strong>`).join('')}${cells}</div>${plan.sourceTaskCount?`<p class="calendar-footnote">${plan.sourceTaskCount} saved repeating task${plan.sourceTaskCount===1?'':'s'} · tap a date to view tasks.</p>`:'<p class="empty">No repeating tasks are saved yet. When you add your own recurring tasks, they will appear here.</p>'}</section>`;
+  if(!S)return card('Scheduling module unavailable. Current saved tasks are unchanged.');
+  if(!activityReady())ensureActivity();
+  const {month,from,days,plan}=plannedMonth(),lookup=new Map(plan.days.map(d=>[d.date,d]));
+  const today=calendarToday(),history=activityReady()?window.TidyActivityHost.monthSummary(board,from.slice(0,7)):{};
+  const leading=(new Date(from+'T12:00:00').getDay()+6)%7;
+  const cells=Array.from({length:leading},()=>'<span class="calendar-spacer" aria-hidden="true"></span>').join('')+
+  Array.from({length:days},(_,i)=>{
+   const day=S.addDays(from,i),past=day<today,activity=day<=today?history[day]:null;
+   const entry=lookup.get(day),total=past?0:(entry?.items.length||0);
+   const symbol=activity?.symbol?`<span class="calendar-activity-symbol" aria-hidden="true">${esc(activity.symbol)}</span>`:'';
+   const art=activity?.count&&!symbol?`<span class="calendar-activity-portrait ring-${esc(activity.ring)}"><img src="assets/activity-calendar/${esc(activity.art)}" alt="" loading="lazy"></span>`:'';
+   const mark=past&&!activity?.marked?'<span class="calendar-empty-mark" aria-hidden="true">＋</span>':'';
+   const description=day===today?'Today':past?(activity?.count?`${activity.count} completed tasks`:(activity?.occasion||'Blank day; choose a personal symbol')):`${total} planned recurring tasks`;
+   return button(`<strong>${i+1}</strong>${symbol||art||mark}${activity?.count?`<span class="activity-count">${activity.count} done</span>`:''}${total?`<span class="count">${total} planned</span>`:''}`,'calendar-day',day,'calendar-day'+(day===today?' today':'')+(past?' calendar-past':''),`aria-label="${esc(dayHeading(day))}: ${esc(description)}"`);
+  }).join('');
+  const message=activityLoadError?`<p class="error">Activity portraits couldn't load: ${esc(activityLoadError)} ${button('Try again','activity-retry','','ghost')}</p>`:!activityReady()?'<p class="calendar-footnote">Loading past activity symbols…</p>':'';
+  return `<section class="calendar-view"><div class="calendar-month-head">${button('‹','calendar-month-prev','','ghost','aria-label="Previous month"')}<h2>${esc(month.toLocaleDateString('en-GB',{month:'long',year:'numeric'}))}</h2>${button('›','calendar-month-next','','ghost','aria-label="Next month"')}</div><div class="calendar-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(s=>`<strong class="calendar-heading">${s}</strong>`).join('')}${cells}</div><p class="calendar-footnote">Past days show recorded activity or personal symbols; today combines activity with scheduled work; future days show scheduled tasks. Select a blank past date to add a symbol.</p>${message}</section>`;
 }
 function calendarDay(iso){
- const entry=plannedMonth().plan.days.find(d=>d.date===iso);
- const rows=entry?.items.map(t=>`<div class="calendar-detail-row"><div class="grow"><strong>${esc(t.title)}</strong><div class="small">${esc(room(t.room)?.name||'General')}${t.minutes!=null?' · '+esc(t.minutes)+' min':''}</div></div>${button('Skip this time','skip-date',t.taskId,'ghost',`data-date="${esc(t.due)}"`)}</div>`).join('')||'<p>No repeating tasks planned on this date.</p>';
- dialog(dayHeading(iso),rows);
+  if(iso<calendarToday()){openActivityDate(iso);return;}
+  const entry=plannedMonth().plan.days.find(d=>d.date===iso);
+  const rows=entry?.items.map(t=>`<div class="calendar-detail-row"><div class="grow"><strong>${esc(t.title)}</strong><div class="small">${esc(room(t.room)?.name||'General')}${t.minutes!=null?' · '+esc(t.minutes)+' min':''}</div></div>${button('Skip this time','skip-date',t.taskId,'ghost',`data-date="${esc(t.due)}"`)}</div>`).join('')||'<p>No repeating tasks planned on this date.</p>';
+  const todayButton=iso===calendarToday()?`<div class="row">${button('View today’s completed activity','calendar-view-activity',iso,'ghost')}</div>`:'';
+  dialog(dayHeading(iso),rows+todayButton);
 }
 // Stage 10C · Draft-only guided Schedule Maker, recovered from the earlier calendar reference.
 // All steps operate only on wizardDraft. No board save, task creation or Apply path exists.
@@ -238,6 +323,8 @@ function schedulePageOld(){
 }
 function schedulePage(){return W?wizardPage():schedulePageOld();}
 function dataPage(){
+ const viewTabs=tabs([['calendar','Activity Calendar'],['history','Trends & History']],dataView,'data-view','nested');
+ if(dataView==='calendar'){if(!activityReady())ensureActivity();return `<section class="task-data-page">${viewTabs}${activityReady()?'<div id="tidyish-activity-calendar" aria-label="Your task activity diary"></div>':`<p class="error">${activityLoadError?esc(activityLoadError):'Loading Activity Calendar files…'} ${activityLoadError?button('Retry calendar','activity-retry','','ghost'):''} Saved completions are unchanged.</p>`}<p class="activity-local-note">Personal day symbols are saved in this browser only, not yet shared across devices or included in the usual household backup.</p></section>`;}
  if(!window.TidyTaskData)return card('Task Data summaries are unavailable. Saved completions have not been changed.');
  const d=window.TidyTaskData.summarize(board,{period:dataPeriod,roomId:dataRoom});
  const roomChoices=[['all','All rooms'],['general','General / No room'],['laundry','Laundry'],...rooms().map(r=>[r.id,r.name])];
@@ -248,14 +335,14 @@ function dataPage(){
  const trendMax=Math.max(...d.trend.map(x=>x.count),1);
  const trend=`<div class="data-trend" role="img" aria-label="Completions by day for the last seven days: ${d.trend.map(x=>`${x.day}: ${x.count}`).join('; ')}">${d.trend.map(x=>`<div class="data-trend-day"><span class="data-trend-count">${x.count||''}</span><span class="data-trend-track"><span style="height:${x.count?Math.max(8,Math.round(x.count/trendMax*100)):0}%"></span></span><span class="data-trend-label">${esc(x.day.slice(5))}</span></div>`).join('')}</div>`;
  const history=d.wins.slice(0,dataVisible).map(w=>`<div class="data-completion"><strong>${esc(w.title||'Completed task')}</strong><span>${esc(w.at&&Number.isFinite(Date.parse(w.at))?dateLabel(w.at):'Date not recorded')} · ${esc(w.person||'Unattributed')}</span></div>`).join('')||'<p>No recorded completions in these filters.</p>';
- return `<section class="task-data-page">${tabs([['7','7 Days'],['30','30 Days'],['90','90 Days'],['all','All']],dataPeriod,'data-period','nested')}${roomSelect}<div class="data-metrics">${card(`<strong>${d.count}</strong><span>Recorded completions</span>`)}${card(`<strong>${d.points}</strong><span>Recorded points</span>`)}${card(`<strong>${d.minutes}</strong><span>Recorded minutes</span>`)}</div>${card(`<h2>Last 7 days</h2>${trend}`)}${card(`<h2>By room</h2>${byRoom}`)}${card(`<h2>Completion history</h2>${history}${d.wins.length>dataVisible?button('Show 12 more','data-more','','ghost'):''}${d.undated?`<p class="small">${d.undated} record${d.undated===1?'':'s'} without a usable date appear only in All history, not time charts.</p>`:''}${d.archiveCount?`<p class="small">${d.archiveCount} archived completion${d.archiveCount===1?'':'s'} are preserved in summaries but excluded from these dated metrics because individual dates/rooms may not be available.</p>`:''}`)}</section>`;
+ return `<section class="task-data-page">${viewTabs}${tabs([['7','7 Days'],['30','30 Days'],['90','90 Days'],['all','All']],dataPeriod,'data-period','nested')}${roomSelect}<div class="data-metrics">${card(`<strong>${d.count}</strong><span>Recorded completions</span>`)}${card(`<strong>${d.points}</strong><span>Recorded points</span>`)}${card(`<strong>${d.minutes}</strong><span>Recorded minutes</span>`)}</div>${card(`<h2>Last 7 days</h2>${trend}`)}${card(`<h2>By room</h2>${byRoom}`)}${card(`<h2>Completion history</h2>${history}${d.wins.length>dataVisible?button('Show 12 more','data-more','','ghost'):''}${d.undated?`<p class="small">${d.undated} record${d.undated===1?'':'s'} without a usable date appear only in All history, not time charts.</p>`:''}${d.archiveCount?`<p class="small">${d.archiveCount} archived completion${d.archiveCount===1?'':'s'} are preserved in summaries but excluded from these dated metrics because individual dates/rooms may not be available.</p>`:''}`)}</section>`;
 }
 function morePage(){return [['manage','Manage home'],['schedule','Schedule maker'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›','navigate',id,'wide ghost'))).join('');}
 const headerBounds={'Tidy-ish.png':[126,425],'cat-trays-header.png':[44,505],'entrance-header.png':[126,448],'living-header(1).png':[29,598],'bathroom-header.png':[109,437],'storage-header.png':[26,609],'bedroom-cat-header.png':[63,529],'bedroom-bigfoot-header.png':[7,641],'3d-printer-header.png':[75,507],'kitchen-header.png':[88,480]};
 function compactHeader(path,label){const key=path.split('/').at(-1),[top,height]=headerBounds[key]||[0,656];return `<svg class="brand-logo" viewBox="0 ${top} 1280 ${height}" role="img" aria-label="${esc(label)}" style="width:${1280/height*44}px"><image href="${asset(path)}" width="1280" height="656"/></svg>`;}
-function render(){const y=window.scrollY;document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule maker',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div>${title?`<h1>${title}</h1>`:''}</header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
+function render(){const y=window.scrollY;window.TidyActivityHost?.unmount();document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule maker',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div><div class="top-page-line">${button('‹ Back','nav-back','','page-back', 'aria-label="Go back"')}${title?`<h1>${title}</h1>`:''}</div></header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
 // Simplified SVG icons require no image-loading fallback.
-window.scrollTo(0,y);updateClocks();}
+if(route==='data'&&dataView==='calendar'&&!storageError)window.TidyActivityHost?.mount(document.getElementById('tidyish-activity-calendar'),board);window.scrollTo(0,y);updateClocks();}
 function dialog(title,body,onSave=null,{saveLabel='Save',dirty=false,afterSave=''}={}){if(editor.open)closeDialog(true);dialogSave=onSave;dialogDirty=dirty;editor.innerHTML=`<form id="modal-form"><header>${onSave?'<button type="submit" aria-label="Confirm changes">✓</button>':''}<h2>${esc(title)}</h2>${button('Close','close-dialog','','ghost')}</header><div class="dialog-body">${body}${onSave?`<div class="dialog-footer"><button type="submit">${esc(saveLabel)}</button>${button('Cancel','close-dialog','','ghost')}</div>`:''}${afterSave}</div></form>`;editor.showModal();editor.querySelector('input:not([type=checkbox]),textarea,select')?.focus({preventScroll:true});}
 function closeDialog(force=false){if(!force&&dialogDirty&&!confirm('Discard changes? Choose Cancel to keep editing.'))return false;if(dialogCleanup)dialogCleanup();dialogCleanup=null;editor.close();dialogDirty=false;dialogSave=null;if(pendingExternal){board=pendingExternal;pendingExternal=null;lastSaved=localStorage.getItem(KEY)||'';render();}return true;}
 editor.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});editor.addEventListener('input',e=>{if(editor.querySelector('.phone-timer-panel')&&(e.target.closest('.phone-timer-panel')||e.target.name==='minutes'))return;dialogDirty=true;});editor.addEventListener('submit',async e=>{e.preventDefault();try{if(dialogSave)await dialogSave(new FormData(e.target),e.target);}catch(err){notice(err.message)}});
@@ -348,9 +435,12 @@ const actions={
  'wizard-add-custom':()=>{const section=wizardSections()[wizardStep],form=document.querySelector('[data-wizard-custom-form]');if(!section||!form)return;const value=name=>form.querySelector('[data-custom="'+name+'"]')?.value||'';try{W.addCustom(wizardDraft,section.room,{title:value('title'),count:value('count'),unit:value('unit'),minutes:value('minutes'),tools:value('tools')});render();notice('Custom task added to your draft.');}catch(e){notice(e.message);}},
  'wizard-remove-custom':el=>{const task=wizardDraft?.customTasks.find(t=>t.id===el.dataset.id);if(task&&confirm('Remove "'+task.title+'" from this schedule draft?')){W.removeCustom(wizardDraft,task.id);render();}},
 
+ 'nav-back':()=>back(),
  navigate:el=>navigate(el.dataset.id),room:el=>navigate('room',el.dataset.id),later:()=>notice('This feature will follow later.'),
  'calendar-month-prev':()=>{calendarOffset--;render()},'calendar-month-next':()=>{calendarOffset++;render()},
  'calendar-day':el=>calendarDay(el.dataset.id),
+  'calendar-view-activity':el=>{closeDialog(true);openActivityDate(el.dataset.id)},
+  'activity-retry':()=>{activityLoadAttempted=false;activityLoadError='';ensureActivity();render()},
  'skip-date':el=>{const date=el.dataset.date,id=el.dataset.id;if(!id||!date)return;const ok=change(b=>{const t=b.tasks.find(t=>t.id===id);if(t){t.skippedDates=[...new Set([...(t.skippedDates||[]),date])];}});if(ok){closeDialog(true);notice('Skipped only this date; the recurring task and history remain.');}},
  'schedule-prev':()=>{scheduleWeek--;render()},'schedule-next':()=>{scheduleWeek++;render()},
  'schedule-rest':el=>{const n=Number(el.dataset.id);if(scheduleRestDays.has(n))scheduleRestDays.delete(n);else scheduleRestDays.add(n);render()},
@@ -360,6 +450,7 @@ const actions={
  'schedule-pick-all':()=>{scheduleSelected=null;render()},
  'schedule-pick-none':()=>{scheduleSelected=new Set();render()},
  'schedule-add-task':()=>taskEditor(null,false,'scheduled'),
+ 'data-view':el=>{if(!['calendar','history'].includes(el.dataset.id))return;dataView=el.dataset.id;render()},
  'data-period':el=>{dataPeriod=el.dataset.id;dataVisible=12;render()},
  'data-more':()=>{dataVisible+=12;render()},
  extra:()=>dialog('Extra rooms',rooms().filter(r=>!positions[houseKey(r)]).map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')||'<p>No extra rooms</p>'),
@@ -426,7 +517,7 @@ const actions={
 function childMove(el,first){change(b=>{const t=b.tasks.find(t=>t.id===el.dataset.id),c=t.children.find(c=>c.id===el.dataset.child),family=new Set([c.id]);for(let i=0;i<t.children.length;i++)t.children.forEach(x=>{if(family.has(x.parentId))family.add(x.id)});const block=t.children.filter(x=>family.has(x.id)),rest=t.children.filter(x=>!family.has(x.id));let target=first?rest.findIndex(x=>x.parentId===c.parentId):rest.findLastIndex(x=>x.parentId===c.parentId)+1;if(target<0)target=rest.length;rest.splice(target,0,...block);t.children=rest;});}
 function timerChange(el,edit){const result=change(b=>{const t=b.tasks.find(t=>t.id===el.dataset.id),item=el.dataset.child?t.children.find(c=>c.id===el.dataset.child):t;edit(item)},{redraw:false});updateClocks();return result;}
 document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const action=actions[el.dataset.action]||window.TidySharing?.actions?.[el.dataset.action];if(!action)return;try{await action(el);}catch(err){notice(err.message)}});
-document.addEventListener('submit',async e=>{if(e.target.id==='modal-form')return;e.preventDefault();const fd=new FormData(e.target);try{switch(e.target.id){case 'laundry-config':{const values=Object.fromEntries(fd);if(['wash','railTransfer','dryerTransfer','railFinish','dryerFinish'].some(k=>!values[k].trim()))throw Error('Enter a name for every step.');const steps=values.uniformSteps.split('\n').map(s=>s.trim()).filter(Boolean);if(!steps.length)throw Error('Keep at least one uniform step.');change(b=>{const f=b.features,current=f.uniformSteps[f.uniformIndex];Object.assign(f,values,{uniformSteps:steps});if(f.uniformIndex>=0)f.uniformIndex=Math.max(0,steps.indexOf(current))});notice('Cycle saved; load progress kept');break;}
+document.addEventListener('submit',async e=>{if(e.target.id==='modal-form'||e.target.closest('.tac'))return;e.preventDefault();const fd=new FormData(e.target);try{switch(e.target.id){case 'laundry-config':{const values=Object.fromEntries(fd);if(['wash','railTransfer','dryerTransfer','railFinish','dryerFinish'].some(k=>!values[k].trim()))throw Error('Enter a name for every step.');const steps=values.uniformSteps.split('\n').map(s=>s.trim()).filter(Boolean);if(!steps.length)throw Error('Keep at least one uniform step.');change(b=>{const f=b.features,current=f.uniformSteps[f.uniformIndex];Object.assign(f,values,{uniformSteps:steps});if(f.uniformIndex>=0)f.uniformIndex=Math.max(0,steps.indexOf(current))});notice('Cycle saved; load progress kept');break;}
 case 'oneoff-form':if(fd.get('title').trim())change(b=>b.features.items.unshift({id:M.uid(),kind:'laundry',text:fd.get('title').trim(),done:false}));break;
 case 'homeless-form':if(fd.get('title').trim())change(b=>b.features.items.unshift({id:M.uid(),kind:'homeless',text:fd.get('title').trim(),location:roomId}));break;
 case 'add-room':{const name=String(fd.get('name')).trim();if(!name||board.rooms.some(r=>r.name.toLowerCase()===name.toLowerCase()))throw Error('Choose a unique room name.');change(b=>b.rooms.push({id:M.uid(),name,art:'hall-background.png',header:null,mess:0,capacity:14,calibration:'',archived:false}));break;}

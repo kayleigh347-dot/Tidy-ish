@@ -11,7 +11,7 @@
   const ID = 'tidyish-v1';
   const ROOMS = [
     ['entrance','Downstairs Entrance Landing','entrance-background.png','entrance-header.png'],
-    ['hall','Main Floor Landing / Hallway','hall-background.png',null],
+    ['hall','Main Landing','room-main-landing-spotless.png',null],
     ['penny','Penny’s Bedroom','room-penny-spotless.jpg','bedroom-cat-header.png'],
     ['master','Master Bedroom','room-master-spotless.png','bedroom-bigfoot-header.png'],
     ['bathroom','Bathroom','room-bathroom-spotless.png','bathroom-header.png'],
@@ -101,6 +101,8 @@
       if(typeof r.name!=='string'||!r.name.trim())throw Error('Invalid room name; original saved data preserved.');
       const reference=roomDefaults().find(x=>x.id===r.id);
       Object.assign(r,{...reference,...r});
+      // Migrate only the old built-in landing label; preserve any user-chosen room name.
+      if(r.id==='hall'&&r.name==='Main Floor Landing / Hallway')r.name='Main Landing';
     }
     seen.clear();unique(b.tasks,seen,'task');
     b.tasks=b.tasks.map(t=>{

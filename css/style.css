@@ -465,3 +465,27 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .child.drag-over{outline:2px solid #f8c662;outline-offset:2px;border-radius:8px}
 .room-child .child-grip{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:30px;padding:0 4px;font-size:1.1rem;background:transparent;border:1px solid #89b7c27a;color:#f7e5ad;border-radius:8px}
 /* The Stage 10F body-level golden insertion line remains the only root insertion marker. */
+
+/* Stage 11A: The diary stays inside the existing Task Data page without touching the scheduling calendar. */
+.activity-local-note{font-size:.72rem;line-height:1.5;color:#c3b6d0;margin:10px 2px 20px;text-align:center}
+.task-data-page>.tabs.nested{margin-bottom:12px}
+.activity-storage-warning{margin:8px 4px;font-size:.8rem;color:#f8c662;background:#39283d;border:1px solid #86613f;border-radius:9px;padding:9px 12px}
+
+/* Stage 11B · one calendar for past activity and future scheduled work. */
+.calendar-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px;min-width:0;overflow:hidden}
+.calendar-day.calendar-past{background:linear-gradient(135deg,#4b345c,#2c263f)}
+.calendar-activity-portrait{display:inline-flex;width:29px;height:29px;border:2px solid #ae9bc2;border-radius:50%;overflow:hidden;flex:0 0 auto;background:#382748;align-items:center;justify-content:center}
+.calendar-activity-portrait img{display:block;width:100%;height:100%;object-fit:cover}
+.calendar-activity-portrait.ring-decorated{border-color:#a9d0bc}
+.calendar-activity-portrait.ring-gold{border:3px solid #f8c662;box-shadow:0 0 0 1px #dfbb7e66}
+.calendar-activity-symbol{font-size:1.3rem;line-height:29px;height:29px;white-space:nowrap}
+.calendar-empty-mark{color:#b3a4ca;font-size:1rem;min-height:29px;line-height:29px;opacity:.75}
+.calendar-day .activity-count,.calendar-day .count{display:block;font-size:.57rem;line-height:1.1;white-space:nowrap;color:#e1d2ed}
+.calendar-day .count{color:#f8c662}
+@media (max-width:350px){.calendar-activity-portrait{width:25px;height:25px}.calendar-activity-symbol,.calendar-empty-mark{height:25px;line-height:25px}}
+
+/* TIDYISH-BACK-NAV-V1: compact, accessible Back control without disturbing the header art. */
+.top .top-page-line{display:flex;align-items:center;gap:6px;min-height:51px;background:var(--bg);padding:0 9px}
+.top .top-page-line>h1{flex:1;min-width:0;margin:0;padding:8px 2px;line-height:1.28;background:transparent;font-size:1.4rem}
+.top .page-back{flex:none;min-height:38px;border:1px solid #89b7c266;background:linear-gradient(145deg,#384466,#5a3c62);border-radius:11px;color:#e0edf2;padding:6px 9px;font-size:.83rem}
+@media(max-width:350px){.top .top-page-line>h1{font-size:1.15rem}.top .page-back{font-size:.73rem;padding:5px 7px}}
