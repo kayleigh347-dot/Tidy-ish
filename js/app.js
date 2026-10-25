@@ -1,7 +1,7 @@
 /* Tidy-ish 0.23 HTML: shared renderers for Home, room tasks, Doing Now and laundry. */
 (function(){
 'use strict';
-const M=window.TidyModel, S=window.TidySchedule, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const M=window.TidyModel, S=window.TidySchedule, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, Q=window.TidyQuestUI, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='calendar',scheduleWeek=0;
 let activityLoadPromise=null,activityLoadAttempted=false,activityLoadError='',pendingActivityDate='';
 function activityReady(){return !!(window.TidyActivityData&&window.TidyActivityCalendar&&window.TidyActivityHost);}
@@ -68,7 +68,7 @@ function notice(text){$('#notice').textContent=text;$('#notice').style.display='
 function persist(next){if(storageError)throw Error('Browser storage is unavailable. The original saved data has been preserved. '+storageError);const current=localStorage.getItem(KEY)||'';if(current!==lastSaved)throw Error('This board changed in another tab. Close this form and reload before saving. Your form is still open.');const serialized=JSON.stringify(next);localStorage.setItem(KEY,serialized);lastSaved=serialized;board=next;}
 function change(edit,{redraw=true,sync=true}={}){try{const next=M.clone(board);edit(next);if(window.TidySharing?.transition)window.TidySharing.transition(board,next);persist(next);if(redraw)render();if(sync)window.TidySharing?.queue();return true;}catch(e){notice(e.message);return false;}}
 /* TIDYISH-BACK-NAV-V1: browser history and in-app Back navigation */
-const backRouteNames=new Set(['home','room','doing','calendar','data','side','more','settings','help','backup','manage','schedule','laundry','laundry-settings']);
+const backRouteNames=new Set(['home','room','doing','calendar','data','side','more','settings','help','backup','manage','schedule','laundry','laundry-settings','focus']);
 function backState(depth){return {route,roomId,tab,doingTab,sideTab,dataView:typeof dataView==='string'?dataView:undefined,depth};}
 function rememberBackState(){
  try{
@@ -340,7 +340,7 @@ function dataPage(){
 function morePage(){return [['manage','Manage home'],['schedule','Schedule maker'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›','navigate',id,'wide ghost'))).join('');}
 const headerBounds={'Tidy-ish.png':[126,425],'cat-trays-header.png':[44,505],'entrance-header.png':[126,448],'living-header(1).png':[29,598],'bathroom-header.png':[109,437],'storage-header.png':[26,609],'bedroom-cat-header.png':[63,529],'bedroom-bigfoot-header.png':[7,641],'3d-printer-header.png':[75,507],'kitchen-header.png':[88,480]};
 function compactHeader(path,label){const key=path.split('/').at(-1),[top,height]=headerBounds[key]||[0,656];return `<svg class="brand-logo" viewBox="0 ${top} 1280 ${height}" role="img" aria-label="${esc(label)}" style="width:${1280/height*44}px"><image href="${asset(path)}" width="1280" height="656"/></svg>`;}
-function render(){const y=window.scrollY;window.TidyActivityHost?.unmount();document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule maker',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div><div class="top-page-line">${button('‹ Back','nav-back','','page-back', 'aria-label="Go back"')}${title?`<h1>${title}</h1>`:''}</div></header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
+function render(){const y=window.scrollY;window.TidyActivityHost?.unmount();document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={doing:'Doing Now',side:'Side quests',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Manage home',schedule:'Schedule maker',focus:'Focus Quests',data:'Task Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=route==='room'||route==='focus'?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='focus'?(Q?Q.content(board):'<p>Quest Focus unavailable</p>'):route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='manage'?managePage():route==='settings'?settingsPage():route==='help'?helpPage():route==='backup'?backupPage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div><div class="top-page-line">${button('‹ Back','nav-back','','page-back', 'aria-label="Go back"')}${title?`<h1>${title}</h1>`:''}</div></header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
 // Simplified SVG icons require no image-loading fallback.
 if(route==='data'&&dataView==='calendar'&&!storageError)window.TidyActivityHost?.mount(document.getElementById('tidyish-activity-calendar'),board);window.scrollTo(0,y);updateClocks();}
 function dialog(title,body,onSave=null,{saveLabel='Save',dirty=false,afterSave=''}={}){if(editor.open)closeDialog(true);dialogSave=onSave;dialogDirty=dirty;editor.innerHTML=`<form id="modal-form"><header>${onSave?'<button type="submit" aria-label="Confirm changes">✓</button>':''}<h2>${esc(title)}</h2>${button('Close','close-dialog','','ghost')}</header><div class="dialog-body">${body}${onSave?`<div class="dialog-footer"><button type="submit">${esc(saveLabel)}</button>${button('Cancel','close-dialog','','ghost')}</div>`:''}${afterSave}</div></form>`;editor.showModal();editor.querySelector('input:not([type=checkbox]),textarea,select')?.focus({preventScroll:true});}
@@ -415,6 +415,13 @@ function focusTimer(){
  updateClocks();
 }
 function toolsDialog(id=''){const ts=route==='doing'?M.doing(board):visibleTasks(),tools=[...new Set(ts.filter(t=>!id||t.room===id).filter(t=>!t.done).flatMap(t=>[t.tools,...t.children.filter(c=>!c.done).map(c=>c.tools)]).flatMap(s=>s.split(/[\n,]/)).map(x=>x.trim()).filter(Boolean))];dialog(id?'Tools · '+(room(id)?.name||'Homeless'):'Tools needed',tools.length?tools.map(x=>check(x,'tool')).join(''):'<p>No tools listed for the selected tasks.</p>');}
+/* Stage 13Q Quest Focus is NOT Doing Now. The old focusDialog is retained only as historical reference. */
+function openQuestFocus(id=''){
+ if(!Q){notice('Quest Focus has not loaded. Your tasks are unchanged.');return;}
+ if(!id){dialog('Choose a room for Focus',rooms().map(r=>button(esc(r.name),'focus-room-choice',r.id,'wide')).join(''));return;}
+ if(!room(id)){notice('Choose an existing room.');return;}
+ Q.enter(board,id);navigate('focus',id);
+}
 function focusDialog(id=''){if(!id){dialog('Focus on a room',rooms().map(r=>button(esc(r.name),'focus-room-choice',r.id,'wide')).join(''));return;}const standard={id:'standard:'+id,room:id,name:'Clear the Way',steps:['Collect items belonging to other rooms','Protect important items','Collect obvious rubbish','Clear loose floor clutter'],followups:{'Collect items belonging to other rooms':'Sort items for other rooms','Protect important items':'Sort important items','Clear loose floor clutter':'Sort collected floor items'}},routines=[standard,...F().routines.filter(r=>r.room===id&&!r.hidden)];const chosen=routines[0];let resets=new Set(chosen.steps);function first(routine=chosen){dialog('Focus · '+room(id).name,`<h3>Clear the Way</h3>${select('Choose routine','routine',routines.map(r=>[r.id,r.name]),routine.id)}${routine.steps.map(s=>check(s,'reset',resets.has(s),`value="${esc(s)}"`)).join('')}<div class="row">${button('Skip reset','focus-skip')}${button('Next','focus-next')}</div>`);editor.querySelector('[name=routine]').onchange=e=>{const r=routines.find(r=>r.id===e.target.value);resets=new Set(r.steps);first(r);};editor.querySelector('[data-action=focus-next]').onclick=()=>{resets=new Set([...editor.querySelectorAll('[name=reset]:checked')].map(x=>x.value));second(routine)};editor.querySelector('[data-action=focus-skip]').onclick=()=>{resets.clear();second(routine)};}
 function second(routine){const resetIds=F().focusSessions.flatMap(s=>s.resetIds);dialog('Focus · '+room(id).name,`<h3>Other tasks</h3>${board.tasks.filter(t=>t.room===id&&!t.done&&!M.paused(t)&&!resetIds.includes(t.id)).map(t=>check(t.title,'task',false,`value="${esc(t.id)}"`)).join('')}<h3>Reset preview · ${esc(routine.name)}</h3>${[...resets].map(s=>`<p class="small">• ${esc(s)}</p>`).join('')}${button('Back','focus-back','','ghost')}`,fd=>{const selected=fd.getAll('task');if(!resets.size&&!selected.length)throw Error('Select a reset step or task.');if(change(b=>M.focus(b,id,routine,[...resets],selected))){closeDialog(true);route='doing';doingTab='doing';render();}},{saveLabel:'Start in Doing Now'});editor.querySelector('[data-action=focus-back]').onclick=()=>first(routine);}
 first();}
@@ -467,7 +474,7 @@ const actions={
  'delete-task':el=>{const t=task(el.dataset.id);confirmDialog('Delete task?',`Remove “${t.title}” and its subtasks from this browser’s active list? Completion history is kept.`,()=>{const snapshot={task:M.clone(t),index:board.tasks.indexOf(t),order:M.clone(board.doingOrder),page:pageKey()};if(change(b=>{b.tasks=b.tasks.filter(x=>x.id!==t.id);b.doingOrder=b.doingOrder.filter(x=>x!==t.id)})){deleted=snapshot;render();return true;}return false;},'Delete')},
  'undo-delete':()=>{if(!deleted)return;const d=deleted;if(change(b=>{if(!b.tasks.some(t=>t.id===d.task.id)){b.tasks.splice(Math.min(d.index,b.tasks.length),0,d.task);if(d.task.doing)b.doingOrder=[...d.order.filter(id=>id===d.task.id||b.doingOrder.includes(id)),...b.doingOrder.filter(id=>!d.order.includes(id))];}})){deleted=null;render();}},
  choose:()=>dialog('Choose tasks',board.tasks.filter(t=>!t.done&&!M.paused(t)).map(t=>check(t.title,'task',t.doing,`value="${esc(t.id)}"`)).join('')||'<p>Add a task in a room or Doing Now first.</p>',fd=>{const ids=new Set(fd.getAll('task'));if(change(b=>b.tasks.filter(t=>!t.done).forEach(t=>M.select(b,t.id,ids.has(t.id)))))closeDialog(true)},{saveLabel:'Done'}),
- collapse:el=>{const id=el.dataset.id;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);render()},tools:el=>toolsDialog(el.dataset.id),focus:el=>focusDialog(el.dataset.id),'focus-room-choice':el=>focusDialog(el.dataset.id),'focus-timer':focusTimer,
+ collapse:el=>{const id=el.dataset.id;collapsed.has(id)?collapsed.delete(id):collapsed.add(id);render()},tools:el=>toolsDialog(el.dataset.id),focus:el=>openQuestFocus(el.dataset.id),'focus-room-choice':el=>{closeDialog(true);openQuestFocus(el.dataset.id)},'focus-timer':focusTimer,
  timer:el=>timerDialog(task(el.dataset.id),el.dataset.child),
  'timer-start':el=>timerChange(el,t=>{if(!t.startedAt)t.startedAt=Date.now()}),'timer-pause':el=>timerChange(el,t=>{t.elapsed=M.time(t);t.startedAt=0}),
  'timer-reset':el=>confirmDialog('Reset stopwatch?','This resets only the elapsed time for this task.',()=>timerChange(el,t=>{t.elapsed=0;t.startedAt=0}), 'Reset'),
@@ -516,7 +523,7 @@ const actions={
 };
 function childMove(el,first){change(b=>{const t=b.tasks.find(t=>t.id===el.dataset.id),c=t.children.find(c=>c.id===el.dataset.child),family=new Set([c.id]);for(let i=0;i<t.children.length;i++)t.children.forEach(x=>{if(family.has(x.parentId))family.add(x.id)});const block=t.children.filter(x=>family.has(x.id)),rest=t.children.filter(x=>!family.has(x.id));let target=first?rest.findIndex(x=>x.parentId===c.parentId):rest.findLastIndex(x=>x.parentId===c.parentId)+1;if(target<0)target=rest.length;rest.splice(target,0,...block);t.children=rest;});}
 function timerChange(el,edit){const result=change(b=>{const t=b.tasks.find(t=>t.id===el.dataset.id),item=el.dataset.child?t.children.find(c=>c.id===el.dataset.child):t;edit(item)},{redraw:false});updateClocks();return result;}
-document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const action=actions[el.dataset.action]||window.TidySharing?.actions?.[el.dataset.action];if(!action)return;try{await action(el);}catch(err){notice(err.message)}});
+document.addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;if(el.dataset.action.startsWith('quest-')&&Q?.handle(el))return;const action=actions[el.dataset.action]||window.TidySharing?.actions?.[el.dataset.action];if(!action)return;try{await action(el);}catch(err){notice(err.message)}});
 document.addEventListener('submit',async e=>{if(e.target.id==='modal-form'||e.target.closest('.tac'))return;e.preventDefault();const fd=new FormData(e.target);try{switch(e.target.id){case 'laundry-config':{const values=Object.fromEntries(fd);if(['wash','railTransfer','dryerTransfer','railFinish','dryerFinish'].some(k=>!values[k].trim()))throw Error('Enter a name for every step.');const steps=values.uniformSteps.split('\n').map(s=>s.trim()).filter(Boolean);if(!steps.length)throw Error('Keep at least one uniform step.');change(b=>{const f=b.features,current=f.uniformSteps[f.uniformIndex];Object.assign(f,values,{uniformSteps:steps});if(f.uniformIndex>=0)f.uniformIndex=Math.max(0,steps.indexOf(current))});notice('Cycle saved; load progress kept');break;}
 case 'oneoff-form':if(fd.get('title').trim())change(b=>b.features.items.unshift({id:M.uid(),kind:'laundry',text:fd.get('title').trim(),done:false}));break;
 case 'homeless-form':if(fd.get('title').trim())change(b=>b.features.items.unshift({id:M.uid(),kind:'homeless',text:fd.get('title').trim(),location:roomId}));break;
@@ -785,6 +792,9 @@ document.addEventListener('change',e=>{
  else if(kind==='preset-multiplier'&&[1,2,3].includes(Number(el.value)))d.presetMultiplier=Number(el.value);
  if(kind==='task-selected')render();
 });
+document.addEventListener('change',e=>{if(route==='focus')Q?.change(e)});
+document.addEventListener('input',e=>{if(route==='focus')Q?.input(e)});
+document.addEventListener('toggle',e=>{if(route==='focus')Q?.sectionToggle(e);},true);
 document.addEventListener('change',e=>{if(e.target.id==='data-room-filter'){dataRoom=e.target.value;dataVisible=12;render();}});
 document.addEventListener('change',e=>{if(e.target.id!=='schedule-preview-minutes')return;const raw=e.target.value.trim();if(raw!==''&&(!/^\d+$/.test(raw)||Number(raw)<1||Number(raw)>1440)){notice('Choose 1–1440 planning minutes or leave blank for no limit.');e.target.value=schedulePreviewMinutes;return;}schedulePreviewMinutes=raw;render();});
 document.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file||!['backup-file','csv-file'].includes(e.target.id))return;try{if(file.size>15*1024*1024)throw Error('Choose a backup smaller than 15 MB.');const text=await file.text();if(e.target.id==='backup-file'){if(!B)throw Error('Backup safety checker unavailable. Nothing was imported.');const preview=B.prepare(board,text,M);confirmDialog('Preview backup import',B.describe(preview.summary),()=>change(b=>Object.assign(b,B.apply(b,preview,M))),'Import and merge');}else{const rows=parseCSV(text),header=rows.shift()||[];if(!header.includes('title')||!header.includes('room'))throw Error('CSV needs title and room columns.');const added=rows.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]||'']))).map(r=>{const found=board.rooms.find(x=>x.id===r.room||x.name.toLowerCase()===r.room.toLowerCase());if(r.room&&!found)throw Error('Unknown room: '+r.room);if(!r.title.trim())throw Error('Every task needs a title.');if(r.sidequest&&!['true','false'].includes(r.sidequest.toLowerCase()))throw Error('sidequest must be true or false.');return M.task({title:r.title.trim(),room:found?.id||'',side:r.sidequest.toLowerCase()==='true',tools:r.tools||'',notes:r.notes||''})}).filter(t=>!board.tasks.some(x=>x.title===t.title&&x.room===t.room));confirmDialog('Preview task upload',`${added.length} new tasks. Existing tasks are kept and matching title/room pairs are skipped.`,()=>change(b=>added.reverse().forEach(t=>M.add(b,t))),'Add these tasks');}}catch(err){notice(err.message)}finally{e.target.value=''}});
@@ -792,6 +802,48 @@ function parseCSV(text){const rows=[];let row=[],value='',quoted=false;for(let i
 window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue||e.newValue===lastSaved)return;try{const incoming=M.normalize(JSON.parse(e.newValue));if(editor.open){pendingExternal=incoming;notice('Another tab saved changes. Your open form is kept; close and reopen it before saving.');}else{lastSaved=e.newValue;board=incoming;render();}}catch{notice('Another tab supplied invalid data. The open board has been preserved.')}});
 function reminders(){const f=F();for(const l of f.laundry){if(l.step!==1||!l.startedAt||Date.now()-l.startedAt<7200000||Date.now()-(l.lastReminderAt||0)<1800000)continue;if('Notification'in window&&Notification.permission==='granted'){try{new Notification('Tidy-ish · laundry',{body:'load is ready, rewash = money down the drain',tag:'tidyish-html-laundry-'+l.slot,icon:'assets/icons/icon-192.png'});change(b=>b.features.laundry.find(x=>x.slot===l.slot).lastReminderAt=Date.now(),{redraw:false,sync:false});}catch{}}}}
 window.TidyUI={getBoard:()=>board,change,render,notice,dialog,closeDialog,confirmDialog,button,field,area,check,select,card,detail,esc,navigate,exportBoard,storageKey:KEY,editing:()=>editor.open,acceptSync(next){persist(next);if(!editor.open)render();},onSyncStatus(){if(route==='settings'&&!editor.open)render();}};
+if(Q)Q.init({board:()=>board,room:()=>roomId,date:()=>M.date(),notice,render,storage:localStorage,
+ memberId:()=>String(F().browserSync?.account||'local')+'|member:'+String(F().displayName||'Me'),makeId:M.uid,
+ editor:()=>editor,dialog,closeDialog,leave:()=>navigate('room',roomId),
+ addShared:routine=>change(b=>{
+  if(!Array.isArray(b.features.routines))throw Error('Shared routines are unavailable.');
+  if(b.features.routines.some(x=>x.id===routine.id))throw Error('Routine ID already exists.');
+  b.features.routines.push(routine);
+ }),
+ completeClear:(entry)=>{
+  const current=Q.get();
+  if(!current||current.phase!=='clear-active'||current.room!==roomId||!current.clearQuests.some(q=>q.id===entry.id))return false;
+  return change(b=>{
+   if(Q.recordClearWin(b,{room:roomId,entry,now:new Date().toISOString(),id:M.uid(),person:b.features.displayName})){
+    Q.addFollowup(b,roomId,entry,M.task);
+   }
+  });
+ },
+ undoClear:(entry)=>{
+  const current=Q.get();
+  if(!current||current.phase!=='clear-active'||current.room!==roomId||!current.clearQuests.some(q=>q.id===entry.id))return false;
+  return change(b=>{
+   const wins=Q.clearWins(b,entry);
+   if(wins.length!==1)throw Error('Clear the Way completion is missing or duplicated. No changes made.');
+   b.features.wins=b.features.wins.filter(w=>w.id!==wins[0].id);
+   b.tasks=b.tasks.filter(t=>t.generatedFrom!=='clear-way-session:'+entry.id||t.touched||t.done||t.startedAt||t.elapsed);
+   b.doingOrder=b.doingOrder.filter(id=>b.tasks.some(t=>t.id===id));
+  });
+ },
+ complete:(id)=>{
+  const t=task(id);if(!t||t.room!==roomId||t.done)return;
+  const done=()=>change(b=>M.finish(b,id,true));
+  if(t.children.some(c=>!c.done))confirmDialog('Done em all',`Complete all subtasks in ${t.title}?`,done,'Done em all');
+  else done();
+ },
+ completeChild:(id,childId)=>{
+  const t=task(id),c=t?.children.find(c=>c.id===childId);
+  if(!t||t.room!==roomId||!c||c.done)return;
+  const done=()=>change(b=>M.completeChild(b,id,childId,true));
+  if(t.children.some(x=>x.parentId===childId))confirmDialog('Done em all',`Complete all subtasks in ${c.title}?`,done,'Done em all');
+  else done();
+ }
+});
 render();setInterval(updateClocks,1000);setInterval(()=>{if(!editor.open){const next=M.clone(board);M.refresh(next);if(JSON.stringify(next)!==JSON.stringify(board))change(b=>Object.assign(b,next));reminders();if(route==='laundry'||route==='home'||route==='doing'&&doingTab==='laundry'||route==='doing'&&nextDoingExpiry&&Date.now()>=nextDoingExpiry)render();}},30000);
 if(location.hash.includes('access_token=')||new URLSearchParams(location.search).has('code')){route='settings';render();window.addEventListener('tidy-sharing-ready',()=>window.TidySharing.init().catch(e=>notice(e.message)),{once:true});}
 })();
