@@ -160,10 +160,10 @@
         if(c!==t)c._winId=win;
         followup(b,t,c);
       }
-      t.undoChildren=before.map(c=>c.done);t._finishState={before,added,nextDue:t.nextDue||''};
+      t.undoChildren=before.map(c=>c.done);t._finishState={before,added,nextDue:t.nextDue||'',scheduleActive:!!t.scheduleActive};
       t._canUndoFamily=true;t._completionIds=added;
       t.children.forEach(c=>{c.done=true;c.elapsed=time(c);c.startedAt=0;});
-      t.elapsed=time(t);t.startedAt=0;t.done=true;t.completedAt=new Date().toISOString();
+      t.elapsed=time(t);t.startedAt=0;t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;
       if(repeat(t))t.nextDue=next(t,date());
       followup(b,t,t);
     }else{
@@ -173,7 +173,7 @@
       const undoIds=new Set(state?.added||t._completionIds||[]);
       b.features.wins=b.features.wins.filter(w=>!undoIds.has(w.id));
       t.children.forEach((c,i)=>{const previous=state?.before.find(x=>x.id===c.id);c.done=previous?previous.done:!!t.undoChildren[i];if(previous){if(previous.winId)c._winId=previous.winId;else delete c._winId;}else if(undoIds.has(c._winId))delete c._winId;});
-      t.done=false;t.completedAt='';if(state)t.nextDue=state.nextDue;delete t._finishState;delete t._completionIds;
+      t.done=false;t.completedAt='';if(state){t.nextDue=state.nextDue;if(t.scheduleMakerManaged)t.scheduleActive=!!state.scheduleActive;}delete t._finishState;delete t._completionIds;
       const touched=new Set([t.id,...t.children.map(c=>c.id)]);
       b.tasks=b.tasks.filter(x=>!touched.has(x.generatedFrom)||x.touched||x.done||x.startedAt||x.elapsed);
       b.doingOrder=b.doingOrder.filter(x=>b.tasks.some(t=>t.id===x));
@@ -198,7 +198,7 @@
     // Parent subtasks reflect the completion status of their children.
     for(let i=0;i<t.children.length;i++)for(const p of t.children){const children=t.children.filter(x=>x.parentId===p.id);if(children.length)p.done=children.every(x=>x.done);}
     const all=t.children.every(x=>x.done);
-    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();t._canUndoFamily=true;t.undoChildren=[...before.values()];t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,done])=>({id,done,winId:''})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
+    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()];t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,done])=>({id,done,winId:''})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
     if(!done&&t.done){t.done=false;t.completedAt='';delete t._finishState;}
   }
   function refresh(b,today=date()) {
