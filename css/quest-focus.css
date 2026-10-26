@@ -46,3 +46,16 @@
 #editor .quest-btn{flex:1;min-width:120px;border-radius:10px;border:1px solid #ffffff40;padding:10px;min-height:43px}
 #editor .quest-praise{font-size:1.06rem;font-weight:730;color:#eadafa;text-align:center;padding:12px 3px}
 @media(max-width:390px){.quest-focus .quest-sheet{padding:9px}.quest-focus .quest-plan-actions .quest-btn{font-size:.72rem;min-width:83px;padding:7px 5px}.quest-focus .quest-choice-row{padding:6px}.quest-focus .quest-inline-meta{max-width:27%;font-size:.63rem}.quest-focus .quest-btn{font-size:.78rem}}
+
+/* Stage 14C: Clear the Way remains in Focus; add methods appear after current Quests. */
+.quest-focus .quest-compact-main{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.quest-focus .quest-compact-main strong{min-width:0;overflow-wrap:anywhere;font-size:.93rem}
+.quest-focus .quest-compact-main .quest-btn{flex:none;min-height:34px;border-radius:7px;padding:6px 8px;font-size:.75rem}
+.quest-focus .quest-focused-list h3{margin:9px 0 5px}
+.quest-focus .quest-active-card{padding:7px 9px;border-radius:8px;margin:2px 0}
+.quest-focus .quest-small-progress{font-size:.72rem;color:#d6edc7}
+.quest-focus .quest-add-choices{margin-top:13px;border-top:1px solid #ffffff38;padding-top:8px}
+.quest-focus .quest-add-choices .quest-plan-actions .quest-btn{min-width:0;flex:1 1 30%;padding:7px 4px;font-size:.75rem}
+.quest-focus .quest-limit{width:100%;font-weight:700;font-size:.83rem}
+.quest-focus .quest-fields:empty{display:none}
+@media(max-width:350px){.quest-focus .quest-add-choices .quest-plan-actions .quest-btn{font-size:.69rem}}

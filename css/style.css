@@ -489,3 +489,37 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .top .top-page-line>h1{flex:1;min-width:0;margin:0;padding:8px 2px;line-height:1.28;background:transparent;font-size:1.4rem}
 .top .page-back{flex:none;min-height:38px;border:1px solid #89b7c266;background:linear-gradient(145deg,#384466,#5a3c62);border-radius:11px;color:#e0edf2;padding:6px 9px;font-size:.83rem}
 @media(max-width:350px){.top .top-page-line>h1{font-size:1.15rem}.top .page-back{font-size:.73rem;padding:5px 7px}}
+
+/* Stage 14C: compact cards, preserve the established Tidyish palette and gradients. */
+.doing-board .doing-task{border-radius:8px;padding:7px 8px 6px;margin:5px 0}
+.doing-board .doing-task-main{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:5px}
+.doing-board .doing-task-main .doing-select{grid-column:1;grid-row:1 / span 2;align-self:center;max-width:61px;width:61px;min-height:37px;border-radius:7px;padding:5px 4px;font-size:.73rem}
+.doing-board .doing-task-main .doing-task-title{grid-column:2;grid-row:1;align-self:center;margin:0;padding:2px 0;min-width:0;line-height:1.15;font-size:1.09rem}
+.doing-board .doing-task-main .doing-subtask-count{grid-column:2;grid-row:2;justify-self:start;align-self:start;margin:0;padding:1px 5px;border-radius:5px}
+.doing-board .doing-task-main .doing-complete{grid-column:3;grid-row:1 / span 2;align-self:center;justify-self:end;max-width:108px;min-width:84px;min-height:37px;margin:0;border-radius:7px;padding:5px 7px;font-size:.76rem;line-height:1.1;text-align:center;white-space:normal;color:#fff;background:linear-gradient(145deg,#568b76,#28745f);border:1px solid #82c7a2}
+.doing-board .doing-task-actions{margin-top:3px;gap:5px;flex-wrap:nowrap}
+.doing-board .doing-task-actions button{min-height:30px;border-radius:7px;padding:3px 8px}
+.doing-board .doing-task-actions .doing-timer{height:30px;min-height:30px;width:34px;min-width:34px;padding:3px;border-radius:7px}
+@media(max-width:390px){.doing-board .doing-task-main .doing-task-title{font-size:1rem}.doing-board .doing-task-main .doing-select{width:54px;max-width:54px;font-size:.66rem}.doing-board .doing-task-main .doing-complete{max-width:91px;min-width:77px;font-size:.69rem;padding:4px}.doing-board .doing-task-actions{flex-wrap:nowrap}}
+@media(max-width:330px){.doing-board .doing-task-main{gap:3px}.doing-board .doing-task-main .doing-complete{min-width:70px;max-width:79px;font-size:.66rem}.doing-board .doing-task-main .doing-select{width:48px;max-width:48px}}
+.laundry-compact-page{display:grid;gap:6px}
+.laundry-compact-page>section{background:linear-gradient(130deg,#453453,#303850);border:1px solid #73648e;border-radius:8px;margin:0;padding:7px 9px}
+.laundry-compact-page .laundry-card{display:grid;grid-template-columns:36px minmax(0,1fr);gap:7px;align-items:center}
+.laundry-compact-page .laundry-card>img{width:34px;height:40px;object-fit:contain}
+.laundry-compact-page .laundry-card h3,.laundry-compact-page>section h3{font-size:.96rem;margin:0 0 2px;line-height:1.15}
+.laundry-compact-page .laundry-card p{margin:2px 0 3px;font-size:.77rem;line-height:1.2}
+.laundry-compact-page .laundry-card .row{gap:4px;margin-top:3px}
+.laundry-compact-page .laundry-card button,.laundry-compact-page>section>.row button{min-height:31px;padding:4px 8px;border-radius:7px;font-size:.76rem}
+.laundry-compact-page .laundry-tools{margin-top:3px;gap:5px}
+.laundry-compact-page .laundry-tools button{min-height:33px;padding:5px 8px;border-radius:7px;font-size:.77rem}
+
+/* Compact room task cards: completion alongside task name, not on a new row. */
+.task:not(.doing-task){border-radius:8px;padding:7px 8px;margin-bottom:6px}
+.task .room-task-main{display:grid;grid-template-columns:auto minmax(0,1fr) 32px auto;align-items:center;gap:4px}
+.task .room-task-main .select-task{max-width:68px;min-height:35px;min-width:48px;padding:4px 5px;font-size:.7rem;border-radius:7px}
+.task .room-task-main .task-title{min-width:0;min-height:33px;padding:3px 1px;text-align:left;line-height:1.15;font-size:1.08rem}
+.task .room-task-main [data-action=add-child]{width:30px;min-width:30px;min-height:33px;padding:3px;border-radius:7px}
+.task .room-task-main .room-complete{max-width:103px;min-width:72px;min-height:36px;padding:4px 7px;line-height:1.12;border-radius:7px;white-space:normal;font-size:.71rem;background:linear-gradient(145deg,#568b76,#28745f);color:#fff;border-color:#82c7a2}
+.task .actions{margin-top:3px;gap:3px}
+.task .actions button{min-height:31px;padding:4px 8px;border-radius:7px}
+@media(max-width:390px){.task .room-task-main .task-title{font-size:.98rem}.task .room-task-main .room-complete{min-width:66px;max-width:88px;font-size:.66rem;padding:4px}}
