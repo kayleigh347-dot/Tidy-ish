@@ -4,18 +4,14 @@
 // Sorting is deliberately a later ordinary task, never a prerequisite to cleaning.
 const standardSteps=[
  'Gather the cleaning supplies you need',
- 'Pick up rubbish into a bin bag; keep recycling separate if needed; leave at the door',
- 'Box things that belong in other rooms; leave by the door, without taking them out',
- 'Bag important items and hang the bag on the door handle',
- 'Box large items by category, then smaller items if practical; do not micro-sort',
- 'Box everything else without sorting'
+ 'Gather items that obviously belong together and move them to their area. Don\'t sort or put away yet.',
+ 'Put things that belong in other rooms into a box. Leave the box here for now.',
+ 'Put important items somewhere safe without sorting them',
+ 'Put obvious rubbish into a rubbish bag',
+ 'Clear loose floor items into a bag or box without sorting them'
 ];
-const followups={
- [standardSteps[2]]:'Sort boxed items belonging in other rooms',
- [standardSteps[3]]:'Sort and put away important items',
- [standardSteps[4]]:'Sort boxed items by category',
- [standardSteps[5]]:'Sort remaining boxed clutter'
-};
+// No automatic sorting Quests or generated follow-up tasks.
+const followups={};
 const praise=['That made some breathing room!','One little victory at a time.','The room is already feeling lighter.','Quest cleared. On to the good stuff!','You made space for the next adventure.','That is plenty of progress to celebrate.'];
 const ids=a=>[...new Set((Array.isArray(a)?a:[]).filter(x=>typeof x==='string'&&x.trim()))];
 const cleanSteps=a=>ids((Array.isArray(a)?a:[]).map(s=>String(s).trim()).filter(s=>s&&s.length<=150)).slice(0,40);
@@ -30,8 +26,8 @@ function candidates(board,room,today){const c=eligible(board,room,today);return 
 function estimate(t){const n=Number(t?.estimate);return Number.isFinite(n)&&n>0?Math.ceil(n):null;}
 function metrics(board,selected){const lookup=new Map((board.tasks||[]).map(t=>[t.id,t])),list=ids(selected).map(i=>lookup.get(i)).filter(Boolean);return {count:list.length,minutes:list.reduce((n,t)=>n+(estimate(t)||0),0),unknown:list.filter(t=>estimate(t)===null).length};}
 function recommend(board,room,today,{count=null,minutes=null}={}){if(count!==null&&(!Number.isInteger(count)||count<1||count>100))throw Error('Choose 1–100 Quests or no limit.');if(minutes!==null&&(!Number.isInteger(minutes)||minutes<1||minutes>1440))throw Error('Quest time must be 1–1440 minutes or unlimited.');const chosen=[];let time=0;for(const task of candidates(board,room,today)){if(count!==null&&chosen.length>=count)break;const m=estimate(task);if(minutes!==null&&(m===null||time+m>minutes))continue;chosen.push(task.id);time+=m||0;}return chosen;}
-function session(room,source=standard(room)){return {version:2,room,phase:'clear-choose',clearSkipped:false,addMethod:'manual',routineId:source.id,routineSourceId:source.id,steps:[],clearQuests:[],questIds:[],startedIds:[],limitMinutes:null,limitCount:null,praiseIndex:0};}
-function sanitize(input,board,room){if(!input||input.version!==2||input.room!==room||!roomExists(board,room))return null;const result=session(room,{id:String(input.routineId||'standard:'+room)});result.clearSkipped=input.clearSkipped===true;result.addMethod=['amount','time','manual'].includes(input.addMethod)?input.addMethod:'manual';result.phase=['clear-choose','clear-active','pick','plan','active'].includes(input.phase)?input.phase:'clear-choose';result.routineSourceId=String(input.routineSourceId||result.routineId);result.steps=cleanSteps(input.steps);result.clearQuests=(Array.isArray(input.clearQuests)?input.clearQuests:[]).filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&e.title.trim()&&e.title.length<=150).slice(0,40).map(e=>({id:e.id,title:e.title,followup:typeof e.followup==='string'?e.followup:''}));if(new Set(result.clearQuests.map(e=>e.id)).size!==result.clearQuests.length)result.clearQuests=[];result.questIds=ids(input.questIds).filter(id=>board.tasks.some(t=>t.id===id&&t.room===room));result.startedIds=ids(input.startedIds).filter(id=>board.tasks.some(t=>t.id===id&&t.room===room));result.limitCount=Number.isInteger(input.limitCount)&&input.limitCount>=1&&input.limitCount<=100?input.limitCount:null;result.limitMinutes=Number.isInteger(input.limitMinutes)&&input.limitMinutes>=1&&input.limitMinutes<=1440?input.limitMinutes:null;result.praiseIndex=Number.isInteger(input.praiseIndex)?Math.abs(input.praiseIndex)%praise.length:0;return result;}
+function session(room,source=standard(room)){return {version:2,room,phase:'pick',clearSkipped:false,addMethod:'manual',routineId:source.id,routineSourceId:source.id,steps:[],clearQuests:[],questIds:[],startedIds:[],limitMinutes:null,limitCount:null,praiseIndex:0};}
+function sanitize(input,board,room){if(!input||input.version!==2||input.room!==room||!roomExists(board,room))return null;const result=session(room,{id:String(input.routineId||'standard:'+room)});result.clearSkipped=input.clearSkipped===true;result.addMethod=['amount','time','manual'].includes(input.addMethod)?input.addMethod:'manual';result.phase=['clear-choose','clear-active','clear-finished','pick','plan','active'].includes(input.phase)?input.phase:'clear-choose';result.routineSourceId=String(input.routineSourceId||result.routineId);result.steps=cleanSteps(input.steps);result.clearQuests=(Array.isArray(input.clearQuests)?input.clearQuests:[]).filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&e.title.trim()&&e.title.length<=150).slice(0,40).map(e=>({id:e.id,title:e.title,followup:typeof e.followup==='string'?e.followup:''}));if(new Set(result.clearQuests.map(e=>e.id)).size!==result.clearQuests.length)result.clearQuests=[];result.questIds=ids(input.questIds).filter(id=>board.tasks.some(t=>t.id===id&&t.room===room));result.startedIds=ids(input.startedIds).filter(id=>board.tasks.some(t=>t.id===id&&t.room===room));result.limitCount=Number.isInteger(input.limitCount)&&input.limitCount>=1&&input.limitCount<=100?input.limitCount:null;result.limitMinutes=Number.isInteger(input.limitMinutes)&&input.limitMinutes>=1&&input.limitMinutes<=1440?input.limitMinutes:null;result.praiseIndex=Number.isInteger(input.praiseIndex)?Math.abs(input.praiseIndex)%praise.length:0;return result;}
 function clearWins(board,entry){return (board?.features?.wins||[]).filter(w=>w.taskId===entry.id);}
 function clearState(board,current){const quests=current?.clearQuests||[];return {total:quests.length,completed:quests.filter(e=>clearWins(board,e).length>0).length,remaining:quests.filter(e=>clearWins(board,e).length===0)};}
 function recordClearWin(board,{room,entry,now,id,person}){if(!roomExists(board,room)||!entry?.id||!entry?.title||!Array.isArray(board.features?.wins))throw Error('Clear the Way Quest could not be saved.');if(clearWins(board,entry).length)return false;if(board.features.wins.some(w=>w.id===id))throw Error('Completion record already exists.');board.features.wins.push({id,taskId:entry.id,rootId:'',title:entry.title,room,at:now,minutes:0,measured:false,points:1,person:String(person||''),templateId:'',clearTheWay:true});return true;}

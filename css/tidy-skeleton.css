@@ -1,0 +1,35 @@
+/* Tidy-ish Stage 01–04 skeleton. All new selectors are scoped. Nothing targets Doing Now. */
+.new-maker,.new-grind-page{--nm-purple:#502768;--nm-green:#3c816b;display:grid;gap:12px;margin:12px auto 30px;max-width:750px;padding:12px;color:inherit}
+.new-maker-heading{border-radius:17px;padding:16px;background:linear-gradient(115deg,#5d326e,#357660);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.new-maker-heading h2{font-size:1.22rem;color:#fff;margin:0}.new-maker-heading span{font-size:.78rem;background:#ffffff28;border-radius:999px;padding:5px 8px}
+.new-maker-hint{font-size:.91rem;line-height:1.45;opacity:.9;margin:4px 0}
+.new-maker-start,.new-maker-fields,.new-maker-task-fields{display:grid;gap:11px}.new-maker-fields label,.new-maker-task-fields label,.new-maker-custom label{display:grid;gap:5px;font-weight:600;font-size:.88rem}
+.new-maker-fields input,.new-maker-task-fields input,.new-maker-custom input,.new-maker-task-fields textarea{width:100%;min-width:0;padding:11px;border:1px solid #ac93ba;border-radius:11px;background:var(--card,#fff);color:var(--text,#35233f);font:inherit}
+.new-maker-button{border:1px solid #715a86;cursor:pointer;border-radius:11px;padding:11px 13px;min-height:43px;background:#e7dff0;color:#382647;font:inherit;font-weight:700;text-align:center}
+.new-maker-button.primary{background:linear-gradient(100deg,#5d3179,#4b9475);color:#fff;border-color:transparent}.new-maker-button.ghost{background:transparent;color:inherit;border-color:#927ca2}
+.new-maker-button:focus-visible,.new-grind-tile:focus-visible{outline:3px solid #c3f0ba;outline-offset:3px}
+.new-maker-footer,.new-maker-control{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;padding:10px 0}
+.new-maker-days{display:flex;flex-wrap:wrap;gap:11px}.new-maker-days label{display:flex;gap:5px;align-items:center}.new-maker-fields fieldset{border:1px solid #896b9d;border-radius:14px;padding:12px}
+.new-maker-room-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.new-maker-check{display:flex;gap:8px;align-items:center;padding:9px;border-radius:10px;background:#e5ddf2;color:#342240;font-size:.86rem}
+.new-maker-room-banner{background:linear-gradient(105deg,#663c7e,#3d816d);color:#fff;padding:13px;border-radius:12px;display:flex;gap:7px;justify-content:space-between;align-items:center}
+.new-maker-task{padding:10px 12px;border-radius:13px;border:1px solid #8b739b;display:grid;gap:9px}.new-maker-task.shade-0{background:#ebe3f4;color:#382546}.new-maker-task.shade-1{background:#d8eade;color:#233d32}.new-maker-task.shade-2{background:#f3e7dc;color:#493422}.new-maker-task.shade-3{background:#dce8f2;color:#243c50}
+.new-maker-task-head{display:flex;gap:10px;align-items:flex-start}.new-maker-task-head>span{display:grid;gap:3px}.new-maker-task-head strong{font-size:.97rem}.new-maker-task-head small{font-size:.75rem}.new-maker-task-head input{width:18px;height:18px;flex-shrink:0}
+.new-maker-task summary,.new-maker-custom summary{cursor:pointer;font-size:.84rem;font-weight:700}.new-maker-task-fields{grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0 5px}.new-maker-task-fields label:first-child,.new-maker-task-fields label:last-child{grid-column:1/-1}
+.new-maker-custom{padding:13px;border:1px dashed #8d7a9d;border-radius:12px}.new-maker-custom form{display:grid;gap:9px;margin-top:10px}
+.new-maker-pending{border:1px dashed #856f9a;background:#f0e9f3;color:#382d48;padding:14px;border-radius:12px;display:grid;gap:7px}.new-maker-pending>span{font-size:.78rem;font-weight:700;color:#674781}.new-maker-warning{color:#6e3b16;background:#fff0d7;padding:10px;border-radius:9px;font-weight:700}
+.new-maker-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.new-maker-stats>div{padding:12px 6px;border-radius:12px;background:#e9e3f0;color:#302144;text-align:center;display:grid}.new-maker-stats strong{font-size:1.4rem}.new-maker-stats span{font-size:.75rem}
+.new-maker-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.new-maker-preview-day{border-radius:13px;border:1px solid #a997b3;padding:10px;background:var(--card,#f9f5fb);display:grid;gap:4px;font-size:.82rem}.new-maker-preview-day>small{font-size:.72rem;opacity:.85}
+.new-maker-due{margin:10px 0;padding:12px;background:linear-gradient(125deg,#e6d8ee,#d5eedf);color:#322541;border-radius:13px}.new-maker-due summary{font-weight:700}.new-maker-due label{display:flex;gap:8px;align-items:center;padding:7px 0}.new-maker-due small{margin-left:auto}
+.tidy-daily-grind{margin:16px 0;padding:11px 0}.tidy-daily-grind h2{margin:0}.new-grind-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:10px}.new-grind-tile{min-height:102px;padding:13px;border-radius:16px;border:1px solid #a8a0b3;color:#2f2340;display:grid;align-content:center;gap:7px;text-align:left}.new-grind-tile strong{font-size:1rem}.new-grind-tile small{font-size:.77rem;line-height:1.35}.new-grind-laundry{background:#ecdff5}.new-grind-cat{background:#dceadd}.new-grind-aquatic{background:#dfeaf3}.new-grind-often{background:#f5e5d8}
+.new-grind-voice{border-radius:12px;background:linear-gradient(110deg,#522c70,#39815d);color:white;border:none;padding:10px 12px;font-size:.87rem;font-weight:700}
+/* Only the Bathroom is restyled, as a reversible design experiment. */
+.room-preview-bathroom{padding:11px;border-radius:19px;background:linear-gradient(160deg,rgba(91,52,116,.24),rgba(49,139,106,.15));border:1px solid rgba(169,124,189,.5)}
+.room-preview-bathroom>.row.spread{background:linear-gradient(105deg,#663b80,#31775e);border-radius:15px;padding:12px;color:white;gap:8px;flex-wrap:wrap}
+.room-preview-bathroom>.row.spread h1{color:white;font-size:1.24rem;flex:1 1 auto}
+.room-preview-bathroom .task:not(.done){border:1px solid rgba(89,61,106,.5);border-radius:15px;box-shadow:0 2px 4px #2611311c}
+.room-preview-bathroom .task.position-colour-0{background:#e3daf3;color:#36253f}.room-preview-bathroom .task.position-colour-1{background:#d6e9de;color:#254236}
+.room-preview-bathroom .task.position-colour-2{background:#f0dfd8;color:#4b322b}.room-preview-bathroom .task.position-colour-3{background:#dce9f5;color:#253b4b}
+.room-preview-bathroom .room-task-main .task-title{font-size:1.04rem;font-weight:700}.room-preview-bathroom .room-scene{border-radius:15px;overflow:hidden}
+@media(max-width:390px){.new-maker-room-grid,.new-maker-preview{grid-template-columns:1fr}.new-maker-task-fields{grid-template-columns:1fr}.new-maker-task-fields label:first-child,.new-maker-task-fields label:last-child{grid-column:auto}.new-maker{padding:7px}.new-maker-footer .new-maker-button{flex:1}}
+@media(prefers-reduced-motion:reduce){.new-maker *,.tidy-daily-grind *{animation:none!important;transition:none!important}}
+.new-what-next{margin:12px 0;padding:11px;border:1px solid #76638c;border-radius:15px;background:linear-gradient(105deg,#ede4f3,#dfede3);color:#302441}.new-what-next summary{cursor:pointer;font-weight:800}.new-next-row{display:grid;gap:5px;padding:10px 0;border-bottom:1px solid #8f7a9c55}.new-next-row strong{font-size:.92rem}

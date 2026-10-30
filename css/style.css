@@ -523,3 +523,47 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .task .actions{margin-top:3px;gap:3px}
 .task .actions button{min-height:31px;padding:4px 8px;border-radius:7px}
 @media(max-width:390px){.task .room-task-main .task-title{font-size:.98rem}.task .room-task-main .room-complete{min-width:66px;max-width:88px;font-size:.66rem;padding:4px}}
+
+/* B04 isolated Doing Now visual corrections. Task colours follow position, room headings follow room. */
+.doing-board .doing-task[class*="position-colour-"]{border-color:var(--pos-card-border);background:linear-gradient(125deg,var(--pos-card-bg),color-mix(in srgb,var(--pos-card-bg),#222239 25%) 85%)}
+.doing-board .room-tone-0 .room-heading{background:linear-gradient(110deg,#65446b,#384466)}
+.doing-board .room-tone-1 .room-heading{background:linear-gradient(110deg,#245c57,#35456b)}
+.doing-board .room-tone-2 .room-heading{background:linear-gradient(110deg,#48537c,#624467)}
+.doing-board .room-tone-3 .room-heading{background:linear-gradient(110deg,#714460,#47556d)}
+.doing-board .room-tone-4 .room-heading{background:linear-gradient(110deg,#356b50,#4d406c)}
+.doing-board .room-tone-5 .room-heading{background:linear-gradient(110deg,#574678,#445a6a)}
+.doing-board .room-tone-6 .room-heading{background:linear-gradient(110deg,#3b7264,#474872)}
+.doing-board .room-tone-7 .room-heading{background:linear-gradient(110deg,#755178,#365b6b)}
+.doing-board .room-tone-8 .room-heading{background:linear-gradient(110deg,#40697e,#5e4b74)}
+.doing-board .room-tone-9 .room-heading{background:linear-gradient(110deg,#6e4967,#426a59)}
+.doing-board .room-tone-10 .room-heading{background:linear-gradient(110deg,#526986,#68486a)}
+.doing-board .room-tone-11 .room-heading{background:linear-gradient(110deg,#4d7760,#645177)}
+.doing-board .doing-task-main{grid-template-columns:auto minmax(0,1fr) auto}
+.doing-board .doing-task-main .doing-subtask-count{grid-column:3;grid-row:1;justify-self:end;align-self:start;margin:0 0 0 2px;z-index:1}
+.doing-board .doing-task-main.has-subtasks{grid-template-columns:auto minmax(0,1fr) 34px auto}
+.doing-board .doing-task.has-subtasks .doing-task-main{grid-template-columns:auto minmax(0,1fr) 34px auto}
+.doing-board .doing-task-main .doing-complete{grid-column:3;grid-row:1;align-self:center}
+.doing-board .doing-task.has-subtasks .doing-task-main .doing-complete{grid-column:4}
+.doing-board .doing-task.has-subtasks .doing-task-main .doing-subtask-count{grid-column:3}
+.doing-board .doing-task-actions{justify-content:center}
+.doing-board .doing-task-actions .first{background:linear-gradient(135deg,#73b49d,#457d6a);color:#fff;border-color:#98cdb5}
+.doing-board .doing-task-actions .doing-more{font-size:1.07rem}
+.doing-board .doing-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.doing-board .doing-focus-entry{background:linear-gradient(145deg,#638b72,#4b5c91);border-color:#8cb89c;color:#fff;font-weight:700;border-radius:10px}
+.doing-focus-screen{padding:10px;display:grid;gap:12px}
+.clear-way-entry{display:block;margin:7px 0 9px;padding:7px 13px;border-radius:9px;background:linear-gradient(135deg,#416a58,#524271);color:#fff}
+.doing-focus-screen .quest-choice-row{display:flex;align-items:center;gap:12px}
+.doing-focus-screen .task{padding:10px;background:var(--pos-card-bg);border:1px solid var(--pos-card-border)}
+@media(max-width:390px){.doing-board .doing-task.has-subtasks .doing-task-main{grid-template-columns:auto minmax(0,1fr) 30px auto;gap:3px}.doing-board .doing-subtask-count{font-size:.71rem;padding:1px 4px}.doing-board .doing-toolbar{gap:5px}}
+
+/* B04R3: isolate subtask progress badge in the card's upper-right corner.
+   Keep the green Done button beside the task name, and allow long names to wrap. */
+.doing-board .doing-task.has-subtasks{padding-top:26px}
+.doing-board .doing-task.has-subtasks::after{display:none}
+.doing-board .doing-task.has-subtasks .doing-task-main,
+.doing-board .doing-task.has-subtasks .doing-task-main.has-subtasks{grid-template-columns:auto minmax(0,1fr) auto}
+.doing-board .doing-task.has-subtasks .doing-task-main .doing-subtask-count{position:absolute;top:5px;right:7px;grid-column:auto;grid-row:auto;margin:0;min-height:17px;z-index:2}
+.doing-board .doing-task.has-subtasks .doing-task-main .doing-complete{grid-column:3;grid-row:1 / span 2;justify-self:end;align-self:center}
+.task:not(.doing-task) .actions{justify-content:center}
+.task:not(.doing-task) .actions .room-task-menu{background:linear-gradient(135deg,#5c487a,#3c5871);border:1px solid #91aec6;color:#fff;min-width:36px;font-size:1.05rem;padding:3px 8px;border-radius:8px}
+@media(max-width:350px){.doing-board .doing-task.has-subtasks .doing-task-main{gap:3px}.doing-board .doing-task.has-subtasks .doing-task-main .doing-subtask-count{top:4px;right:5px}}
