@@ -25,6 +25,7 @@ function importRaw(raw){validateRaw(raw);const b=M.board(),defaults=b.rooms;b.ro
  b.features.items=(raw.homeless||[]).map(i=>({id:i.id,kind:'homeless',text:i.text,location:rid(i.roomId),done:!!i.done})).concat(settings.filter(r=>r.laundryTask&&!r.parentId&&!r.laundryUniform&&!r.archived).map(r=>({id:r.id,kind:'laundry',text:r.text,done:!!r.done,_shared:true})));
  b.features.questTimings=settings.filter(r=>r.id?.startsWith('tidy-timing:')&&r.timing&&r.timing.id===r.id.slice(12)).map(r=>C(r.timing));
  b.features.taskDataArchives=settings.filter(r=>r.id?.startsWith('tidy-taskdata-archive:')&&r.archive&&r.archive.id===r.id.slice(22)).map(r=>C(r.archive));
+ b.features.gifts=settings.filter(r=>r.id?.startsWith('tidy-gift:')&&r.gift&&r.gift.id===r.id.slice(10)).map(r=>C(r.gift));b.features.giftPeople=settings.filter(r=>r.id?.startsWith('tidy-gift-person:')&&r.person&&r.person.id===r.id.slice(17)).map(r=>C(r.person));
  const diary=settings.find(r=>r.id==='tidy-html-activity-diary');if(diary?.data)b.features.activityDiary=C(diary.data);
  const definitions=settings.find(r=>r.id==='tidy-html-quest-definitions-v1')?.data;
  if(definitions){
@@ -58,6 +59,7 @@ function project(b,raw,account){const out={tasks:[],side:[],rooms:[],wins:[],set
  for(const timing of b.features.questTimings||[]){if(timing?.id)out.settings.push({id:'tidy-timing:'+timing.id,timing:C(timing)});}
  for(const archive of b.features.taskDataArchives||[]){if(archive?.id)out.settings.push({id:'tidy-taskdata-archive:'+archive.id,archive:C(archive)});}
  out.settings.push({id:'tidy-html-activity-diary',data:C(b.features.activityDiary||{annotations:{},earned:[]})});
+ for(const gift of b.features.gifts||[])out.settings.push({id:'tidy-gift:'+gift.id,gift:C(gift)});for(const person of b.features.giftPeople||[])out.settings.push({id:'tidy-gift-person:'+person.id,person:C(person)});
  out.settings.push({id:'tidy-html-quest-definitions-v1',data:{
   templates:C(b.features.templates||[]),hiddenTemplates:C(b.features.hiddenTemplates||[]),
   tools:C(b.features.tools||[]),routines:C(b.features.routines||[]),
@@ -76,7 +78,7 @@ function accept(current,payload,state){const incoming=importRaw(payload),next=C(
  if((payload.settings||[]).some(r=>r.id==='tidy-html-quest-definitions-v1')){
   for(const key of ['templates','hiddenTemplates','tools','routines','occasionalDefaultsInitialised'])next.features[key]=C(incoming.features[key]);
  }
- next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[]};return next;}
+ next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','gifts','giftPeople'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[]};return next;}
 function transition(before,next){const state=next.features.browserSync;if(!state)return;
  for(const old of before.tasks){
   if(old.occasionKind==='occasional'&&!next.tasks.some(t=>t.id===old.id)){

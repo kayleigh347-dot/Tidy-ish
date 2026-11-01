@@ -35,7 +35,7 @@
         return `<button type="button" class="tac-day${d.marked&&!isFuture?' tac-marked':''}${date===this.today?' tac-today':''}${date===this.selected?' tac-selected':''}${isFuture?' tac-future':''}" data-date="${date}" aria-label="${esc(described)}" aria-pressed="${date===this.selected}" tabindex="${date===this.selected?'0':'-1'}"><span class="tac-number">${Number(date.slice(-2))}</span><span class="tac-day-icon">${d.occasion?`<span class="tac-occasion" aria-hidden="true">${esc(d.occasion.symbol)}</span>`:this.portrait(d)}</span>${d.count?`<span class="tac-count" aria-hidden="true">${d.count}</span>`:''}</button>`;
       }).join('');
       this.el.innerHTML=`<section class="tac" aria-label="Task activity calendar">
-        <div class="tac-heading"><div><p class="tac-eyebrow">TASK DATA</p><h1>Your little diary</h1></div><span class="tac-sprig" aria-hidden="true">❧</span></div>
+        <div class="tac-heading"><div><p class="tac-eyebrow">CALENDAR</p><h1>Activity calendar</h1></div><span class="tac-sprig" aria-hidden="true">❧</span></div>
         <p class="tac-intro">Small wins, slow days, and life in between.</p>
         <div class="tac-month-nav"><button type="button" data-nav="-1" aria-label="Previous month">‹</button><h2 id="${this.id}-month">${esc(monthName)}${m.star?'<span class="tac-star" role="img" aria-label="Monthly star earned">✦</span>':''}</h2><button type="button" data-nav="1" aria-label="Next month">›</button></div>
         <div class="tac-summary"><span><strong>${m.covered}<span class="tac-denominator"> / ${m.total}</span></strong> days marked</span><span><strong>${streak.count}</strong> day momentum<br><small>${streak.count?(streak.current?'Current streak':'Most recent streak'):'A fresh place to begin'}</small></span></div>

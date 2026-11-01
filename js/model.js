@@ -68,7 +68,7 @@
       wash:'Put a load on',railTransfer:'Put out washing',dryerTransfer:'Put in dryer',
       railFinish:'Move dry clothes from rail',dryerFinish:'Empty dryer',
       uniformSteps:[...STANDARD_UNIFORM],uniformIndex:-1,uniformWeek:'',uniformPaused:false,
-      routines:[],areas:{},tools:[],focusSessions:[],sideTabs:[],locationTabs:[{id:'household',name:'Household',order:0}],locationAreas:[],locationEntries:[],locationMoves:[],locationTrash:[],questTimings:[],taskDataArchives:[],activityDiary:{annotations:{},earned:[]},
+      routines:[],areas:{},tools:[],focusSessions:[],sideTabs:[],locationTabs:[{id:'household',name:'Household',order:0}],locationAreas:[],locationEntries:[],locationMoves:[],locationTrash:[],questTimings:[],taskDataArchives:[],gifts:[],giftPeople:[],activityDiary:{annotations:{},earned:[]},
       displayName:'Me',householdName:'',simple:false,sound:true,reduceMotion:false,pauseWandering:false,
       dialogue:'Gentle teasing',timeFactor:1,flexibleMode:false,revealed:[],rewardPrizeIndices:{},
       scheduleDraft:null,hiddenGuardians:[]
@@ -119,8 +119,10 @@
     if(f!==undefined&&!isObject(f))throw Error('Invalid saved feature data. Original saved data preserved.');
     b.features={...features(),...f};
     if(b.features.railFinish==='Put away clothes on rail')b.features.railFinish='Move dry clothes from rail';
-    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','laundry','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives'])
+    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','laundry','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives','gifts','giftPeople'])
       if(!Array.isArray(b.features[name]))throw Error(`Invalid saved ${name}; original saved data preserved.`);
+    const giftIds=new Set();for(const gift of b.features.gifts){if(!isObject(gift)||typeof gift.id!=='string'||!gift.id||giftIds.has(gift.id)||!['christmas','birthday'].includes(gift.occasion)||typeof gift.recipient!=='string'||typeof gift.title!=='string'||gift.recipientId!==undefined&&typeof gift.recipientId!=='string'||!Number.isFinite(Number(gift.budget))||Number(gift.budget)<0||!Number.isFinite(Number(gift.spent))||Number(gift.spent)<0||!['idea','bought','wrapped'].includes(gift.status))throw Error('Invalid saved gift record; original saved data preserved.');giftIds.add(gift.id);}
+    const personIds=new Set();for(const person of b.features.giftPeople){if(!isObject(person)||typeof person.id!=='string'||!person.id||personIds.has(person.id)||typeof person.name!=='string'||!person.name.trim()||person.name.length>100)throw Error('Invalid saved gift person; original saved data preserved.');personIds.add(person.id);}
     // Merge the former Cat Tray Area and Upstairs Landing into one room. Keep the
     // long-standing `cats` identity so care, schedules, and existing task links remain valid.
     const catRoom=b.rooms.find(r=>r.id==='cats'),upstairsRoom=b.rooms.find(r=>r.id==='upstairs');

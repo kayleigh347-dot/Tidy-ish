@@ -1,0 +1,14 @@
+.calendar-kind-symbol{font-size:1rem;line-height:1.15;color:#f3c0ff;filter:drop-shadow(0 1px 4px #8b43df)}
+.calendar-kind-symbol.seasonal{filter:drop-shadow(0 1px 4px #d98244)}
+.calendar-footnote span{white-space:nowrap}
+.gift-tracker .gift-row{margin:.3rem 0;padding:.55rem .65rem;border-radius:.7rem;background:#170d28;border:1px solid #3c2b55}
+.gift-tracker .gift-row .row{justify-content:flex-end;gap:.35rem;margin-top:.25rem}
+.gift-tracker>.row.spread{align-items:center;gap:.5rem;margin:.55rem 0}
+.gift-tracker>.row.spread h2{margin:.2rem 0;font-size:1.05rem}
+.gift-tracker .data-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
+.gift-tracker .data-metrics>*{min-width:0;padding:.55rem .4rem}
+.task-data-page>.tabs.nested,.calendar-view>.tabs.nested{position:sticky;top:0;z-index:2;background:#10091d;padding:.25rem 0}
+.task-data-page .data-completion>span{line-height:1.35}
+.gift-tracker .gift-bought-check{min-width:6.4rem;border-color:#5f477c;background:#211334}
+.gift-tracker .gift-bought-check[aria-checked="true"]{color:#a3f0cb;border-color:#48a97d}
+.gift-tracker .gift-row .row{flex-wrap:wrap}
