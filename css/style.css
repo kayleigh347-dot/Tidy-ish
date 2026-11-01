@@ -567,3 +567,26 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .task:not(.doing-task) .actions{justify-content:center}
 .task:not(.doing-task) .actions .room-task-menu{background:linear-gradient(135deg,#5c487a,#3c5871);border:1px solid #91aec6;color:#fff;min-width:36px;font-size:1.05rem;padding:3px 8px;border-radius:8px}
 @media(max-width:350px){.doing-board .doing-task.has-subtasks .doing-task-main{gap:3px}.doing-board .doing-task.has-subtasks .doing-task-main .doing-subtask-count{top:4px;right:5px}}
+
+/* Occasional Essentials selection: consistent with Tidy-ish's existing card styling */
+.essentials-group {border:1px solid var(--line,rgba(200,180,255,.25));border-radius:14px;padding:.6rem .8rem;margin:.7rem 0;background:rgba(255,255,255,.04)}
+.essentials-group>summary {cursor:pointer;font-weight:750;padding:.35rem 0}
+.essentials-option {padding:.75rem .4rem;border-top:1px solid rgba(240,225,255,.13)}
+.essentials-option .check {display:flex;align-items:baseline;gap:.65rem}
+.essentials-option .small {margin:.35rem 0 .55rem}
+.essentials-option.essentials-existing {opacity:.7}
+.essentials-setting {display:grid;grid-template-columns:minmax(110px,140px) minmax(150px,1fr);gap:.7rem;align-items:end}
+.essentials-setting input,.essentials-setting select{min-width:0;max-width:100%}
+@media(max-width:420px){.essentials-setting{grid-template-columns:1fr}.essentials-group{padding:.45rem}}
+
+/* Owner-selected calendar tasks: no implicit recurrence from imported backups. */
+.tidy-calendar-choices{max-height:58vh;overflow:auto;display:grid;gap:8px;padding:8px 0}.tidy-calendar-choices .check{align-items:flex-start;border:1px solid rgba(165,136,210,.45);border-radius:12px;padding:10px}.tidy-calendar-choices small{display:block;opacity:.8}
+
+/* Owner Calendar opt-in: searchable choice cards and their own calendar dates. */
+.tidy-calendar-choices{max-height:56vh;overflow:auto;display:grid;gap:10px;padding:8px 0;min-width:0}
+.tidy-calendar-choice{border:1px solid rgba(165,136,210,.45);border-radius:12px;padding:10px;min-width:0}
+.tidy-calendar-choice[hidden]{display:none!important}
+.tidy-calendar-choice-settings{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,.7fr);gap:6px;margin-top:8px}
+.tidy-calendar-choice-settings label{display:grid;gap:4px;font-size:.79rem;min-width:0}
+.tidy-calendar-choice-settings input,.tidy-calendar-choice-settings select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:8px 4px;font:inherit;border-radius:7px}
+@media(max-width:430px){.tidy-calendar-choice-settings{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.tidy-calendar-choice-settings label:first-child{grid-column:1/-1}}

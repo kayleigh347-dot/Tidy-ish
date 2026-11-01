@@ -1,0 +1,22 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const fs=require('node:fs');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../js/dictation.js'),'utf8');
+function setup(supported=true){
+ const listeners={},fields=[],recognitions=[];let observer;
+ class El{constructor(tag='INPUT',type='text',val=''){this.tagName=tag;this.type=type;this.value=val;this.isConnected=true;this.maxLength=-1;this.listeners={};this.attributes={};this.childNodes=[];this.children=[];this.selectionStart=this.selectionEnd=val.length;this.events=[];}
+ closest(){return null;}getAttribute(k){return this.attributes[k]||null;}setAttribute(k,v){this.attributes[k]=v;}append(...children){this.children.push(...children);}after(row){this.row=row;}addEventListener(k,fn){this.listeners[k]=fn;}setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}dispatchEvent(e){this.events.push(e.type);listeners[e.type]?.({target:this});} }
+ class Recognition{constructor(){recognitions.push(this);}start(){}abort(){this.onend?.();}result(text,final=true){const item=[{transcript:text}];item.isFinal=final;this.onresult({results:[item]});}}
+ const document={documentElement:{lang:'en'},body:{},hidden:false,querySelectorAll:()=>fields,createElement:tag=>new El(tag.toUpperCase()),addEventListener:(k,fn)=>listeners[k]=fn};
+ vm.runInNewContext(source,{window:{SpeechRecognition:supported?Recognition:null,addEventListener(){}},HTMLElement:El,document,MutationObserver:class{constructor(fn){observer=fn;}observe(){}},Event:class{constructor(type){this.type=type;}}});
+ function field(type='text',value=''){const el=new El('INPUT',type,value);fields.push(el);observer();return el;}
+ function click(el){el.row.children[0].listeners.click({preventDefault(){},stopPropagation(){}});}
+ return {field,click,recognitions,observer,listeners};
+}
+test('inserts at selection, preserves surrounding text, and emits save events',()=>{const x=setup(),el=x.field('text','Clean old kitchen');el.selectionStart=6;el.selectionEnd=9;x.click(el);x.recognitions[0].result('the');x.click(el);assert.equal(el.value,'Clean the kitchen');assert.deepEqual(el.events,['input','change']);});
+test('numeric/date/password and readonly controls have no microphone',()=>{const x=setup();for(const type of ['password','number','date','checkbox','file'])assert.equal(x.field(type).row,undefined);const el=x.field('password');el.type='text';el.readOnly=true;x.observer();assert.equal(el.row,undefined);});
+test('supports dynamic textareas and stops after end',()=>{const x=setup(),el=x.field();el.tagName='TEXTAREA';x.click(el);x.recognitions[0].result('New task');x.recognitions[0].onend();assert.equal(el.value,'New task');assert.equal(el.row.children[0].textContent,'🎤 Speak');});
+test('detached and externally changed fields never receive late results',()=>{for(const detached of [true,false]){const x=setup(),el=x.field('text','original');x.click(el);const r=x.recognitions[0];r.result('words');if(detached){el.isConnected=false;x.observer();}else el.value='manual edit';r.onend();assert.equal(el.value,detached?'original':'manual edit');r.result('late');assert.equal(el.value,detached?'original':'manual edit');}});
+test('permission failure preserves original and provides help',()=>{const x=setup(),el=x.field('text','keep');x.click(el);x.recognitions[0].onerror({error:'not-allowed'});assert.equal(el.value,'keep');assert.match(el.row.children[1].textContent,/denied/);});
+test('unsupported browser explains keyboard fallback',()=>{const x=setup(false),el=x.field();x.click(el);assert.match(el.row.children[1].textContent,/keyboard microphone/);});
+test('maximum length is respected without truncation',()=>{const x=setup(),el=x.field('text','a');el.maxLength=3;x.click(el);x.recognitions[0].result('long phrase');x.click(el);assert.equal(el.value,'a');assert.match(el.row.children[1].textContent,/too long/);});
+test('interim text is not committed, avoiding duplicate transcription',()=>{const x=setup(),el=x.field();x.click(el);x.recognitions[0].result('maybe',false);assert.equal(el.value,'');x.recognitions[0].result('final words');x.click(el);assert.equal(el.value,'final words');});
+test('focus switch completes original target without redirecting speech',()=>{const x=setup(),a=x.field(),b=x.field();x.click(a);const r=x.recognitions[0];r.result('first');x.listeners.focusin({target:b});r.result('late');assert.equal(a.value,'first');assert.equal(b.value,'');});

@@ -1,6 +1,5 @@
-/* Personal diary adapter for the Task Data Activity Calendar.
- * Does not write household boards, schedules, wins or point totals.
- * Annotation/earned-star state is local to this browser until a reviewed sync design exists. */
+/* Task Data Activity Calendar diary bridge: new day symbols belong to shared household data.
+ * Legacy browser-only notes require explicit import before becoming visible to other members. */
 (function(root){'use strict';
   const C=root.TidyActivityData;
   const namespace=new URLSearchParams(root.location.search).get('qa')==='1'?'-qa':'';
@@ -44,25 +43,34 @@
       storedRaw=serialized;
     }catch(err){storageIssue='Diary changes could not be saved ('+err.message+'). Other task data is safe.';}
   }
+  function shared(board){return tidy(board?.features?.activityDiary||{annotations:{},earned:[]});}
+  function hasNotes(value){return Object.keys(value?.annotations||{}).length>0||(value?.earned?.length||0)>0;}
   function showStatus(){
     const box=root.document.getElementById('tidyish-activity-storage-status');
     if(box){box.textContent=storageIssue;box.hidden=!storageIssue;}
   }
-  function mount(element,board){
+  function mount(element,board,onShare){
     if(!element||!C||!root.TidyActivityCalendar)return;
     read();
     unmount();
     try{
+      const current=shared(board);
       instance=new root.TidyActivityCalendar(element,{
-        board,annotations:state.annotations,earned:state.earned,selected:selectedDate||C.today(),autoEditBlank,
+        board,annotations:current.annotations,earned:current.earned,selected:selectedDate||C.today(),autoEditBlank,
         assetBase:'assets/activity-calendar/',
-        onPersonalStateChange(next){write(next);showStatus();}
+        onPersonalStateChange(next){if(typeof onShare==='function'){try{const safe=tidy(next);if(JSON.stringify(safe)!==JSON.stringify(shared(board)))onShare(safe);}catch(err){storageIssue='Shared diary could not be saved: '+err.message;showStatus();}}else write(next);}
       });
       autoEditBlank=false;
       const status=root.document.createElement('p');
       status.id='tidyish-activity-storage-status';status.className='activity-storage-warning';
       status.setAttribute('role','status');status.textContent=storageIssue;status.hidden=!storageIssue;
       element.appendChild(status);
+      // Old local-only notes may have been private. Never publish them without a click.
+      if(typeof onShare==='function'&&hasNotes(state)){
+        const localOnly=Object.entries(state.annotations).filter(([d,v])=>!current.annotations[d]||JSON.stringify(current.annotations[d])!==JSON.stringify(v)).length+state.earned.filter(m=>!current.earned.includes(m)).length;
+        if(localOnly){const box=root.document.createElement('div');box.className='tac-legacy-import';const note=root.document.createElement('p');note.textContent=localOnly+' locally saved diary entries are not in the shared household. Import only if you want household members to see them.';
+          const button=root.document.createElement('button');button.type='button';button.textContent='Import local diary notes to household';button.addEventListener('click',()=>{try{const updated=tidy({annotations:{...state.annotations,...current.annotations},earned:[...new Set([...state.earned,...current.earned])]});if(onShare(updated)!==false){storageIssue='';}}catch(err){storageIssue='Could not import diary notes: '+err.message;showStatus();}});box.append(note,button);element.appendChild(box);}
+      }
     }catch(err){element.textContent='The activity diary could not be opened: '+err.message+' Existing Task Data is safe.';}
   }
   function unmount(){
@@ -84,7 +92,7 @@
   function monthSummary(board,month){
     if(!C||!C.monthDates(month))return {};
     read();
-    const data=C.analyze(board,{annotations:state.annotations,earned:state.earned});
+    const diary=shared(board),data=C.analyze(board,{annotations:diary.annotations,earned:diary.earned});
     const result=Object.create(null);
     for(const date of C.monthDates(month)){
       if(date>data.today)continue;

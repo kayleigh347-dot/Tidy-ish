@@ -48,14 +48,19 @@ function updatePeople(payload,account,house){const map=new Map((payload.househol
   const allowed=new Set([account,house,...(house===account?members.map(p=>p.id):[])]);
   people=[...map.values()].filter(p=>allowed.has(p.id));
  }}
-function panel(){const state=U.getBoard().features.browserSync,user=session?.user;return card(`<h2>Connected household</h2><p class="small" role="status">${esc(status)}</p>${busy?'<p class="gold small">Working…</p>':''}${!user?`<form id="house-signin">${field('Email used for your household','email','','email','required autocomplete="email"')}<button ${busy?'disabled':''}>Send sign-in link</button></form><p class="small">Open the newest email link in this browser. The local preview address must be permitted in Supabase’s redirect URLs.</p>`:`<p class="small">${esc(user.email)}</p>`}<div class="row">${btn('Refresh households','house-refresh','','',busy?'disabled':'')}${user?btn('Sign out','house-signout','','ghost',busy?'disabled':''):''}</div>${houses.length?`<form id="house-select">${U.select('Household','house',houses.map(h=>[h.id,h.label]),state?.house||user?.id)}<button ${busy?'disabled':''}>Preview household</button></form>`:''}${state?`<p class="small">Connected: ${esc(houses.find(h=>h.id===state.house)?.label||state.house)}</p>${!approved(state)?'<p class="small">Automatic uploads are paused until you explicitly enable sync for this household.</p>':''}${btn(approved(state)?'Refresh now':'Enable sync for this household','house-sync','','',busy?'disabled':'')}${detail('Pending differences',conflicts.length?conflicts.map((c,i)=>`<section class="card"><h3>${esc(c.label)}</h3><p class="small">Browser: ${esc(display(c.local))}</p><p class="small">Household: ${esc(display(c.shared))}</p><div class="row">${btn('Keep browser version','house-conflict',i,'','data-side="local"')}${btn('Use household version','house-conflict',i,'','data-side="shared"')}</div></section>`).join(''):'<p class="small">No differences awaiting review.</p>',conflicts.length>0)}`:''}${user?card(`<h3>Start Fresh Household</h3><p class="small">Create a completely separate household using the tasks and completion history in THIS browser. Your old household remains unchanged. A one-time Supabase setup is needed.</p>${btn('Start Fresh Household','house-fresh','','',busy?'disabled':'')}`):''}${user?detail('Share or join a house',`<div class="row">${btn('Create invite code','house-invite')}${btn('Cancel unused invite','house-cancel-invite','','ghost')}</div>${invite?`<p class="gold">${esc(invite)}</p><p class="small">Share this code privately. It gives access to your own house.</p>`:''}<form id="house-join">${field('Invitation code','code','','text','required autocomplete="off"')}<button ${busy?'disabled':''}>Join household</button></form>${(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).length?'<h3>Members of selected household</h3>'+(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).map(p=>`<p class="small">${esc(p.email)} ${btn('Remove access','house-remove',p.id,'ghost')}</p>`).join(''):''}`):''}`);}
+function panel(){
+ const board=U.getBoard(),state=board.features.browserSync,user=session?.user;
+ const savedName=String(board.features.householdName||'').trim();
+ const options=houses.map(h=>[h.id,h.id===state?.house&&savedName?savedName:h.label]);
+ return card(`<h2>Connected household</h2><p class="small" role="status">${esc(status)}</p>${busy?'<p class="gold small">Working…</p>':''}${!user?`<form id="house-signin">${field('Email used for your household','email','','email','required autocomplete="email"')}<button ${busy?'disabled':''}>Send sign-in link</button></form><p class="small">Open the newest email link in this browser. The local preview address must be permitted in Supabase’s redirect URLs.</p>`:`<p class="small">${esc(user.email)}</p>`}<div class="row">${btn('Refresh households','house-refresh','','',busy?'disabled':'')}${user?btn('Sign out','house-signout','','ghost',busy?'disabled':''):''}</div>${houses.length?`<form id="house-select">${U.select('Household','house',options,state?.house||user?.id)}<button ${busy?'disabled':''}>Preview household</button></form>`:''}${state?`<div class="row spread"><span class="small">Connected: ${esc(savedName||houses.find(h=>h.id===state.house)?.label||state.house)}</span>${user?btn('Rename household','house-rename','','ghost',busy?'disabled':''):''}</div>${!approved(state)?'<p class="small">Automatic uploads are paused until you explicitly enable sync for this household.</p>':''}${btn(approved(state)?'Refresh now':'Enable sync for this household','house-sync','','',busy?'disabled':'')}${detail('Pending differences',conflicts.length?conflicts.map((c,i)=>`<section class="card"><h3>${esc(c.label)}</h3><p class="small">Browser: ${esc(display(c.local))}</p><p class="small">Household: ${esc(display(c.shared))}</p><div class="row">${btn('Keep browser version','house-conflict',i,'','data-side="local"')}${btn('Use household version','house-conflict',i,'','data-side="shared"')}</div></section>`).join(''):'<p class="small">No differences awaiting review.</p>',conflicts.length>0)}`:''}${user?card(`<h3>Start Fresh Household</h3><p class="small">Create a completely separate household using the tasks and completion history in THIS browser. Your old household remains unchanged. A one-time Supabase setup is needed.</p>${btn('Start Fresh Household','house-fresh','','',busy?'disabled':'')}`):''}${user?detail('Share or join a house',`<div class="row">${btn('Create invite code','house-invite')}${btn('Cancel unused invite','house-cancel-invite','','ghost')}</div>${invite?`<p class="gold">${esc(invite)}</p><p class="small">Share this code privately. It gives access to your own house.</p>`:''}<form id="house-join">${field('Invitation code','code','','text','required autocomplete="off"')}<button ${busy?'disabled':''}>Join household</button></form>${(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).length?'<h3>Members of selected household</h3>'+(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).map(p=>`<p class="small">${esc(p.email)} ${btn('Remove access','house-remove',p.id,'ghost')}</p>`).join(''):''}`):''}`);
+}
 function display(x){return x===undefined||x===null?'Removed / empty':typeof x==='object'?JSON.stringify(x).slice(0,1000):String(x).slice(0,1000);}
 async function run(work){if(busy)return;busy=true;U.onSyncStatus();try{return await work();}catch(e){statusChanged(e.message);U.notice(e.message);throw e;}finally{busy=false;U.onSyncStatus();if(pendingNotice){pendingNotice=false;queue();}}}
 function cacheKey(account,house){return 'tidyish-html-v023-house:'+account+'/'+house;}
 // A previously saved browserSync state alone must never auto-enable cloud writes.
 function approved(state){if(!state?.account||!state?.house)return false;try{return localStorage.getItem('tidyish-html-v023-sync-approved:'+state.account+'/'+state.house)==='yes';}catch{return false;}}
 function approve(state){if(!state?.account||!state?.house)throw Error('Choose a household before enabling sync.');localStorage.setItem('tidyish-html-v023-sync-approved:'+state.account+'/'+state.house,'yes');}
-async function preview(house){const remote=await load(house),incoming=S.importRaw(remote.payload),current=U.getBoard(),state=current.features.browserSync;updatePeople(remote.payload,remote.account,house);let chosen=current,mode='merge';if(houses.find(h=>h.id===house)?.kind==='v2'&&state?.house!==house){chosen=incoming;mode='switch';}else if(state&&(state.account!==remote.account||state.house!==house)){const raw=localStorage.getItem(cacheKey(remote.account,house));chosen=raw?M.normalize(JSON.parse(raw)):incoming;mode='switch';}const added=incoming.tasks.filter(t=>!chosen.tasks.some(x=>x.id===t.id)).length;const title=houses.find(h=>h.id===house)?.label||'Household';U.dialog('Connect household',`<h3>${esc(title)}</h3><p>${incoming.rooms.length} rooms · ${incoming.tasks.length} task families · ${incoming.features.laundry.filter(l=>l.step).length} active laundry loads.</p><p class="small">${mode==='switch'?'Your current household is kept in a separate browser copy. This opens the selected household.':`${added} household task families will be added. Your local tasks, timers, attachments and progress are kept. Same-identity differences are reviewed before any shared write.`}</p><p class="small">${incoming.tasks.filter(M.repeat).length} existing recurring families are preserved. Calendar and Schedule editing remain for later.</p>`,()=>{if(busy)throw Error('Wait for the current operation to finish.');const latest=U.getBoard(),old=latest.features.browserSync;if(old)localStorage.setItem(cacheKey(old.account,old.house),JSON.stringify(latest));else if(!localStorage.getItem(U.storageKey+'-before-first-connection'))localStorage.setItem(U.storageKey+'-before-first-connection',JSON.stringify(latest));let next=mode==='switch'?M.clone(chosen):M.merge(latest,incoming);if(mode==='switch'&&chosen.features.browserSync?.account===remote.account&&chosen.features.browserSync.house===house){/* Preserve the cached merge base and pending changes. */}else next.features.browserSync={account:remote.account,house,kind:houses.find(h=>h.id===house)?.kind||'legacy',base:M.clone(remote.payload),native:S.snapshot(incoming),initial:true,hidden:[],choices:{},conflicts:[],retired:[]};next.features.connectedHouse=house;U.acceptSync(next);approve(next.features.browserSync);generation++;listenForHouseholdChanges();conflicts=[];U.closeDialog(true);statusChanged('Household connected. Checking saved differences before syncing.');queue();},{saveLabel:'Connect this household'});}
+async function preview(house){const remote=await load(house),incoming=S.importRaw(remote.payload),current=U.getBoard(),state=current.features.browserSync;updatePeople(remote.payload,remote.account,house);let chosen=current,mode='merge';if(houses.find(h=>h.id===house)?.kind==='v2'&&state?.house!==house){chosen=incoming;mode='switch';}else if(state&&(state.account!==remote.account||state.house!==house)){const raw=localStorage.getItem(cacheKey(remote.account,house));chosen=raw?M.normalize(JSON.parse(raw)):incoming;mode='switch';}const added=incoming.tasks.filter(t=>!chosen.tasks.some(x=>x.id===t.id)).length;const title=incoming.features.householdName||houses.find(h=>h.id===house)?.label||'Household';U.dialog('Connect household',`<h3>${esc(title)}</h3><p>${incoming.rooms.length} rooms · ${incoming.tasks.length} task families · ${incoming.features.laundry.filter(l=>l.step).length} active laundry loads.</p><p class="small">${mode==='switch'?'Your current household is kept in a separate browser copy. This opens the selected household.':`${added} household task families will be added. Your local tasks, timers, attachments and progress are kept. Same-identity differences are reviewed before any shared write.`}</p><p class="small">${incoming.tasks.filter(M.repeat).length} existing recurring families are preserved. Calendar and Schedule editing remain for later.</p>`,()=>{if(busy)throw Error('Wait for the current operation to finish.');const latest=U.getBoard(),old=latest.features.browserSync;if(old)localStorage.setItem(cacheKey(old.account,old.house),JSON.stringify(latest));else if(!localStorage.getItem(U.storageKey+'-before-first-connection'))localStorage.setItem(U.storageKey+'-before-first-connection',JSON.stringify(latest));let next=mode==='switch'?M.clone(chosen):M.merge(latest,incoming);if(mode==='switch'&&chosen.features.browserSync?.account===remote.account&&chosen.features.browserSync.house===house){/* Preserve the cached merge base and pending changes. */}else next.features.browserSync={account:remote.account,house,kind:houses.find(h=>h.id===house)?.kind||'legacy',base:M.clone(remote.payload),native:S.snapshot(incoming),initial:true,hidden:[],choices:{},conflicts:[],retired:[]};next.features.connectedHouse=house;U.acceptSync(next);approve(next.features.browserSync);generation++;listenForHouseholdChanges();conflicts=[];U.closeDialog(true);statusChanged('Household connected. Checking saved differences before syncing.');queue();},{saveLabel:'Connect this household'});}
 /* Realtime is only a tiny "board changed" signal, never a task payload.
    Public topic contains a random household UUID. Board reads and writes still use
    the authenticated/RLS-checked RPCs. A manual Refresh remains for missed signals. */
@@ -124,40 +129,69 @@ async function sync(){if(busy||U.editing()||!navigator.onLine)return;const initi
  const current=U.getBoard();if(generation!==runGeneration||current.features.browserSync?.account!==state.account||current.features.browserSync?.house!==state.house)throw Error('Household changed while syncing; the earlier response was not applied.');let accepted=result.accepted;const currentSnapshot=localSnapshot(current);if(!S.equal(localSnapshot(snapshot),currentSnapshot)){const rebased=reconcile(localSnapshot(snapshot),currentSnapshot,localSnapshot(accepted));rebased.features.browserSync=accepted.features.browserSync;accepted=rebased;}U.acceptSync(accepted);/* No redundant full-board localStorage cache on every sync. */updatePeople(result.payload,state.account,state.house);conflicts=[];statusChanged('Synced at '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+'. Changes share with this household.');if(remoteSave)announceSavedHousehold(state.house);if(!S.equal(localSnapshot(snapshot),currentSnapshot))queue();});}
 
 async function startFreshHousehold(){
- const user=await verified(),source=U.getBoard(),snapshot=M.clone(source);
- const prepared=window.TidyFreshHouse.prepare(snapshot,user.id);
- const c=prepared.counts;
- U.dialog('Start Fresh Household',`<p>This creates a <strong>new, separate household</strong> using the current browser's tasks and completions.</p>
-  <p><strong>${c.tasks} tasks · ${c.subtasks} subtasks · ${c.completions} completions · ${c.rooms} rooms</strong></p>
-  <p class="small">The old Supabase household, its data and its members will not be touched. Your current browser board is preserved. Personal calendar day symbols and other device-only preferences do not sync yet.</p>
-  <p class="small">Only start this on the device containing your most up-to-date tasks. Keep your downloaded backup.</p>`,async()=>{
-   if(busy)throw Error('Wait for the current operation to finish.');
-   // Refuse if a task has changed since the user reviewed counts.
-   const latest=U.getBoard();if(!S.equal(snapshot,latest))throw Error('Your board changed. Close this popup and start again to review the new totals.');
-   const signing=await verified();if(signing.id!==user.id)throw Error('Signed-in account changed. No new household created.');
-   clearTimeout(timer);generation++;
-   const existing=latest.features.browserSync;
-   // Existing local work must be recoverable before attempting a remote create.
-   const safeKey=U.storageKey+'-before-fresh-house-'+new Date().toISOString();
-   try{localStorage.setItem(safeKey,JSON.stringify(latest));}
-   catch(e){throw Error('Could not save a local safety copy. Keep your downloaded backup and free storage before trying again: '+e.message);}
-   return run(async()=>{
-    const result=await callNew('create',{new_payload:prepared.payload});
-    if(!result?.houseId||result.revision!==1)throw Error('Household response was unexpected. Your local board was preserved; refresh households before trying again.');
-    const next=M.clone(latest);
-    if(existing)try{localStorage.setItem(cacheKey(existing.account,existing.house),JSON.stringify(latest));}catch{}
-    next.features.browserSync={account:user.id,house:result.houseId,kind:'v2',base:M.clone(prepared.payload),native:S.snapshot(prepared.imported),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};
-    next.features.connectedHouse=result.houseId;
-    U.acceptSync(next);approve(next.features.browserSync);listenForHouseholdChanges();
-    await refreshHouses();updatePeople(prepared.payload,user.id,result.houseId);
-    conflicts=[];U.closeDialog(true);
-    statusChanged('Fresh household created. Your current tasks are now the starting board. The old household was not changed.');
-   });
-  },{saveLabel:'Create New Household'});
+ const user=await verified(),snapshot=M.clone(U.getBoard());
+ const all=window.TidyFreshHouse.prepare(snapshot,user.id,'all');
+ const original=all.counts;
+ const choices=snapshot.tasks.map(t=>`<label class="check fresh-house-task-choice"><input type="checkbox" name="transferTask" value="${esc(t.id)}"><span>${esc(t.title)} · ${esc(snapshot.rooms.find(r=>r.id===t.room)?.name||'General')}</span></label>`).join('');
+ U.dialog('Choose tasks for Fresh Household',`<p>Create a completely separate household. Your current and previous household records are not deleted.</p>
+  <p><strong>Current browser: ${original.tasks} tasks and ${original.completions} recorded completions.</strong></p>
+  <label class="field">What should transfer?
+  <select name="transferMode"><option value="all">All tasks and history</option><option value="selected">Only checked tasks and their history</option><option value="none">No tasks or task history</option></select></label>
+  <details class="fresh-house-selections"><summary>Choose individual tasks (only used for Selected)</summary><div class="fresh-house-choice-scroll">${choices||'<p>There are no tasks to choose.</p>'}</div></details>
+  <p class="small">Selected and None exclude unrelated laundry, care, diary and archived history. All preserves the complete local transfer. This browser is backed up before anything is created remotely.</p>`,async fd=>{
+   const mode=String(fd.get('transferMode')||'all');if(!['all','selected','none'].includes(mode))throw Error('Choose a valid transfer option.');
+   const selected=[...new Set(fd.getAll('transferTask').map(String))];
+   const selection=mode==='all'?'all':mode==='none'?[]:selected;
+   const prepared=window.TidyFreshHouse.prepare(snapshot,user.id,selection),counts=prepared.counts;
+   U.closeDialog(true);
+   U.dialog('Review Fresh Household transfer',`<p><strong>${counts.tasks} tasks · ${counts.subtasks} subtasks · ${counts.completions} completions · ${counts.rooms} rooms.</strong></p>
+    <p>Mode: <strong>${mode==='all'?'All':mode==='none'?'None':'Selected'}</strong>. This is the exact task/history selection that will be sent to the NEW household.</p>
+    <p class="small">A dated backup of the unfiltered current browser board will be stored before creation. The source household stays unchanged. Only create from the device containing your latest saved work.</p>`,async()=>{
+     if(busy)throw Error('Another household operation is in progress.');
+     if(!S.equal(snapshot,U.getBoard()))throw Error('The browser board changed after you reviewed it. Start again to protect recent changes.');
+     const signing=await verified();if(signing.id!==user.id)throw Error('Signed-in account changed. No household created.');
+     clearTimeout(timer);generation++;
+     const latest=U.getBoard(),existing=latest.features.browserSync;
+     const safeKey=U.storageKey+'-before-fresh-house-'+new Date().toISOString();
+     try{localStorage.setItem(safeKey,JSON.stringify(latest));}
+     catch(e){throw Error('Could not save a safety copy. Nothing sent. Free storage or download a backup first: '+e.message);}
+     return run(async()=>{
+       const result=await callNew('create',{new_payload:prepared.payload});
+       if(!result?.houseId||result.revision!==1)throw Error('Unexpected household response. Original board preserved. Refresh before retrying.');
+       const next=M.clone(prepared.local);
+       if(existing)try{localStorage.setItem(cacheKey(existing.account,existing.house),JSON.stringify(latest));}catch{}
+       next.features.browserSync={account:user.id,house:result.houseId,kind:'v2',base:M.clone(prepared.payload),native:S.snapshot(prepared.imported),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};
+       next.features.connectedHouse=result.houseId;
+       U.acceptSync(next);approve(next.features.browserSync);listenForHouseholdChanges();
+       await refreshHouses();updatePeople(prepared.payload,user.id,result.houseId);
+       conflicts=[];U.closeDialog(true);
+       statusChanged('Fresh household created with '+counts.tasks+' selected task(s). The original household was not changed.');
+     });
+   },{saveLabel:'Create separate household'});
+ },{saveLabel:'Review selection'});
 }
 
+function renameHousehold(){
+ const state=U.getBoard().features.browserSync;
+ if(!state||!session?.user||state.account!==session.user.id)throw Error('Connect this browser to the household before renaming it.');
+ if(!approved(state))throw Error('Enable household sync before changing its shared name.');
+ const current=String(U.getBoard().features.householdName||'').trim();
+ U.dialog('Rename household',field('Household name','householdName',current,'text','required maxlength="60" autocomplete="off"'),async fd=>{
+  const name=String(fd.get('householdName')||'').trim();
+  if(!name||name.length>60)throw Error('Enter a household name between 1 and 60 characters.');
+  const latest=U.getBoard().features.browserSync;
+  if(!latest||latest.house!==state.house||latest.account!==session?.user?.id)throw Error('The selected household changed. Close this window and try again.');
+  if(!approved(latest))throw Error('Enable household sync before changing its shared name.');
+  const changed=U.change(b=>{b.features.householdName=name},{redraw:false,sync:false});
+  if(!changed)throw Error('The household name was not saved. Your existing household data is unchanged.');
+  U.closeDialog(true);
+  await sync();
+  if(!conflicts.length&&String(U.getBoard().features.householdName||'').trim()===name)statusChanged('Household renamed and synced to this household.');
+ },{saveLabel:'Save name'});
+}
 const actions={
  'house-fresh':()=>startFreshHousehold(),
+ 'house-rename':()=>renameHousehold(),
  'house-refresh':()=>run(async()=>{await refreshHouses();statusChanged('Households refreshed. Choose one to preview.')}),
  'house-sync':()=>{approve(U.getBoard().features.browserSync);listenForHouseholdChanges();return sync()},
  'house-signout':()=>run(async()=>{generation++;clearTimeout(timer);stopListening();const db=await init(),{error}=await db.auth.signOut({scope:'local'});if(error)throw error;session=null;houses=[];people=[];members=[];statusChanged('Signed out. All local work is kept.')}),

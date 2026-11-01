@@ -1,0 +1,5 @@
+.dictation-control{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;margin:.3rem 0 .65rem;max-width:100%;font-size:.85rem;font-weight:normal}
+.dictation-control .dictation-button{width:auto;min-height:44px;min-width:88px;padding:.4rem .75rem;font:inherit;cursor:pointer}
+.dictation-button[aria-pressed="true"]{outline:2px solid currentColor;outline-offset:2px}
+.dictation-status{flex:1 1 180px;overflow-wrap:anywhere;line-height:1.35}
+.dictation-status:empty{display:none}

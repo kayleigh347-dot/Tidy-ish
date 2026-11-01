@@ -15,8 +15,8 @@
  const roomMatches={
   'Downstairs Entrance':['entrance'],
   'Downstairs Entrance/main landing':['entrance','hall'],
-  'Main Landing/Cat tray landing (upstairs landing)':['hall','upstairs'],
-  'Cat tray landing (upstairs landing)':['upstairs'],
+  'Main Landing/Cat tray landing (upstairs landing)':['hall','cats'],
+  'Cat tray landing (upstairs landing)':['cats'],
   "Penny's Bedroom":['penny'],
   'Master Bedroom':['master'], 'Bathroom':['bathroom'], 'Living Room':['living'],
   'Kitchen':['kitchen'], 'Cat Tray Area':['cats'], 'Craft & Storage Room':['storage'],

@@ -3,9 +3,9 @@
   'use strict';
   const TIME_ZONE='Europe/London';
   const RINGS=Object.freeze({decorated:3,gold:5});
-  const ROOMS=Object.freeze({entrance:'Entrance',hall:'Hallway',penny:'Penny’s Bedroom',master:'Master Bedroom',bathroom:'Bathroom',kitchen:'Kitchen',living:'Living Room',cats:'Cat Tray Area',print:'3D Printer Room',storage:'Storage Room',upstairs:'Upstairs Landing',laundry:'Laundry',general:'Other rooms'});
+  const ROOMS=Object.freeze({entrance:'Entrance',hall:'Hallway',penny:'Penny’s Bedroom',master:'Master Bedroom',bathroom:'Bathroom',kitchen:'Kitchen',living:'Living Room',cats:'Upstairs Landing',print:'3D Printer Room',storage:'Storage Room',laundry:'Laundry',general:'Other rooms'});
   const ROOM_ORDER=Object.freeze(Object.keys(ROOMS));
-  const ART=Object.freeze({...Object.fromEntries(['entrance','hall','penny','master','bathroom','kitchen','living','cats','print','storage'].map(id=>[id,id+'.webp'])),upstairs:'cats.webp'});
+  const ART=Object.freeze({...Object.fromEntries(['entrance','hall','penny','master','bathroom','kitchen','living','print','storage'].map(id=>[id,id+'.webp'])),cats:'upstairs-landing.png'});
   const OCCASIONS=Object.freeze({rest:{symbol:'🌙',description:'Rest / recovery day'},outing:{symbol:'🚗',description:'Day out'},holiday:{symbol:'🏖️',description:'Holiday / away'},occasion:{symbol:'🎉',description:'Special occasion'},birthday:{symbol:'🎂',description:'Birthday'},christmas:{symbol:'🎄',description:'Christmas'},custom:{symbol:'✦',description:'Personal day'}});
   const formatter=new Intl.DateTimeFormat('en-GB',{timeZone:TIME_ZONE,year:'numeric',month:'2-digit',day:'2-digit'});
   function validDay(value){if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;const d=new Date(value+'T12:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===value;}

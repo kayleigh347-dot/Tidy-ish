@@ -1,0 +1,27 @@
+/* Stage 02: lightweight Quest Library styling on the existing Tidy-ish palette. */
+.quest-library{max-width:100%;padding-bottom:120px}
+.quest-library>.card{background:linear-gradient(125deg,#5a3c62,#384466 68%,#2c263f);border:1px solid #89b7c277}
+.quest-library .card h2{font-size:1.3rem;margin-bottom:4px;color:#f9d989}
+.quest-library .card p{line-height:1.45}
+.quest-lib-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:9px 0 15px}
+.quest-lib-filters>.field{min-width:0}
+.quest-lib-filters select{max-width:100%;width:100%}
+.quest-lib-group{border:1px solid #89b7c263;border-radius:13px;margin:11px 0;overflow:hidden;background:linear-gradient(135deg,#3c3152,#2b253e)}
+.quest-lib-group>summary{padding:13px;color:#f5eaf5;font-size:1.06rem;font-weight:750;cursor:pointer;min-height:44px}
+.quest-lib-list{border-top:1px solid #89b7c243}
+.quest-lib-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 11px;border-top:1px solid #ffffff18}
+.quest-lib-row:first-child{border-top:0}
+.quest-lib-row:nth-child(2n){background:linear-gradient(125deg,#54406345,#3844663d)}
+.quest-lib-copy{flex:1;min-width:0;overflow-wrap:anywhere}
+.quest-lib-copy>strong{display:block;font-size:1.04rem;line-height:1.3;color:#f5f2f5}
+.quest-lib-copy>.small{font-size:.83rem;color:#d7e5ee;margin-top:4px}
+.quest-lib-tags{display:flex;flex-wrap:wrap;gap:4px;margin:7px 0 0}
+.quest-lib-tags>span{border:1px solid #89b7c26a;background:#49849625;border-radius:8px;padding:2px 7px;font-size:.74rem;color:#d9edf3}
+.quest-lib-actions{flex:none;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:44%}
+.quest-lib-actions button{padding:7px 8px;min-height:36px;border-radius:10px;font-size:.82rem}
+.quest-lib-actions .primary{background:linear-gradient(145deg,#568b76,#28745f);border-color:#80b999;color:white}
+.quest-library .field input[type=search]{width:100%;max-width:100%;min-height:45px}
+@media(max-width:430px){.quest-lib-filters{gap:6px}.quest-lib-row{align-items:flex-start;flex-direction:column}.quest-lib-actions{max-width:100%;width:100%;justify-content:flex-start}.quest-lib-actions button{min-height:40px}}
+@media(max-width:335px){.quest-lib-filters{grid-template-columns:1fr}}
+
+.quest-library .card button.primary{color:#fff}
