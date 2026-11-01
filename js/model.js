@@ -11,7 +11,7 @@
   const ID = 'tidyish-v1';
   const ROOMS = [
     ['entrance','Downstairs Entrance Landing','entrance-background.png','entrance-header.png'],
-    ['hall','Main Floor Landing / Hallway','hall-background.png',null],
+    ['hall','Main Landing','room-main-landing-spotless.png',null],
     ['penny','Penny’s Bedroom','room-penny-spotless.jpg','bedroom-cat-header.png'],
     ['master','Master Bedroom','room-master-spotless.png','bedroom-bigfoot-header.png'],
     ['bathroom','Bathroom','room-bathroom-spotless.png','bathroom-header.png'],
@@ -69,7 +69,7 @@
       wash:'Put a load on',railTransfer:'Put out washing',dryerTransfer:'Put in dryer',
       railFinish:'Put away clothes on rail',dryerFinish:'Empty dryer',
       uniformSteps:[...STANDARD_UNIFORM],uniformIndex:-1,uniformWeek:'',uniformPaused:false,
-      routines:[],areas:{},tools:[],focusSessions:[],sideTabs:[],
+      routines:[],areas:{},tools:[],focusSessions:[],sideTabs:[],questTimings:[],
       displayName:'Me',simple:false,sound:true,reduceMotion:false,pauseWandering:false,
       dialogue:'Gentle teasing',timeFactor:1,flexibleMode:false,revealed:[],rewardPrizeIndices:{},
       scheduleDraft:null,hiddenGuardians:[]
@@ -101,6 +101,8 @@
       if(typeof r.name!=='string'||!r.name.trim())throw Error('Invalid room name; original saved data preserved.');
       const reference=roomDefaults().find(x=>x.id===r.id);
       Object.assign(r,{...reference,...r});
+      // Migrate only the old built-in landing label; preserve any user-chosen room name.
+      if(r.id==='hall'&&r.name==='Main Floor Landing / Hallway')r.name='Main Landing';
     }
     seen.clear();unique(b.tasks,seen,'task');
     b.tasks=b.tasks.map(t=>{
@@ -117,7 +119,7 @@
     if(typeof f==='string') {try{f=JSON.parse(f);}catch{throw Error('Invalid saved feature data. Original saved data preserved.');}}
     if(f!==undefined&&!isObject(f))throw Error('Invalid saved feature data. Original saved data preserved.');
     b.features={...features(),...f};
-    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','laundry','routines','tools','focusSessions','sideTabs','uniformSteps'])
+    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','laundry','routines','tools','focusSessions','sideTabs','uniformSteps','questTimings'])
       if(!Array.isArray(b.features[name]))throw Error(`Invalid saved ${name}; original saved data preserved.`);
     if(!isObject(b.features.areas))throw Error('Invalid saved room areas; original saved data preserved.');
     b.features.templates=b.features.templates.map(t=>{
@@ -158,10 +160,10 @@
         if(c!==t)c._winId=win;
         followup(b,t,c);
       }
-      t.undoChildren=before.map(c=>c.done);t._finishState={before,added,nextDue:t.nextDue||''};
+      t.undoChildren=before.map(c=>c.done);t._finishState={before,added,nextDue:t.nextDue||'',scheduleActive:!!t.scheduleActive};
       t._canUndoFamily=true;t._completionIds=added;
       t.children.forEach(c=>{c.done=true;c.elapsed=time(c);c.startedAt=0;});
-      t.elapsed=time(t);t.startedAt=0;t.done=true;t.completedAt=new Date().toISOString();
+      t.elapsed=time(t);t.startedAt=0;t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;
       if(repeat(t))t.nextDue=next(t,date());
       followup(b,t,t);
     }else{
@@ -171,7 +173,7 @@
       const undoIds=new Set(state?.added||t._completionIds||[]);
       b.features.wins=b.features.wins.filter(w=>!undoIds.has(w.id));
       t.children.forEach((c,i)=>{const previous=state?.before.find(x=>x.id===c.id);c.done=previous?previous.done:!!t.undoChildren[i];if(previous){if(previous.winId)c._winId=previous.winId;else delete c._winId;}else if(undoIds.has(c._winId))delete c._winId;});
-      t.done=false;t.completedAt='';if(state)t.nextDue=state.nextDue;delete t._finishState;delete t._completionIds;
+      t.done=false;t.completedAt='';if(state){t.nextDue=state.nextDue;if(t.scheduleMakerManaged)t.scheduleActive=!!state.scheduleActive;}delete t._finishState;delete t._completionIds;
       const touched=new Set([t.id,...t.children.map(c=>c.id)]);
       b.tasks=b.tasks.filter(x=>!touched.has(x.generatedFrom)||x.touched||x.done||x.startedAt||x.elapsed);
       b.doingOrder=b.doingOrder.filter(x=>b.tasks.some(t=>t.id===x));
@@ -196,7 +198,7 @@
     // Parent subtasks reflect the completion status of their children.
     for(let i=0;i<t.children.length;i++)for(const p of t.children){const children=t.children.filter(x=>x.parentId===p.id);if(children.length)p.done=children.every(x=>x.done);}
     const all=t.children.every(x=>x.done);
-    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();t._canUndoFamily=true;t.undoChildren=[...before.values()];t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,done])=>({id,done,winId:''})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
+    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()];t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,done])=>({id,done,winId:''})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
     if(!done&&t.done){t.done=false;t.completedAt='';delete t._finishState;}
   }
   function refresh(b,today=date()) {
@@ -243,7 +245,7 @@
   function uniform(b){const f=b.features;if(f.uniformIndex<0||f.uniformPaused)return;const snapshot={index:f.uniformIndex,steps:clone(f.uniformSteps),startedAt:f.uniformStartedAt||0};const win=winner(b,{id:`uniform-${uid()}`,title:f.uniformSteps[f.uniformIndex],room:'laundry'},'','laundry');f._uniformUndo={...snapshot,win};f.uniformStartedAt=/^Wash/.test(f.uniformSteps[f.uniformIndex])?Date.now():0;f.uniformIndex++;if(f.uniformIndex>=f.uniformSteps.length-1){const slot=Math.max(0,...f.laundry.map(l=>l.slot))+1;f.laundry.push({slot,step:2,route:'rail',selected:true,uniformWeek:f.uniformWeek,revision:0});f._uniformUndo.handoff=slot;f.uniformIndex=-1;}}
   function undoUniform(b){const f=b.features,u=f._uniformUndo;if(!u)return;if(u.handoff&&f.laundry.find(x=>x.slot===u.handoff)?.revision>0)throw Error('The laundry load has progressed. Undo was not applied.');f.laundry=f.laundry.filter(x=>x.slot!==u.handoff);f.uniformIndex=u.index;f.uniformSteps=u.steps;f.uniformStartedAt=u.startedAt;f.wins=f.wins.filter(w=>w.id!==u.win);delete f._uniformUndo;}
   function templateCopy(source,room,doing=false){const t=clone(source),ids=new Map(t.children.map(c=>[c.id,uid()]));return task({...t,id:uid(),room,templateId:source.id,done:false,doing:!!doing,elapsed:0,startedAt:0,nextDue:'',generatedFrom:'',completedAt:'',_completionIds:[],_finishState:undefined,children:t.children.map(c=>child({...c,id:ids.get(c.id),parentId:ids.get(c.parentId)||'',done:false,elapsed:0,startedAt:0,_winId:undefined}))});}
-  function merge(b,incoming){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}return result;}
+  function merge(b,incoming){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','questTimings']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}return result;}
   function focus(b,roomId,routine,steps,selected){
     // Called ONLY after explicit user confirmation in the Focus dialog.
     if(!b.rooms.some(r=>r.id===roomId))throw Error('Choose a room.');
