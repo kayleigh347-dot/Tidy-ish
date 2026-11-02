@@ -590,3 +590,19 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .tidy-calendar-choice-settings label{display:grid;gap:4px;font-size:.79rem;min-width:0}
 .tidy-calendar-choice-settings input,.tidy-calendar-choice-settings select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;padding:8px 4px;font:inherit;border-radius:7px}
 @media(max-width:430px){.tidy-calendar-choice-settings{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.tidy-calendar-choice-settings label:first-child{grid-column:1/-1}}
+
+/* Mobile page fit: let page layouts shrink to the device width while keeping
+   deliberately scrollable tab strips and pickers usable. */
+@media(max-width:600px){
+  html,body{max-width:100%;overflow-x:clip}
+  body{width:100%;min-width:0}
+  #app{width:100%;min-width:0}
+  #app main,#app .top,#app main>*{min-width:0;max-width:100%}
+  #app :is(.card,.row,.toolbar,.stack,.room-heading,.task,.tabs,.calendar-grid,.calendar-month-head,.task-data-page,.task-data-section){min-width:0;max-width:100%}
+  #app :is(.row,.toolbar,.room-heading,.calendar-month-head,.task .actions,.task .room-task-main,.doing-task-main,.footer)>*{min-width:0}
+  #app .toolbar{width:100%;flex-wrap:wrap;align-items:center}
+  #app .toolbar>button{max-width:100%;white-space:normal}
+  #app>.footer.simple-nav{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);z-index:1000;width:100%;max-width:600px}
+  #app :is(h1,h2,h3,p,small,label,.task-title,.doing-task-title,.room-name,.card-title){overflow-wrap:anywhere}
+  #app img,#app svg,#app video,#app canvas{max-width:100%}
+}
