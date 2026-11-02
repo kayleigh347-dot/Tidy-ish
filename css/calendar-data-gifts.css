@@ -1,6 +1,13 @@
 .calendar-kind-symbol{font-size:1rem;line-height:1.15;color:#f3c0ff;filter:drop-shadow(0 1px 4px #8b43df)}
 .calendar-kind-symbol.seasonal{filter:drop-shadow(0 1px 4px #d98244)}
 .calendar-footnote span{white-space:nowrap}
+.calendar-occasion-month{margin:.35rem 0;border:1px solid #40305b;border-radius:.75rem;background:#160e27;overflow:hidden}
+.calendar-occasion-month>summary{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.55rem .7rem;cursor:pointer;font-weight:650;list-style-position:inside}
+.calendar-occasion-month>summary .small{margin-left:auto;padding:.08rem .45rem;border-radius:1rem;background:#302247}
+.calendar-occasion-row{display:grid;grid-template-columns:3.25rem minmax(0,1fr);gap:.05rem .45rem;align-items:baseline;padding:.38rem .7rem;border-top:1px solid #302341}
+.calendar-occasion-row time{grid-row:span 2;color:#d8b8ff;font-size:.82rem;white-space:nowrap}
+.calendar-occasion-row strong{min-width:0;font-size:.9rem;overflow-wrap:anywhere}
+.calendar-occasion-row>.small{grid-column:2;font-size:.78rem}
 .gift-tracker .gift-row{margin:.3rem 0;padding:.55rem .65rem;border-radius:.7rem;background:#170d28;border:1px solid #3c2b55}
 .gift-tracker .gift-row .row{justify-content:flex-end;gap:.35rem;margin-top:.25rem}
 .gift-tracker>.row.spread{align-items:center;gap:.5rem;margin:.55rem 0}

@@ -76,14 +76,14 @@ test('saved templates, hidden choices, supplies and Clear the Way definitions su
  for(const key of ['templates','hiddenTemplates','tools','routines','occasionalDefaultsInitialised'])assert.deepEqual(accepted.features[key],b.features[key],key);
 });
 
-test('existing household may opt in to missing Base occasional tasks, with no repeated defaults after deletion',()=>{
+test('existing household receives all Base occasional defaults once and deleted defaults stay removed',()=>{
  const b=M.board();M.add(b,M.task({id:'existing',title:'My original task',room:'living'}));
- assert.equal(Occ.seed(b,M,on('2026-10-31')).added,0);
- const result=Occ.seed(b,M,on('2026-10-31'),true);
+ const result=Occ.seed(b,M,on('2026-10-31'));
  assert.equal(result.added,Occ.OWNER_ROWS.length);
+ assert.equal(b.tasks.filter(t=>t.occasionKind==='occasional'&&t.calendarEnabled===true).length,Occ.OWNER_ROWS.length);
  const one=b.tasks.find(t=>t.occasionKind==='occasional');const oldId=one.id;
  b.tasks=b.tasks.filter(t=>t.id!==oldId);
- assert.equal(Occ.seed(b,M,on('2026-11-01'),true).added,0);
+ assert.equal(Occ.seed(b,M,on('2026-11-01')).added,0);
  assert.equal(b.tasks.some(t=>t.id===oldId),false);
  assert.equal(b.tasks.some(t=>t.id==='existing'),true);
 });

@@ -44,9 +44,9 @@ test('calendar import previews exact dates without mutation before the owner con
  const result=Occ.addSelected(b,M,rows.map(x=>x.id),NOW);assert.equal(result.added,2);
  for(const item of preview)assert.equal(b.tasks.find(t=>t.id==='tidy-occasional:'+item.id).nextDue,item.firstDue);
 });
-test('the calendar and job manager now require explicit owner selection',()=>{
+test('the calendar task manager uses the confirmed Occasional and seasonal workflow',()=>{
  const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
- assert.match(app,/Occasional Essentials on calendar/);
+ assert.match(app,/Occasional & seasonal calendar/);
  assert.match(app,/calendarEnabled===true/);
  assert.match(app,/calendar-choose/);
  assert.match(app,/OCC\.addSelected/);

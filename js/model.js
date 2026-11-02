@@ -68,7 +68,7 @@
       wash:'Put a load on',railTransfer:'Put out washing',dryerTransfer:'Put in dryer',
       railFinish:'Move dry clothes from rail',dryerFinish:'Empty dryer',
       uniformSteps:[...STANDARD_UNIFORM],uniformIndex:-1,uniformWeek:'',uniformPaused:false,
-      routines:[],areas:{},tools:[],focusSessions:[],sideTabs:[],locationTabs:[{id:'household',name:'Household',order:0}],locationAreas:[],locationEntries:[],locationMoves:[],locationTrash:[],questTimings:[],taskDataArchives:[],gifts:[],giftPeople:[],activityDiary:{annotations:{},earned:[]},
+      routines:[],occasionalScheduleDefaultsVersion:0,occasionalDefaultsInitialised:false,areas:{},tools:[],focusSessions:[],sideTabs:[],locationTabs:[{id:'household',name:'Household',order:0}],locationAreas:[],locationEntries:[],locationMoves:[],locationTrash:[],questTimings:[],taskDataArchives:[],gifts:[],giftPeople:[],activityDiary:{annotations:{},earned:[]},
       displayName:'Me',householdName:'',simple:false,sound:true,reduceMotion:false,pauseWandering:false,
       dialogue:'Gentle teasing',timeFactor:1,flexibleMode:false,revealed:[],rewardPrizeIndices:{},
       scheduleDraft:null,hiddenGuardians:[]

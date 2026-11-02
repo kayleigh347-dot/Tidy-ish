@@ -20,13 +20,17 @@ function seasonNext(month,from=new Date(),seasonDay=15){
 function hasTask(board,r){const norm=x=>String(x||'').trim().toLocaleLowerCase('en-GB').replace(/[^\p{L}\p{N}]+/gu,' ');return board.tasks.some(t=>t.occasionSourceId===r.id||t.id==='tidy-occasional:'+r.id||norm(t.title)===norm(r.title)&&(t.room===CATEGORY_ROOM[r.category]||!t.room&&!CATEGORY_ROOM[r.category]));}
 function makeTask(row,Model,now,nextDue,calendarEnabled=true){const t=Model.task({id:'tidy-occasional:'+row.id,occasionKind:'occasional',calendarEnabled,occasionSourceId:row.id,room:CATEGORY_ROOM[row.category]||'',title:row.title,priority:Number(row.priority)||3,estimate:Number(row.minutes)||0,effort:row.effort||'',repeatMonths:Number(row.repeatMonths)||12,repeatDays:Number(row.repeatDays)||0,seasonMonth:Number(row.seasonMonth)||0,seasonDay:Number(row.seasonDay)||15,nextDue,messImpact:'small',taskType:row.taskType||'maintenance',checkDays:Number(row.checkDays)||0,conditionMode:row.conditionMode||'as-needed',subtasks:[],tools:row.tools||'',notes:row.notes||'',section:row.section||'',tags:row.tags||[],createdAt:now.toISOString()});t.children=(row.subtasks||[]).map(x=>Model.child({title:typeof x==='string'?x:x.title||'',followupTitle:typeof x==='string'?'':x.followupTitle||'',parentId:t.id}));return t;}
 function seed(board,Model,now=new Date(),optIn=false,allowExplicitRestore=false){
- const available=OWNER_ROWS.filter(r=>!hasTask(board,r)),spaced=available.filter(r=>!r.seasonMonth),firstDay=dayKey(now);
- if((board.features?.occasionalDefaultsInitialised&&!allowExplicitRestore)||(board.tasks.length&&!optIn))return {added:0};
- // Initial seeding is one-time. A separate, explicitly confirmed restore action can re-add missing defaults; never do so on load or sync.
- available.forEach(r=>{const month=Number(r.seasonMonth)||0,index=spaced.findIndex(x=>x.id===r.id),initial=month?seasonNext(month,now,r.seasonDay):Model.plus(firstDay,Math.floor((index+1)*365/(spaced.length+1)));
- if(hasTask(board,r))return;
- Model.add(board,makeTask(r,Model,now,initial,false));
- });board.features.occasionalDefaultsInitialised=true;return {added:available.length};
+ const version=Number(board.features?.occasionalScheduleDefaultsVersion)||0,available=OWNER_ROWS.filter(r=>!hasTask(board,r)),spaced=available.filter(r=>!r.seasonMonth),firstDay=dayKey(now);
+ if(!allowExplicitRestore&&version>=1)return {added:0};
+ if(version<1||allowExplicitRestore){
+  available.forEach(r=>{const month=Number(r.seasonMonth)||0,index=spaced.findIndex(x=>x.id===r.id),initial=month?seasonNext(month,now,r.seasonDay):Model.plus(firstDay,Math.floor((index+1)*365/(spaced.length+1)));
+   if(hasTask(board,r))return;
+   Model.add(board,makeTask(r,Model,now,initial,true));
+  });
+  if(!allowExplicitRestore)board.features.occasionalScheduleDefaultsVersion=1;
+  board.features.occasionalDefaultsInitialised=true;
+ }
+ return {added:available.length};
 }
 function addSelected(board,Model,ids,now=new Date()){
  if(!Array.isArray(ids)||new Set(ids).size!==ids.length)throw Error('Invalid or duplicate Base Schedule selections.');

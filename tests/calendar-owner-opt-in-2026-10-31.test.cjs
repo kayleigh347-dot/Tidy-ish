@@ -39,13 +39,13 @@ test('owner selects individual Base Schedule jobs; unselected jobs not imported'
  assert.equal(OCC.addSelected(b,M,[picked.id],NOW).added,0);
  assert.throws(()=>OCC.addSelected(b,M,['unknown'],NOW),/Unknown/);
 });
-test('old automatically seeded defaults stay inactive until individually chosen, without duplication',()=>{
+test('automatically seeded defaults are on the calendar and cannot be duplicated',()=>{
  const b=M.board();OCC.seed(b,M,NOW);
  assert.ok(b.tasks.length>20);
  const oldCount=b.tasks.length,selected=b.tasks[0];
- assert.equal(selected.calendarEnabled===true,false);
+ assert.equal(selected.calendarEnabled,true);
  const result=OCC.addSelected(b,M,[selected.occasionSourceId],NOW);
- assert.equal(result.added,1);assert.equal(b.tasks.length,oldCount);assert.equal(selected.calendarEnabled,true);
+ assert.equal(result.added,0);assert.equal(result.skipped,1);assert.equal(b.tasks.length,oldCount);
  assert.equal(b.tasks.filter(x=>x.id===selected.id).length,1);
 });
 test('UI does not show Speak a Sidequest nor Daily Grind heading on Home',()=>{
