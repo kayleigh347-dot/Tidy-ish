@@ -24,7 +24,7 @@ function enter(board,id,mode='focus',forScope='room'){
   const clearKey=storageKey(id,true,'room');try{if(!storage().getItem(clearKey))storage().setItem(clearKey,JSON.stringify({version:2,session:{...session},personal:[...personal]}));}catch(e){api.notice('Could not preserve the unfinished preparation routine: '+e.message);return;}set({phase:'pick'});
  }else api.render();
  const recovery=!!session&&(['active','clear-active'].includes(session.phase)&&!!(session.startedIds?.length||session.clearQuests?.length)||session.questIds?.length>0);
- if(recovery)modal('Previous Focus found',`<p>You have an unfinished or saved Focus session for ${esc(board.rooms.find(r=>r.id===id)?.name||'this room')}.</p><p><strong>Start fresh overwrites the saved Focus selection and progress.</strong> Existing task completions, room tasks and history remain untouched.</p><div class="quest-actions">${btn('Load previous Focus','quest-fresh-load','','quest-yes')}${btn('Overwrite · start fresh','quest-fresh-overwrite','','quest-no')}</div>`);
+ if(recovery){const where=scope==='doing'?'Doing Now across all rooms':board.rooms.find(r=>r.id===id)?.name||'this room';modal('Previous Focus found',`<p>You have an unfinished or saved Focus session for ${esc(where)}.</p><p><strong>Start new Focus replaces this saved Focus selection and progress.</strong> Task completions, room tasks and history remain untouched.</p><div class="quest-actions">${btn('Resume Focus','quest-fresh-load','','quest-yes')}${btn('Start new Focus','quest-fresh-overwrite','','quest-no')}</div>`);}
  // New Focus sessions go straight to the room entry choice or Quest picker.
 }
 function all(board){return Q.routines(board,room,personal);}

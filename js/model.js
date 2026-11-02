@@ -85,6 +85,33 @@
       paused:false,pauseUntil:'',followupTitle:'',generatedFrom:'',touched:false,wasParent:false,...v};
   }
   function child(v={}) {return {id:uid(),title:'',done:false,parentId:'',tools:'',notes:'',estimate:0,elapsed:0,startedAt:0,followupTitle:'',...v};}
+  function reconcileChildren(previous,names) {
+    const oldRows=Array.isArray(previous)?previous:[];
+    const titles=(Array.isArray(names)?names:[]).map(value=>String(value||'').trim()).filter(Boolean);
+    const remaining=new Set(oldRows.map(row=>row.id));
+    const result=new Array(titles.length);
+    // Match unchanged titles first, wherever they moved in the edited list.
+    for(let i=0;i<titles.length;i++){
+      const old=oldRows.find(row=>remaining.has(row.id)&&row.title===titles[i]);
+      if(!old)continue;
+      result[i]={...old,title:titles[i]};
+      remaining.delete(old.id);
+    }
+    // Pair renamed rows in their original relative order. This preserves identity
+    // when a list is reordered and one or more remaining titles are edited.
+    const unmatchedOld=oldRows.filter(row=>remaining.has(row.id));
+    const unmatchedNew=titles.map((title,index)=>({title,index})).filter(row=>!result[row.index]);
+    let i=0;
+    for(;i<unmatchedOld.length&&i<unmatchedNew.length;i++){
+      const old=unmatchedOld[i],row=unmatchedNew[i];
+      result[row.index]={...old,title:row.title};
+    }
+    for(;i<unmatchedNew.length;i++){
+      const row=unmatchedNew[i];
+      result[row.index]=child({title:row.title});
+    }
+    return result;
+  }
   function unique(records,used,label) {
     for (const r of records) {
       if (!isObject(r) || typeof r.id!=='string' || !r.id.trim() || used.has(r.id))
@@ -334,7 +361,7 @@
   }
   function doing(b){const withheld=new Set(b.features.focusSessions.filter(s=>(s.resetIds||[]).some(id=>b.tasks.some(t=>t.id===id&&!t.done))).flatMap(s=>s.taskIds||[]));return b.doingOrder.map(id=>b.tasks.find(t=>t.id===id&&t.doing&&!paused(t)&&!withheld.has(id))).filter(Boolean);}
   function move(b,id,to,doingView=false){const list=doingView?b.doingOrder:b.tasks.map(t=>t.id);const from=list.indexOf(id),target=to==='first'?0:to==='last'?list.length-1:list.indexOf(to);if(from<0||target<0)return;list.splice(from,1);list.splice(target,0,id);if(doingView)b.doingOrder=list;else b.tasks=list.map(id=>b.tasks.find(t=>t.id===id));}
-  return {id:ID,uid,clone,date,plus,months,board,features,task,child,normalize,paused,time,repeat,next,
+  return {id:ID,uid,clone,date,plus,months,board,features,task,child,reconcileChildren,normalize,paused,time,repeat,next,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
     laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
 });

@@ -58,6 +58,8 @@ test('laundry remains second in Doing Now, first on the home grind tile, with a 
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8'),css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/care-system.css'),'utf8');
  assert.match(source,/tabs\(\[\['doing','Doing Now'\],\['laundry','Laundry'\]/);
  assert.match(source,/\[\['laundry','Laundry','Laundry cycles'\],\['cat'/);
- assert.match(source,/alertChanged=F\(\)\.laundry\.some\(l=>M\.laundryNeedsAttention\(l\)\)!==lastLaundryAttention/);
+ assert.match(source,/const readyLaundry=F\(\)\.laundry\.filter\(l=>M\.laundryNeedsAttention\(l\)\)\.map\(l=>l\.slot\)\.sort\(\(a,b\)=>a-b\)\.join\(','\);const alertChanged=readyLaundry!==lastLaundryAttention;lastLaundryAttention=readyLaundry/);
+ assert.doesNotMatch(source,/if\(refreshChanged\|\|route==='laundry'\|\|route==='home'/);
+ assert.doesNotMatch(source,/route==='doing'&&doingTab==='laundry'\|\|route==='doing'&&nextDoingExpiry/);
  assert.match(css,/\.doing-board \.tabs\.nested button\[data-id="laundry"\]/);assert.match(css,/\.laundry-ready-alert\{animation:/);
 });

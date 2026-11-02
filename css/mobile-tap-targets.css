@@ -1,0 +1,10 @@
+/* Compact screens can stay dense while touch controls retain usable hit areas. */
+.focus-hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.focus-hub-grid .focus-hub-doing{grid-column:1/-1}
+.focus-hub-grid button{min-width:0;text-align:left;white-space:normal;background:var(--card);border-color:var(--plum);color:var(--text)}
+.focus-hub-grid .focus-hub-doing{background:var(--twilight);border-color:var(--pacific);color:var(--gold)}
+#app{padding-bottom:calc(clamp(81px,20.72vw,125px) + env(safe-area-inset-bottom,0px))}
+@media(pointer:coarse){
+ #app button,#app summary,#app [role="tab"],#app a{min-height:44px}
+ .illustrated-nav .nav-hotspots button{min-height:44px}
+}

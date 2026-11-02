@@ -95,3 +95,10 @@ test('shared dialog and Focus tabs expose accessible names and selected state',(
  assert.match(app,/<h2 id="dialog-title">/);
  assert.match(focus,/role="tab" aria-selected=/);
 });
+
+test('active Focus removes the old Options disclosure while keeping compact subtask actions',()=>{
+ const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
+ assert.match(app,/function focusTaskCard\([\s\S]*?childrenHtml\(t,'',0,true\)/);
+ assert.match(app,/const actions=compactFocus\s*\?button\('⋯','child-menu'/);
+ assert.match(app,/'child-menu':el=>[\s\S]*button\('Task Data','data-open-task'/);
+});

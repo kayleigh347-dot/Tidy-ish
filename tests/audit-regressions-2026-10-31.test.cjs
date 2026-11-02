@@ -8,6 +8,27 @@ require('../js/base-schedule-95.js');
 const Occ=require('../js/occasional.js');
 const on=date=>new Date(date+'T10:00:00Z');
 
+test('renaming a moved subtask preserves its history-linked identity',()=>{
+ const b=M.board(),t=M.task({id:'task-edit-children',title:'Organise shelf'});
+ const alpha=M.child({id:'child-alpha',title:'Alpha'}),beta=M.child({id:'child-beta',title:'Beta'});
+ t.children=[alpha,beta];M.add(b,t);M.completeChild(b,t.id,alpha.id,true);
+ t.children=M.reconcileChildren(t.children,['Beta','Gamma']);
+ assert.deepEqual(t.children.map(c=>[c.id,c.title]),[['child-beta','Beta'],['child-alpha','Gamma']]);
+ assert.equal(b.features.wins.length,1);
+ assert.equal(b.features.wins[0].taskId,'child-alpha');
+ M.completeChild(b,t.id,'child-alpha',false);
+ assert.equal(t.children.find(c=>c.id==='child-alpha').done,false);
+ assert.equal(t.children.find(c=>c.id==='child-beta').done,false);
+ assert.equal(b.features.wins.length,0);
+});
+
+test('new subtask lines do not steal unchanged subtask identities when reordered',()=>{
+ const alpha=M.child({id:'keep-a',title:'Alpha'}),beta=M.child({id:'keep-b',title:'Beta'});
+ const edited=M.reconcileChildren([alpha,beta],['New','Beta','Alpha']);
+ assert.deepEqual(edited.slice(1).map(c=>c.id),['keep-b','keep-a']);
+ assert.notEqual(edited[0].id,'keep-a');assert.notEqual(edited[0].id,'keep-b');
+});
+
 test('completed recurring cleaning becomes recommended once review interval passes, without erasing history',()=>{
  const b=M.board(),t=M.task({id:'review-clean',room:'kitchen',title:'Wipe kitchen cabinets',done:true,completedAt:on('2026-08-01').toISOString(),checkDays:30,priority:1});
  M.add(b,t);b.features.wins.push({id:'old-completion',taskId:t.id,rootId:t.id,points:1,at:t.completedAt});

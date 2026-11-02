@@ -1,0 +1,17 @@
+Optional low-volume Focus music (CC0)
+
+Forest ambience
+File: forest-ambience.mp3
+Author: TinyWorlds
+License: CC0 / public domain
+Source: https://opengameart.org/content/forest-ambience
+
+Subtle bass
+File: subtle-bass.mp3 (converted from the source Ogg Vorbis audio for browser compatibility)
+Author: TinyWorlds
+License: CC0 / public domain
+Source: https://opengameart.org/content/subtle-bass
+
+Timer alert
+File: soft-double-tap.wav
+Original low-pass, soft percussive sound generated for Tidy-ish. It contains no high-pitched oscillator or beep.
