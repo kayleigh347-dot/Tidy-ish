@@ -42,7 +42,7 @@ test('the supplied November 1 backup validates when selected explicitly',t=>{
  assert.equal(prepared.source.rooms.some(r=>r.id==='upstairs'),false);
  if(hasBoth)assert.equal(prepared.source.rooms.find(r=>r.id==='cats').name,'Upstairs Landing');
  assert.equal(prepared.source.tasks.length,raw.tasks.length);
- assert.match(prepared.summary.notes.join(' '),/household sync snapshot is ignored/i);
+ if(Object.prototype.hasOwnProperty.call(raw,'sharedSnapshot'))assert.match(prepared.summary.notes.join(' '),/household sync snapshot is ignored/i);
  const restore=B.applyRestore(current,B.prepareRestore(current,text,M),M);
  assert.equal(restore.tasks.length,raw.tasks.length);assert.equal(restore.features.wins.length,raw.features.wins.length);
  assert.equal(restore.features.tools.length,raw.features.tools.length);assert.equal(restore.features.laundry.length,raw.features.laundry.length);

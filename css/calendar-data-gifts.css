@@ -19,3 +19,14 @@
 .gift-tracker .gift-bought-check{min-width:6.4rem;border-color:#5f477c;background:#211334}
 .gift-tracker .gift-bought-check[aria-checked="true"]{color:#a3f0cb;border-color:#48a97d}
 .gift-tracker .gift-row .row{flex-wrap:wrap}
+.gift-person-checkoff{display:flex;align-items:center;justify-content:space-between;gap:.45rem;min-width:0;padding:.42rem .15rem;border-bottom:1px solid #3c2b55}
+.gift-person-checkoff:last-child{border-bottom:0}
+.gift-person-checkoff>strong{min-width:0;overflow-wrap:anywhere;color:#f1e8f5}
+.gift-person-checkoff>.row{gap:.3rem;justify-content:flex-end;flex-wrap:wrap}
+.gift-tracker .gift-checkoff{min-height:34px;padding:5px 8px;border-color:#5f477c;background:#211334;font-size:.8rem}
+.gift-tracker .gift-checkoff[aria-pressed="true"]{color:#a3f0cb;border-color:#48a97d}
+.gift-ideas-summary{display:flex;align-items:center;justify-content:space-between;margin:.45rem 0;padding:.4rem .6rem;border:1px solid #3c2b55;border-radius:.65rem;background:#170d28}
+.gift-tracker .gift-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.25rem .5rem}
+.gift-tracker .gift-row .row{grid-column:1/-1}
+.gift-tracker textarea[name="ideas"]{min-height:8rem}
+@media(max-width:390px){.gift-person-checkoff{align-items:flex-start;flex-direction:column}.gift-person-checkoff>.row{justify-content:flex-start}}
