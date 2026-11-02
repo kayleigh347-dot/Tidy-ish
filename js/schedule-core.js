@@ -58,7 +58,8 @@
       } else if(Number(t.repeatMonths)>0) {
         const first=parseDay(due),target=parseDay(from),months=(target.getUTCFullYear()-first.getUTCFullYear())*12+target.getUTCMonth()-first.getUTCMonth();
         const step=Math.max(1,Number(t.repeatMonths));
-        due=addMonths(due,Math.max(0,Math.floor(months/step)-1)*step);
+        const jumps=Math.max(0,Math.floor(months/step)-1);
+        for(let i=0;i<jumps&&due<from;i++)due=addMonths(due,step);
       }
     }
     for(let i=0;i<520 && due<=end;i++) {

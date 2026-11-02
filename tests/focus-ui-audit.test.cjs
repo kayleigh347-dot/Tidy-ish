@@ -85,3 +85,13 @@ test('optional Finish the Room has a scrollable floor area and shows repeatable 
  const {board,UI}=setup(),focus=M.task({id:'floor-focus-done',title:'Wipe shelf',room:'kitchen'}),floor=M.task({id:'floor-repeat',title:'Sweep stairs',room:'kitchen',littleOften:true,taskType:'little-often'});board.tasks.push(focus,floor);UI.enter(board,'kitchen','focus');UI.pick(focus.id);click(UI,'quest-accepted');focus.done=true;const html=UI.content(board);
  assert.match(html,/Finish the Room\? · optional/);assert.match(html,/<h4>Floors<\/h4><div class="tidy-utility-scroll">/);assert.match(html,/I did a thing!/);assert.match(html,/Finish for now/);
 });
+
+test('shared dialog and Focus tabs expose accessible names and selected state',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+ const focus=fs.readFileSync(path.join(__dirname,'../js/quest-focus-ui.js'),'utf8');
+ assert.match(html,/id="editor" aria-labelledby="dialog-title"/);
+ assert.match(app,/<h2 id="dialog-title">/);
+ assert.match(focus,/role="tab" aria-selected=/);
+});

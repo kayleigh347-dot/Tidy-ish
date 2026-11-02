@@ -229,6 +229,13 @@ test('reject invalid saved new-feature structures without mutating user data',()
  assert.equal(JSON.stringify(b),second);
 });
 
+test('subtask parent validation accepts the task root but still rejects unknown identities',()=>{
+ const b=M.board(),t=M.task({id:'root-parent',title:'Root task',children:[M.child({id:'root-child',title:'Child',parentId:'root-parent'})]});b.tasks.push(t);
+ assert.equal(M.normalize(JSON.parse(JSON.stringify(b))).tasks[0].children[0].parentId,'root-parent');
+ t.children[0].parentId='missing-parent';const bad=JSON.stringify(b);
+ assert.throws(()=>M.normalize(JSON.parse(bad)),/Invalid subtask parent/);assert.equal(JSON.stringify(b),bad);
+});
+
 test('household name survives shared payload export, sync merge and import',()=>{
  const board=M.board();board.features.householdName='The Willow House';
  const blank={tasks:[],side:[],rooms:[],wins:[],settings:[],homeless:[],sideTabs:[]};

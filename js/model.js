@@ -109,7 +109,7 @@
       unique(t.children,seen,'subtask');
       const known=new Set(t.children.map(c=>c.id));
       for(const c of t.children) {
-        if(typeof c.title!=='string'||(c.parentId&&!known.has(c.parentId)))throw Error('Invalid subtask parent/name; original saved data preserved.');
+        if(typeof c.title!=='string'||(c.parentId&&c.parentId!==t.id&&!known.has(c.parentId)))throw Error('Invalid subtask parent/name; original saved data preserved.');
         let at=c,visited=new Set();while(at.parentId){if(visited.has(at.id))throw Error('Circular subtask nesting; original saved data preserved.');visited.add(at.id);at=t.children.find(x=>x.id===at.parentId);if(!at)break;}
       }
       return task({...t,children:t.children.map(c=>child(c))});
@@ -240,7 +240,7 @@
     const t=b.tasks.find(x=>x.id===id),c=t?.children.find(x=>x.id===childId);
     if(!c||!!c.done===!!done)return;
     const family=new Set([childId]);for(let i=0;i<t.children.length;i++)for(const kid of t.children)if(family.has(kid.parentId))family.add(kid.id);
-    const before=new Map(t.children.map(c=>[c.id,!!c.done]));
+    const before=new Map(t.children.map(c=>[c.id,{done:!!c.done,winId:c._winId||''}]));
     const changedWinIds=[],removedWinIds=new Set();
     for(const kid of t.children){
       if(!family.has(kid.id))continue;
@@ -256,7 +256,7 @@
     // Parent subtasks reflect the completion status of their children.
     for(let i=0;i<t.children.length;i++)for(const p of t.children){const children=t.children.filter(x=>x.parentId===p.id);if(children.length)p.done=children.every(x=>x.done);}
     const all=t.children.every(x=>x.done);
-    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()];t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,done])=>({id,done,winId:''})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
+    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()].map(x=>x.done);t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,state])=>({id,...state})),added:changedWinIds,nextDue:t.nextDue||''};if(repeat(t))t.nextDue=next(t,date());}
     if(!done&&t.done){t.done=false;t.completedAt='';delete t._finishState;}
   }
   function refresh(b,today=date()) {

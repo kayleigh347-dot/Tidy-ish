@@ -27,6 +27,13 @@ test('completed recurring cleaning without explicit check interval returns when 
  assert.equal(Rec.rank(b,{now:on('2026-11-01')}).some(x=>x.id===t.id),true);
 });
 
+test('undoing the final child preserves earlier child completion identity for its own Undo',()=>{
+ const b=M.board(),t=M.task({id:'parent-undo',title:'Two-step task'}),a=M.child({id:'child-a',title:'First'}),last=M.child({id:'child-b',title:'Second'});t.children=[a,last];M.add(b,t);
+ M.completeChild(b,t.id,a.id,true);const firstWin=a._winId;M.completeChild(b,t.id,last.id,true);assert.equal(t.done,true);
+ M.finish(b,t.id,false);assert.equal(t.done,false);assert.equal(a.done,true);assert.equal(a._winId,firstWin);assert.equal(b.features.wins.length,1);
+ M.completeChild(b,t.id,a.id,false);assert.equal(a.done,false);assert.equal(b.features.wins.length,0);
+});
+
 test('occasional Undo metadata survives actual shared export/import and preserves points until undone',()=>{
  const b=M.board(),t=M.task({id:'quarterly',title:'Clean extractor',room:'kitchen',occasionKind:'occasional',repeatMonths:3,nextDue:'2026-11-01'});M.add(b,t);
  Occ.complete(b,t.id,M,on('2026-11-03'));

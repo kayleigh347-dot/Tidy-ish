@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const C=require('../js/owner-calendar.js');
+const S=require('../js/schedule-core.js');
 const M=require('../js/model.js');
 const SHARE=require('../js/sharing-model.js');
 const F=path.join(__dirname,'../js/app.js');
@@ -41,6 +42,12 @@ test('any existing saved task can be given a first date and repeat monthly',()=>
  assert.deepEqual(dates,['2026-11-15','2027-03-15','2027-07-15']);
  assert.equal(b.tasks[0].repeatMonths,0,'original cleaning task recurrence unchanged');
  assert.equal(b.tasks[0].nextDue,'');
+});
+test('monthly recurrence dates stay consistent when the viewing range starts later',()=>{
+ const task={repeatMonths:1,nextDue:'2026-01-31'};
+ const long=S.occurrenceDates(task,'2026-01-01',181).filter(d=>d.startsWith('2026-04'));
+ const short=S.occurrenceDates(task,'2026-04-01',30).filter(d=>d.startsWith('2026-04'));
+ assert.deepEqual(long,short);assert.deepEqual(short,['2026-04-28']);
 });
 test('every N days cadence and uncheck without losing selected settings',()=>{
  const b=M.board();b.tasks.push(M.task({id:'a',title:'Kitchen job'}));

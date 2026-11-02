@@ -31,6 +31,11 @@ test('a user-chosen PDF list job alone is added to calendar and shared',()=>{
  assert.equal(shared.tasks[0].calendarEnabled,true);
  assert.equal(shared.tasks[0].repeatMonths,6);
 });
+test('seasonal day survives household sharing round-trip',()=>{
+ const row=OCC.OWNER_ROWS.find(x=>x.title==='Christmas is coming');assert.ok(row);const b=M.board();OCC.addSelected(b,M,[row.id],NOW);
+ const imported=SHARE.importRaw(SHARE.project(b,{},'test')),task=imported.tasks.find(x=>x.occasionSourceId===row.id);
+ assert.equal(task.seasonMonth,row.seasonMonth);assert.equal(task.seasonDay,row.seasonDay);
+});
 test('owner selects individual Base Schedule jobs; unselected jobs not imported',()=>{
  const b=M.board(),base=OCC.OWNER_ROWS;assert.ok(base.length>=20);
  const picked=base[0];const out=OCC.addSelected(b,M,[picked.id],NOW);
@@ -42,6 +47,9 @@ test('owner selects individual Base Schedule jobs; unselected jobs not imported'
 test('automatically seeded defaults are on the calendar and cannot be duplicated',()=>{
  const b=M.board();OCC.seed(b,M,NOW);
  assert.ok(b.tasks.length>20);
+ const reopened=M.normalize(JSON.parse(JSON.stringify(b)));
+ assert.equal(reopened.tasks.length,b.tasks.length);
+ assert.ok(reopened.tasks.every(t=>t.children.every(c=>!c.parentId||c.parentId===t.id||t.children.some(x=>x.id===c.parentId))));
  const oldCount=b.tasks.length,selected=b.tasks[0];
  assert.equal(selected.calendarEnabled,true);
  const result=OCC.addSelected(b,M,[selected.occasionSourceId],NOW);
