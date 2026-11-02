@@ -23,7 +23,8 @@
       if(!day.count)return '';
       const name=this.roomName(day.winner),art=C.artForRoom(day.winner),file=day.winner==='laundry'?'laundry.svg':art||'neutral.svg';
       const base=this.opts.assetBase||'assets/';
-      return `<span class="tac-portrait tac-ring-${C.ringFor(day.count,this.opts.thresholds)}${large?' tac-large':''}"><img src="${esc(base+file)}" width="112" height="112" alt="${esc(name+(art?' sprite':day.winner==='laundry'?' washing machine':' neutral portrait'))}" loading="${large?'eager':'lazy'}" decoding="async"></span>`;
+      const optimized=file.replace(/\.(?:png|jpe?g)$/i,'.webp');
+      return `<span class="tac-portrait tac-ring-${C.ringFor(day.count,this.opts.thresholds)}${large?' tac-large':''}"><img src="${esc(base+optimized)}" width="112" height="112" alt="${esc(name+(art?' sprite':day.winner==='laundry'?' washing machine':' neutral portrait'))}" loading="${large?'eager':'lazy'}" decoding="async"></span>`;
     }
     render(){
       const thresholds=this.opts.thresholds||C.RINGS;

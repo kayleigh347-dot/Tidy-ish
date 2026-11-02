@@ -606,3 +606,7 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
   #app :is(h1,h2,h3,p,small,label,.task-title,.doing-task-title,.room-name,.card-title){overflow-wrap:anywhere}
   #app img,#app svg,#app video,#app canvas{max-width:100%}
 }
+
+/* Living room character art is stored as four separate poses, not a sprite strip. */
+.room-scene .guardian.guardian-static{background-size:contain;background-position:center bottom}
+.guardian-thumb.guardian-thumb-static{background-size:contain;background-position:center bottom}
