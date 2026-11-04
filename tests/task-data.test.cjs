@@ -4,8 +4,21 @@ const M=require('../js/model.js');
 const Time=require('../js/quest-time-core.js');
 const Data=require('../js/task-data.js');
 const Share=require('../js/sharing-model.js');
+const fs=require('node:fs');
 const date=n=>`2025-01-${String(n).padStart(2,'0')}T10:00:00Z`;
 function taskBoard(){const b=M.board(),t=M.task({id:'quest-a',title:'Wipe surfaces',room:'kitchen'});M.add(b,t);return {b,t};}
+
+test('Focus timer records retain the task title and old records resolve names by ID',()=>{
+ const {b,t}=taskBoard();t.children.push({id:'child-a',title:'Clean sink'});
+ assert.equal(Data.attemptTitle(b,{taskId:t.id}),'Wipe surfaces');
+ assert.equal(Data.attemptTitle(b,{taskId:'child-a'}),'Clean sink');
+ t.title='Renamed later';assert.equal(Data.attemptTitle(b,{taskId:t.id,taskTitle:'Wipe surfaces'}),'Wipe surfaces');
+ b.features.wins.push({id:'win-old',taskId:'deleted-task',title:'Archived task name'});
+ assert.equal(Data.attemptTitle(b,{taskId:'deleted-task',completionWinIds:['win-old']}),'Archived task name');
+ assert.equal(Data.attemptTitle(b,{taskId:'unknown'}),'Unknown task');
+ const app=fs.readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
+ assert.match(app,/taskTitle:target\.title/);assert.match(app,/TidyTaskData\.attemptTitle\(board,x\)/);
+});
 
 test('Task Data reports unknown instead of fabricated zero values',()=>{
  const {b,t}=taskBoard(),d=Data.perQuest(b,t.id,Time.ownerOf(b));
@@ -55,11 +68,13 @@ test('timed completion Undo removes its linked attempt and estimate exactly once
 });
 
 test('household sharing and board merge preserve Task Data archive summaries',()=>{
- const {b,t}=taskBoard();b.features.taskDataArchives.push({id:'archive-1',kind:'completion',taskId:t.id,rootId:t.id,title:t.title,room:t.room,period:'2025-01',count:4,points:4,minutes:0});
+ const {b,t}=taskBoard();b.features.taskDataArchives.push({id:'archive-1',kind:'completion',taskId:t.id,rootId:t.id,title:t.title,room:t.room,period:'2025-01',count:4,points:4,minutes:0});b.features.questTimings.push({id:'timer-title',taskId:t.id,taskTitle:t.title,owner:Time.ownerOf(b),kind:'valid',durationMs:60000,at:date(5)});
  const blank={tasks:[],side:[],rooms:[],wins:[],settings:[],homeless:[],sideTabs:[]};
  const shared=Share.project(b,blank,'household'),back=Share.importRaw(shared);
  assert.deepEqual(back.features.taskDataArchives,b.features.taskDataArchives);
+ assert.deepEqual(back.features.questTimings,b.features.questTimings);
  assert.deepEqual(M.merge(M.board(),b).features.taskDataArchives,b.features.taskDataArchives);
+ assert.deepEqual(M.normalize(b).features.questTimings,b.features.questTimings);
 });
 
 test('slowest valid attempt stays visible and survives old-detail archiving',()=>{

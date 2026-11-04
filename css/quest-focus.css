@@ -136,3 +136,8 @@
 .quest-tool-preference{margin-left:28px;min-width:0}
 .quest-tool-preference summary{font-size:.88rem;cursor:pointer}
 .quest-tool-preference .field{margin-top:5px}
+#editor .quest-resume-tasks{list-style:none;margin:7px 0;padding:0;display:grid;gap:4px;max-height:34vh;overflow:auto}
+#editor .quest-resume-tasks li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #ffffff38;border-radius:7px;background:#2d2342;color:#fff;overflow-wrap:anywhere}
+#editor .quest-resume-tasks small{flex:none;color:#d8c9e8;font-size:.7rem;text-align:right}
+#editor .quest-resume-note{font-size:.72rem;color:#d8c9e8;margin:6px 0 0}
+.quest-focus .focus-remove{min-height:32px;padding:4px 7px;font-size:.7rem;white-space:nowrap}

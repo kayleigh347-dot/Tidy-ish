@@ -73,3 +73,18 @@
  .maker-v2-fields{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:6px}
  .maker-v2-control-row{gap:4px}
 }
+
+/* Compact task cards: titles use the full space up to completion; list colors stay distinct. */
+.task.position-colour-0{--pos-card-bg:#493059;--pos-card-border:#bd91d1}
+.task.position-colour-1{--pos-card-bg:#234f57;--pos-card-border:#75c5c7}
+.task.position-colour-2{--pos-card-bg:#303b6c;--pos-card-border:#9ba9ec}
+.task.position-colour-3{--pos-card-bg:#65334f;--pos-card-border:#e397b7}
+.task.position-colour-4{--pos-card-bg:#2e5946;--pos-card-border:#8bcba0}
+.task.position-colour-5{--pos-card-bg:#51406d;--pos-card-border:#c1a4e5}
+.task.position-colour-6{--pos-card-bg:#67412c;--pos-card-border:#e8a365}
+.task.position-colour-7{--pos-card-bg:#294a66;--pos-card-border:#86b9e7}
+.task[class*="position-colour-"]{background:linear-gradient(112deg,var(--pos-card-bg),color-mix(in srgb,var(--pos-card-bg),#171120 18%));border:1px solid var(--pos-card-border);border-radius:10px;box-shadow:inset 3px 0 var(--pos-card-border),0 2px 4px #10091799;margin:8px 0}
+.task:not(.doing-task) .room-task-main{grid-template-columns:auto minmax(0,1fr) auto}
+.task .room-task-main .task-title{grid-column:2;min-width:0;white-space:normal;overflow-wrap:anywhere}
+.task .actions .add-subtask{width:32px;min-width:32px;min-height:31px;padding:3px;border-radius:7px}
+.room-preview-bathroom .task[class*="position-colour-"]{background:linear-gradient(112deg,var(--pos-card-bg),color-mix(in srgb,var(--pos-card-bg),#171120 18%));border-color:var(--pos-card-border);color:#f7f4fc}

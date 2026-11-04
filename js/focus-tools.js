@@ -1,4 +1,4 @@
-/* Optional, member-local tool preferences for the selected Focus Quests. */
+/* Optional, member-local tool preferences for the selected Focus tasks. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.TidyFocusTools=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';
 const PREFIX='tidyish-html-focus-tools-v1:';
 function normalize(value){return String(value||'').trim().toLocaleLowerCase('en-GB').replace(/\s+/g,' ');}

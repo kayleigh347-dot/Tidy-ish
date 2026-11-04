@@ -3,7 +3,7 @@ const {test}=require('node:test');
 const M=require('../js/model.js');
 
 test('washing loads progress independently and expose the exact dryer and rail finish steps',()=>{
- const b=M.board(),dryer=b.features.laundry.find(l=>l.slot===1),rail=b.features.laundry.find(l=>l.slot===2);
+ const b=M.board();assert.deepEqual(b.features.laundry.map(l=>l.slot),[1]);const dryer=b.features.laundry.find(l=>l.slot===1),rail={slot:2,route:'',step:0,selected:false,manual:true,complete:false,revision:0};b.features.laundry.push(rail);
  dryer.route='dryer';rail.route='rail';M.laundry(b,dryer.slot);const dryerStart=dryer.startedAt;assert.equal(dryer.step,1);assert.ok(dryerStart>0);
  M.laundry(b,rail.slot);assert.equal(rail.step,1);assert.ok(rail.startedAt>0);assert.equal(dryer.step,1);assert.equal(new Set([dryer.slot,rail.slot]).size,2);
  M.laundry(b,dryer.slot);assert.equal(dryer.step,2);assert.equal(M.laundryText(b.features,dryer),'Empty dryer');
@@ -33,7 +33,7 @@ test('a fresh wash clears the prior alert timer and finished-cycle start time',(
 });
 
 test('laundry start time and independent load state survive household sync round-trip',()=>{
- const Share=require('../js/sharing-model.js'),b=M.board();M.laundry(b,1);M.laundry(b,2);const payload=Share.project(b,{},'test-member');
+ const Share=require('../js/sharing-model.js'),b=M.board();b.features.laundry.push({slot:2,route:'',step:0,selected:false,manual:true,complete:false,revision:0});M.laundry(b,1);M.laundry(b,2);const payload=Share.project(b,{},'test-member');
  assert.equal(payload.settings.filter(s=>/^laundry-load-\d+$/.test(s.id)).length,2);
  assert.ok(payload.settings.filter(s=>/^laundry-load-\d+$/.test(s.id)).every(s=>s.reminderStartedAt));
  const back=Share.importRaw(payload);assert.deepEqual(back.features.laundry.map(l=>[l.slot,l.step,l.startedAt>0]),[[1,1,true],[2,1,true]]);
@@ -57,9 +57,14 @@ test('laundry task types stay out of cleaning estimates, recommendations and cal
 test('laundry remains second in Doing Now, first on the home grind tile, with a cross-page alert style',()=>{
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8'),css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/care-system.css'),'utf8');
  assert.match(source,/tabs\(\[\['doing','Doing Now'\],\['laundry','Laundry'\]/);
- assert.match(source,/\[\['laundry','Laundry','Laundry cycles'\],\['cat'/);
+ assert.match(source,/\[\['laundry','Laundry','<small>Laundry cycles<\/small>'\],\['cat','Cat Tray'/);
  assert.match(source,/const readyLaundry=F\(\)\.laundry\.filter\(l=>M\.laundryNeedsAttention\(l\)\)\.map\(l=>l\.slot\)\.sort\(\(a,b\)=>a-b\)\.join\(','\);const alertChanged=readyLaundry!==lastLaundryAttention;lastLaundryAttention=readyLaundry/);
  assert.doesNotMatch(source,/if\(refreshChanged\|\|route==='laundry'\|\|route==='home'/);
  assert.doesNotMatch(source,/route==='doing'&&doingTab==='laundry'\|\|route==='doing'&&nextDoingExpiry/);
  assert.match(css,/\.doing-board \.tabs\.nested button\[data-id="laundry"\]/);assert.match(css,/\.laundry-ready-alert\{animation:/);
+ assert.match(source,/function careWarnings\(\).*filter\(item=>item\.state\.state!=='green'\)/);
+ assert.match(source,/aria-label="\$\{esc\(rule\.title\)\}: \$\{esc\(state\.label\)\}"/);
+ assert.match(source,/function careHomeRows\(group\).*carePill\(state\)/);
+ assert.match(source,/state\.warning&&state\.state!=='green'/);
+ assert.match(css,/\.global \.warning-task\.flashing\{animation:/);assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.global \.warning-task\.flashing\{animation:none/);
 });

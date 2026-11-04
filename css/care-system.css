@@ -9,6 +9,26 @@
 .doing-board .tabs.nested button[data-id="laundry"]{background:#563a61;border-color:#a47ab2}
 .doing-board .tabs.nested button[data-id="laundry"].active{background:#6a4775;border-color:#d1a1dc}
 @media(prefers-reduced-motion:reduce){.laundry-ready-alert{animation:none;outline:3px solid #e85169}}
+.global-warning-strip{display:flex;align-items:center;gap:2px;max-width:calc(100vw - 110px);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-x:contain;flex:0 1 auto}
+.global-warning-strip::-webkit-scrollbar{display:none}
+.global .warning-task{position:relative;display:grid;place-items:center;flex:none;width:40px;min-width:40px;height:44px;min-height:44px;padding:2px;border-radius:10px;background:#241936;border:1px solid #ffffff3b;color:#fff}
+.global .warning-task.blue{border-color:#88c8ee}.global .warning-task.orange{border-color:#f1bd69}.global .warning-task.red,.global .warning-task.flashing{border-color:#f07380}
+.warning-task-icon{font-size:18px;line-height:1}.warning-urgency-mark{position:absolute;right:1px;bottom:0;font-size:10px;font-weight:900;line-height:1;color:#fff;text-shadow:0 1px 2px #000}
+.warning-urgency-mark.blue{color:#9bd9ff}.warning-urgency-mark.orange{color:#ffca68}.warning-urgency-mark.red,.warning-urgency-mark.flashing{color:#ff8490}
+.global .warning-task.flashing{animation:tidyCarePulse 1.3s ease-in-out infinite}
+.tidy-care-pill{display:inline-flex;align-items:center;gap:4px}
+.care-home-status-list{display:grid;gap:3px}
+.care-home-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px;font-size:.67rem;line-height:1.2}
+.care-home-task{display:flex;align-items:flex-start;gap:4px;min-width:0;overflow-wrap:anywhere}
+.care-home-row .tidy-care-pill{font-size:.61rem;line-height:1.15;padding:3px 5px;white-space:nowrap}
+.new-grind-tile.new-grind-cat,.new-grind-tile.new-grind-aquatic{min-height:0;align-content:start}
+.new-grind-aquatic .care-home-status-list{gap:4px}
+@media(max-width:520px){.new-grind-tile.new-grind-aquatic,.new-grind-tile.new-grind-often{grid-column:1/-1}.new-grind-tile.new-grind-often{min-height:60px}}
+@media(prefers-reduced-motion:reduce){.global .warning-task.flashing{animation:none;outline:3px double #f66778}}
+.custom-warning-home{margin:10px 0}.custom-warning-home-list{display:flex;gap:6px;overflow-x:auto;padding:2px 1px 7px;scrollbar-width:thin;overscroll-behavior-x:contain}
+.custom-warning-home-item{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px 7px;flex:0 0 auto;max-width:min(58vw,220px);min-height:48px;padding:6px 9px;border-radius:12px;background:#251635;border:1px solid #ffffff35;color:#f8ecff;text-align:left}
+.custom-warning-home-icon{font-size:19px;grid-row:span 2}.custom-warning-home-item strong{font-size:.72rem;line-height:1.15;overflow-wrap:anywhere}.custom-warning-home-item .tidy-care-pill{font-size:.62rem;padding:2px 5px;justify-self:start}
+.warning-stage-fields{padding:8px;border-radius:10px;background:rgba(255,255,255,.05)}.warning-stage-fields>strong{display:block;margin-bottom:5px;font-size:.82rem}
 /* Step 07: per-Quest read-only memory display. Explicitly distinguish time from actual condition. */
 .quest-memory-meter{padding:12px;margin:10px 0 14px;border:1px solid rgba(255,255,255,.19);border-radius:15px;background:rgba(255,255,255,.045)}
 .quest-memory-meter>.row{align-items:center;flex-wrap:wrap;gap:9px}

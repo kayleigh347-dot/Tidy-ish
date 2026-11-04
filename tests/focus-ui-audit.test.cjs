@@ -7,11 +7,11 @@ const Q=require('../js/quest-focus.js');
 globalThis.TidyQuestFocus=Q;
 const DAY='2026-11-01';
 
-function setup(){
+function setup(now=Date.now()){
  const board=M.board(),values=new Map(),dialogs=[];let counter=0;
  delete require.cache[require.resolve('../js/quest-focus-ui.js')];
  const UI=require('../js/quest-focus-ui.js');
- const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>[],renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},openFocus:()=>{}};
+ const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>[],isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},openFocus:()=>{}};
  UI.init(api);return {board,UI,dialogs};
 }
 const click=(UI,action,id='')=>UI.handle({dataset:{action,id,direction:'-1'}});
@@ -38,30 +38,58 @@ test('routine editor centres the editable title with matching Exit and Save cont
 
 test('Focus header groups controls on one row and only shows Reload for a saved selection',()=>{
  const {board,UI}=setup(),task=M.task({id:'focus-audit-quest',title:'Audit Quest',room:'kitchen'});board.tasks.push(task);UI.enter(board,'kitchen','focus');
- let html=UI.content(board);assert.match(html,/class="quest-picker-header"/);assert.match(html,/data-action="quest-plan"/);assert.match(html,/class="quest-title">Add Quests/);assert.doesNotMatch(html,/data-action="quest-reload"/);
+ let html=UI.content(board);assert.match(html,/class="quest-picker-header"/);assert.match(html,/data-action="quest-plan"/);assert.match(html,/class="quest-title">Add Tasks/);assert.doesNotMatch(html,/data-action="quest-reload"/);
  UI.pick(task.id);html=UI.content(board);assert.match(html,/data-action="quest-reload"/);assert.match(html,/data-action="quest-exit"/);assert.match(html,/data-action="quest-go"/);
- const header=html.match(/<nav class="quest-picker-header"[^>]*>(.*?)<\/nav>/)?.[1]||'';for(const action of ['quest-exit','quest-plan','quest-reload','quest-go'])assert.match(header,new RegExp(`data-action="${action}"`));assert.match(header,/Add Quests/);
+ const header=html.match(/<nav class="quest-picker-header"[^>]*>(.*?)<\/nav>/)?.[1]||'';for(const action of ['quest-exit','quest-plan','quest-reload','quest-go'])assert.match(header,new RegExp(`data-action="${action}"`));assert.match(header,/Add Tasks/);
  const css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/quest-focus.css'),'utf8');assert.match(css,/\.quest-picker-header\{display:grid;grid-template-columns:/);
 });
 
-test('Room Focus offers Clear the Way or Skip before Quest selection',()=>{
+test('Room Focus offers Clear the Way or Skip before task selection',()=>{
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
  const ui=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/quest-focus-ui.js'),'utf8');
  assert.match(source,/function startRoomFocus\(/);
- assert.match(source,/dialog\('Room Focus',`<p>Start with Clear the Way, or skip to choose Quests\?/);
+ assert.match(source,/dialog\('Room Focus',`<p>Start with Clear the Way, or skip to choose tasks\?/);
  assert.match(source,/focus:el=>startRoomFocus\(el\.dataset\.id\)/);
  assert.match(source,/focus-start-clearway'.*openClearWay\(el\.dataset\.id\)/);
  assert.match(source,/focus-skip-clearway'.*openQuestFocus\(el\.dataset\.id\)/);
  assert.doesNotMatch(ui,/showFocusIntro/);
 });
 
+test('resuming Focus lists saved tasks and changing selection replaces only Focus membership',()=>{
+ const {board,UI,dialogs}=setup(),oldTask=M.task({id:'focus-old',title:'Existing task',room:'kitchen',doing:true}),newTask=M.task({id:'focus-new',title:'New task',room:'kitchen'});board.tasks.push(oldTask,newTask);
+ UI.enter(board,'kitchen','focus');UI.pick(oldTask.id);click(UI,'quest-go');click(UI,'quest-accepted');UI.enter(board,'kitchen','focus');
+ assert.match(dialogs.at(-1).body,/Existing task/);assert.match(dialogs.at(-1).body,/Change tasks/);assert.match(dialogs.at(-1).body,/Resume Focus/);
+ click(UI,'quest-fresh-change');assert.equal(UI.get().phase,'pick');assert.deepEqual(UI.get().questIds,[oldTask.id]);
+ UI.change({target:{dataset:{questSelect:oldTask.id}}});UI.change({target:{dataset:{questSelect:newTask.id}}});click(UI,'quest-go');click(UI,'quest-accepted');
+ assert.deepEqual(UI.get().startedIds,[newTask.id]);assert.equal(oldTask.doing,true);assert.equal(board.tasks.length,2);
+});
+
+test('a Focus task can be removed from the session without changing the task',()=>{
+ const {board,UI}=setup(),task=M.task({id:'focus-remove',title:'Keep in room',room:'kitchen',doing:true});board.tasks.push(task);
+ UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-go');click(UI,'quest-accepted');click(UI,'quest-remove-focus',task.id);
+ assert.deepEqual(UI.get().startedIds,[]);assert.equal(board.tasks[0],task);assert.equal(task.doing,true);
+ const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');assert.match(app,/button\('Remove','quest-remove-focus',t\.id/);
+});
+
 test('active Focus uses ordinary task-card rendering, reorders privately and separates completions',()=>{
  const {board,UI}=setup(),tasks=['one','two','three'].map(id=>M.task({id:'focus-'+id,title:id,room:'kitchen'}));board.tasks.push(...tasks);UI.enter(board,'kitchen','focus');tasks.forEach(t=>UI.pick(t.id));click(UI,'quest-accepted');
  assert.deepEqual(UI.get().startedIds,tasks.map(t=>t.id));assert.equal(UI.moveFocus(tasks[1].id,-1),true);assert.deepEqual(UI.get().startedIds,[tasks[1].id,tasks[0].id,tasks[2].id]);assert.equal(UI.reorderFocus(tasks[2].id,tasks[1].id,false),true);assert.deepEqual(UI.get().startedIds,[tasks[2].id,tasks[1].id,tasks[0].id]);
  const html=UI.content(board);assert.match(html,/ordinary-focus-card/);
- tasks[1].done=true;const completed=UI.content(board);assert.match(completed,/quest-completed-section/);assert.ok(completed.indexOf('Completed')>completed.indexOf('three'));
+ tasks[1].done=true;tasks[1].completedAt=new Date().toISOString();const completed=UI.content(board);assert.match(completed,/quest-completed-section/);assert.ok(completed.indexOf('Completed')>completed.indexOf('three'));
  assert.deepEqual(board.tasks.map(t=>t.id),tasks.map(t=>t.id));
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');assert.match(source,/function focusTaskCard/);assert.match(source,/quest-focus-grip/);assert.match(source,/pointerdown/);assert.match(source,/childrenHtml\(t\)/);
+});
+
+test('Focus hides tasks after the next-day 3am clear and sorts recent completions newest first',()=>{
+ const now=new Date(2026,11,1,4).getTime(),{board,UI}=setup(now),tasks=[
+  M.task({id:'focus-expired',title:'Expired completion',room:'kitchen'}),
+  M.task({id:'focus-earlier',title:'Earlier completion',room:'kitchen'}),
+  M.task({id:'focus-latest',title:'Latest completion',room:'kitchen'})
+ ];board.tasks.push(...tasks);UI.enter(board,'kitchen','focus');tasks.forEach(task=>UI.pick(task.id));click(UI,'quest-accepted');
+ tasks[0].done=true;tasks[0].completedAt=new Date(2026,10,30,2).toISOString();
+ tasks[1].done=true;tasks[1].completedAt=new Date(2026,11,1,0).toISOString();
+ tasks[2].done=true;tasks[2].completedAt=new Date(2026,11,1,1).toISOString();
+ const html=UI.content(board);assert.doesNotMatch(html,/Expired completion/);assert.ok(html.indexOf('Latest completion')<html.indexOf('Earlier completion'));
 });
 
 test('app warns before leaving an unfinished Focus while preserving the saved session',()=>{

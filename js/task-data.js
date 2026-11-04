@@ -76,6 +76,17 @@
     const lastDone=wins[0]?.at||null;
     return {taskId:id,title:(isChild?task.children.find(c=>c.id===id)?.title:task?.title)||wins[0]?.title||'Unknown task',count:wins.length+archiveCompletionCount,points:wins.reduce((n,w)=>n+(Number(w.points)||0),0)+completionArchives.reduce((n,a)=>n+(Number(a.points)||0),0),lastDone,wins,attempts,visibleAttempts,olderWinPeriods,olderAttemptPeriods,archives,validCount:valid.length+archivedValid,attemptCount:attempts.length+archiveAttemptCount,fastestMs:fastest,slowestMs:slowest,averageMs:weight?Math.round(weighted/weight):null};
   }
+  function attemptTitle(board,record){
+    const saved=String(record?.taskTitle||record?.title||'').trim();if(saved)return saved;
+    const id=record?.taskId;
+    for(const task of board?.tasks||[]){
+      if(task?.id===id&&task.title)return String(task.title);
+      const child=(task?.children||[]).find(item=>item?.id===id);if(child?.title)return String(child.title);
+    }
+    const linked=new Set(Array.isArray(record?.completionWinIds)?record.completionWinIds:[]);
+    const win=(board?.features?.wins||[]).find(item=>linked.has(item?.id)||(id&&item?.taskId===id));
+    return String(win?.title||'Unknown task');
+  }
   function planArchive(board,id,beforeDate){
     const date=String(beforeDate||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Choose a valid date before removing history.');
     const [y,m,d]=date.split('-').map(Number),cutoff=new Date(y,m-1,d).getTime();if(!Number.isFinite(cutoff))throw Error('Choose a valid date before removing history.');
@@ -109,5 +120,5 @@
     board.features.wins=board.features.wins.filter(w=>!removedWinSet.has(w));board.features.questTimings=board.features.questTimings.filter(r=>!removedAttemptSet.has(r));
     return {winsRemoved:removedWins.length,attemptsRemoved:removedAttempts.length,pointsPreserved:removedWins.reduce((n,w)=>n+(Number.isFinite(Number(w.points))?Number(w.points):1),0)};
   }
-  return Object.freeze({summarize,perQuest,planArchive,applyArchive});
+  return Object.freeze({summarize,perQuest,attemptTitle,planArchive,applyArchive});
 });

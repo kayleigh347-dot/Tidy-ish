@@ -610,3 +610,22 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 /* Living room character art is stored as four separate poses, not a sprite strip. */
 .room-scene .guardian.guardian-static{background-size:contain;background-position:center bottom}
 .guardian-thumb.guardian-thumb-static{background-size:contain;background-position:center bottom}
+
+.mess-breakdown{border-top:1px solid var(--plum);margin-top:8px;padding-top:7px}
+.mess-breakdown>summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:.82rem;font-weight:650}
+.mess-breakdown-content{max-height:12rem;overflow:auto;border-radius:10px;background:var(--bg);padding:7px 9px}
+.mess-breakdown-content .small{margin:0 0 6px}
+.mess-breakdown-content ul{list-style:none;padding:0;margin:0}
+.mess-breakdown-content li{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--plum);font-size:.78rem}
+.mess-breakdown-content li:first-child{border-top:0}
+.mess-breakdown-content li span{min-width:0;overflow-wrap:anywhere}
+.mess-breakdown-content li small{font-size:.68rem;opacity:.8}
+.mess-breakdown-content li strong{white-space:nowrap;color:var(--gold)}
+.task-data-oneoffs>summary{cursor:pointer;min-height:38px;display:flex;align-items:center;font-weight:700;color:var(--gold)}
+.task-data-oneoffs[open]>summary{border-bottom:1px solid var(--plum);margin-bottom:4px}
+.task-data-oneoffs .data-completion:last-child{border-bottom:0}
+.laundry-progress{display:flex;align-items:center;gap:4px;margin:2px 0 3px}
+.laundry-progress>span{width:7px;height:7px;border-radius:50%;background:#5a3c62;border:1px solid #89b7c2;flex:0 0 7px}
+.laundry-progress>span.complete{background:#89b7c2;border-color:#89b7c2}
+.laundry-progress>span.current{background:#f8c662;border-color:#f8c662;box-shadow:0 0 0 2px #f8c66233}
+.laundry-progress>small{font-size:.67rem;margin-left:4px;line-height:1.1}

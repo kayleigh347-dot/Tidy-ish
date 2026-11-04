@@ -11,13 +11,24 @@ function eligible(el){
 }
 function value(el){return el.isContentEditable?el.textContent:el.value;}
 function announce(control,message){control.status.textContent=message;}
+function cleanRepeatedTranscript(value){
+ const text=String(value||'').trim().replace(/\s+/g,' '),words=text.split(' ').filter(Boolean);
+ for(let size=1;size<=Math.min(10,Math.floor(words.length/3));size++){
+  const repeats=words.length/size;if(!Number.isInteger(repeats)||repeats<3)continue;
+  const normalize=word=>word.toLocaleLowerCase().replace(/[.,!?;:]+$/g,'');
+  const first=words.slice(0,size).map(normalize).join('\u0000');let repeated=true;
+  for(let start=size;start<words.length;start+=size)if(words.slice(start,start+size).map(normalize).join('\u0000')!==first){repeated=false;break;}
+  if(repeated)return words.slice(0,size).join(' ');
+ }
+ return text;
+}
 function finish(s,commit=true){
  if(session!==s)return;
  session=null;
  s.button.textContent='🎤 Speak';s.button.setAttribute('aria-pressed','false');s.button.setAttribute('aria-label',s.control.label);
  const el=s.target;
  if(commit&&s.words.length&&el.isConnected&&eligible(el)&&value(el)===s.original){
-  let text=s.words.join(' ').trim();
+  let text=cleanRepeatedTranscript(s.words.join(' '));
   if(!text)return;
   if(el.isContentEditable){
    if(!s.range||!el.contains(s.range.commonAncestorContainer)){announce(s.control,'Text was not added because the field changed.');return;}
@@ -44,14 +55,20 @@ function start(target,control){
  if(!eligible(target)||!target.isConnected)return;
  const original=value(target);let range=null;
  if(target.isContentEditable){const selection=window.getSelection();if(selection?.rangeCount&&target.contains(selection.getRangeAt(0).commonAncestorContainer))range=selection.getRangeAt(0).cloneRange();else{range=document.createRange();range.selectNodeContents(target);range.collapse(false);}}
- const s={target,control,button:control.button,original,start:target.selectionStart??original.length,end:target.selectionEnd??original.length,range,words:[],recognition:new Recognition()};
+ const s={target,control,button:control.button,original,start:target.selectionStart??original.length,end:target.selectionEnd??original.length,range,words:[],finalResults:[],interimResults:[],recognition:new Recognition()};
  session=s;s.recognition.lang=document.documentElement.lang==='en'?'en-GB':document.documentElement.lang||'en-GB';s.recognition.continuous=true;s.recognition.interimResults=true;
  s.button.textContent='■ Stop';s.button.setAttribute('aria-pressed','true');s.button.setAttribute('aria-label','Stop dictation and add spoken text');
  announce(control,'Allow microphone access, then speak. Press Stop when finished. Your browser may process speech online.');
  s.recognition.onresult=e=>{
   if(session!==s)return;
-  s.words=[];let interim='';
-  for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)s.words.push(e.results[i][0].transcript);else interim+=e.results[i][0].transcript;}
+  const results=e.results||[],from=Number.isInteger(e.resultIndex)?Math.max(0,e.resultIndex):0;
+  for(let i=from;i<results.length;i++){
+   const transcript=String(results[i]?.[0]?.transcript||'');
+   if(results[i]?.isFinal){s.finalResults[i]=transcript;delete s.interimResults[i];}
+   else{s.interimResults[i]=transcript;delete s.finalResults[i];}
+  }
+  s.finalResults.length=results.length;s.interimResults.length=results.length;
+  s.words=s.finalResults.filter(Boolean);const interim=s.interimResults.filter(Boolean).join(' ');
   announce(control,'Listening… '+s.words.join(' ')+(interim?' '+interim:'')+' — press Stop to add text.');
  };
  s.recognition.onerror=e=>{
