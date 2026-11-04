@@ -131,21 +131,35 @@ test('mock household sync publishes edited supplies without deleting unrelated r
  assert.deepEqual(result.accepted.features.tools,['Microfibre cloths','Magic Erasers']);
 });
 
-test('concurrent completion stays a visible conflict until a member chooses a branch',()=>{
+test('concurrent completion merges automatically using the most recently edited task',()=>{
  const initial=M.board();M.add(initial,M.task({id:'shared-completion',title:'Wipe the kitchen table',room:'kitchen'}));
  const base=Share.project(initial,{},'acct'),local=M.clone(initial),remote=M.clone(initial);
  M.finish(local,'shared-completion',true);M.finish(remote,'shared-completion',true);
  const mine=Share.project(local,base,'acct'),theirs=Share.project(remote,base,'acct');
- const choices={},seen=[];let resolved;
- for(let i=0;i<3;i++){
-  resolved=Share.merge(base,mine,theirs,choices);seen.push(...resolved.conflicts.map(x=>x.key));
-  if(!resolved.conflicts.length)break;
-  for(const conflict of resolved.conflicts)choices[conflict.key]={token:conflict.token,side:'local'};
- }
- assert.deepEqual(seen,['tasks/shared-completion/completion','tasks/shared-completion/htmlCompletionIds']);
- assert.deepEqual(resolved.conflicts,[]);
- assert.equal(resolved.payload.wins.length,1,'the explicitly resolved task completion cannot duplicate points');
- assert.equal(resolved.payload.wins[0].id,mine.wins[0].id,'the chosen branch is accepted after review');
+ mine.tasks[0].androidTask.syncUpdatedAt='2026-11-04T12:00:00.000Z';theirs.tasks[0].androidTask.syncUpdatedAt='2026-11-04T12:01:00.000Z';
+ const resolved=Share.merge(base,mine,theirs);
+ assert.deepEqual(resolved.conflicts,[]);assert.equal(resolved.payload.wins.length,1);
+ assert.equal(resolved.payload.wins[0].id,theirs.wins[0].id,'the latest completion is kept without asking the member');
+});
+
+test('completion wins over an incomplete device while timestamped edits select the newest values',()=>{
+ const initial=M.board();M.add(initial,M.task({id:'done-wins',title:'Clean the fan',room:'kitchen'}));
+ const base=Share.project(initial,{},'acct'),local=M.clone(initial),remote=M.clone(initial);M.finish(local,'done-wins',true);
+ const mine=Share.project(local,base,'acct'),theirs=Share.project(remote,base,'acct');
+ mine.tasks[0].androidTask.syncUpdatedAt='2026-11-04T11:00:00.000Z';theirs.tasks[0].androidTask.syncUpdatedAt='2026-11-04T11:05:00.000Z';
+ mine.tasks[0].notes='Older browser edit';theirs.tasks[0].notes='Newer household edit';
+ const resolved=Share.merge(base,mine,theirs);assert.deepEqual(resolved.conflicts,[]);
+ assert.equal(resolved.payload.tasks[0].done,true);assert.equal(resolved.payload.tasks[0].notes,'Newer household edit');assert.equal(resolved.payload.wins.length,1);
+});
+
+test('task edits carry sync timestamps and the top bar exposes only Cat Tray and Plant care plus Laundry',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+ const sharing=fs.readFileSync(path.join(__dirname,'../js/sharing-model.js'),'utf8');
+ assert.match(app,/function stampTaskEdits\(next\)/);
+ assert.match(app,/rule\.id==='cat'\|\|rule\.id==='plants'/);
+ assert.match(app,/\['🐈','🪴'\]\.includes\(item\.icon\)/);
+ assert.match(sharing,/syncUpdatedAt/); // task-level clock is present in the sync projection
 });
 
 test('mock household sync propagates an occasional deletion with no loss of past wins',async()=>{
