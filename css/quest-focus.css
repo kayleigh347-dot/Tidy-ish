@@ -87,3 +87,57 @@
 .quest-focus .quest-search-wrap .quest-search-label{font-size:.73rem;white-space:nowrap;margin:0 2px 0 0;color:#edddf6}
 .quest-focus .quest-focused-list>.quest-active-list{margin:4px 0}
 .quest-time-panel [data-task-alarm-actions][hidden]{display:none!important}
+
+/* Step 01 audit fixes: compact grouped controls, editable routine heading and Focus-only card order. */
+.quest-focus .quest-picker-header{display:grid;grid-template-columns:auto auto minmax(55px,1fr) auto auto;align-items:center;gap:4px;margin:4px 0 7px}
+.quest-focus .quest-picker-header>.quest-btn{min-width:0;min-height:36px;padding:5px 6px;font-size:.72rem;white-space:nowrap}
+.quest-focus .quest-picker-header .quest-title{margin:0;max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.9rem}
+.quest-focus .quest-header-gap{width:1px}
+.quest-focus .quest-picker-bottom{margin:7px 0;gap:4px}
+.quest-focus .quest-picker-bottom .quest-btn{font-size:.7rem}
+.quest-focus .quest-corner-actions{display:flex;justify-self:end;gap:5px}
+.quest-focus .quest-corner-actions .quest-btn{min-width:40px;min-height:38px;padding:5px 8px}
+.quest-focus .quest-clear-all-top{min-height:50px;padding:9px 13px;font-size:.94rem}
+.quest-focus .quest-category-actions{display:flex;justify-content:flex-end;padding:0 6px 4px}
+.quest-focus .quest-category-actions .quest-btn{min-height:31px;padding:4px 12px}
+.quest-focus .quest-clear-bottom{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-top:8px}
+.quest-focus .quest-clear-bottom .quest-btn{min-height:40px}
+.quest-focus .quest-clear-bottom .quest-btn[data-action="quest-add-clear"]{min-width:42px;font-size:1.2rem}
+.quest-focus .quest-clear-bottom .quest-btn[data-action="quest-begin-clear"],.quest-focus .quest-clear-bottom .quest-btn[data-action="quest-clear-all"]{flex:1}
+.quest-focus .quest-active-card{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+.quest-focus .quest-clear-toolbar{margin:4px 0}
+.quest-focus .quest-editor-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:7px;align-items:center}
+.quest-focus .quest-editor-title{width:100%;min-width:0;border:0!important;background:transparent!important;color:var(--gold,#f7d99c)!important;text-align:center;font:inherit!important;font-weight:800!important;font-size:1.05rem!important;padding:5px 2px!important}
+.quest-focus .quest-editor-title::placeholder{color:var(--gold,#f7d99c);opacity:1}
+.quest-focus .quest-routine-bottom{display:flex;justify-content:space-between;gap:8px;margin-top:10px}
+.quest-focus .quest-completed-section{margin-top:12px;border-color:#85d5a5}
+.quest-focus .quest-completed-section>summary{color:#d3f6df}
+.quest-focus .focus-active-card{position:relative;padding-left:5px}
+.quest-focus .quest-focus-grip{min-width:38px;min-height:38px;padding:4px;border-radius:8px;cursor:grab;touch-action:none}
+.quest-focus .quest-focus-grip:active{cursor:grabbing}
+.quest-focus .focus-drop-target{outline:2px solid var(--gold,#f7d99c);outline-offset:2px}
+.quest-focus .focus-dragging{opacity:.45}
+.quest-focus .quest-room{margin:0 0 7px}
+@media(max-width:390px){
+ .quest-focus .quest-picker-header{gap:3px}
+ .quest-focus .quest-picker-header>.quest-btn{padding:4px 4px;font-size:.66rem}
+ .quest-focus .quest-picker-header .quest-title{font-size:.78rem}
+ .quest-focus .quest-picker-bottom .quest-btn{padding:5px 3px;font-size:.66rem}
+}
+@media(max-width:350px){
+ .quest-focus .quest-picker-header{grid-template-columns:auto auto minmax(38px,1fr) auto auto;gap:2px}
+ .quest-focus .quest-picker-header>.quest-btn{min-height:34px;padding:3px;font-size:.61rem}
+ .quest-focus .quest-picker-header .quest-title{font-size:.7rem}
+}
+.quest-focus-tools{display:grid;gap:5px;min-width:0}
+.quest-tool-item{align-items:start;min-width:0;margin:0}
+.quest-tool-item>span{min-width:0;overflow-wrap:anywhere}
+.quest-tool-item small{display:block}
+.quest-tool-preference{margin-left:28px;min-width:0}
+.quest-tool-preference summary{font-size:.88rem;cursor:pointer}
+.quest-tool-preference .field{margin-top:5px}
+#editor .quest-resume-tasks{list-style:none;margin:7px 0;padding:0;display:grid;gap:4px;max-height:34vh;overflow:auto}
+#editor .quest-resume-tasks li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid #ffffff38;border-radius:7px;background:#2d2342;color:#fff;overflow-wrap:anywhere}
+#editor .quest-resume-tasks small{flex:none;color:#d8c9e8;font-size:.7rem;text-align:right}
+#editor .quest-resume-note{font-size:.72rem;color:#d8c9e8;margin:6px 0 0}
+.quest-focus .focus-remove{min-height:32px;padding:4px 7px;font-size:.7rem;white-space:nowrap}

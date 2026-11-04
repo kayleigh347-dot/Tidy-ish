@@ -1,6 +1,6 @@
 /* Tidyish local-backup preflight: NO account requests, storage writes, or task presets.
  * Accept only the new Tidyish v1 format. Never guess how to import Android/older exports.
- * The UI must ask permission before calling apply().
+ * UI confirmation is required before merge or full local restore.
  */
 (function (root, factory) {
   'use strict';
@@ -32,10 +32,19 @@
     if (!isObject(raw) || raw.version !== 1 || !Array.isArray(raw.rooms) || !Array.isArray(raw.tasks)) {
       throw Error('This is not a Tidyish v1 backup. Older Android/HTML backups need a reviewed converter; nothing was imported.');
     }
-    if ('sharedSnapshot' in raw || 'authSession' in raw || 'access_token' in raw) {
-      throw Error('This file includes account or shared-snapshot material. Review it separately; nothing was imported.');
+    if ('authSession' in raw || 'access_token' in raw) {
+      throw Error('This file includes account credentials. Review it separately; nothing was imported.');
     }
-    const copy = model.normalize(raw);
+    // Older app exports attached the previous household sync base here. It is
+    // neither needed nor safe to merge. Restore imports only board data and drops
+    // account-specific bindings; merge adds only supported missing identities.
+    const safeRaw = {...raw};
+    delete safeRaw.sharedSnapshot;
+    // Account/household bindings belong to this browser, never to a portable backup.
+    delete safeRaw.browserSync;delete safeRaw.householdSync;delete safeRaw.connectedHouse;
+    const copy = model.normalize(safeRaw);
+    // The app stores these links inside features; discard them in either location.
+    delete copy.features.browserSync;delete copy.features.householdSync;delete copy.features.connectedHouse;
     for (const group of COLLECTIONS) {
       const records = FEATURE_KEYS.has(group) ? copy.features[group] : copy[group];
       if (!Array.isArray(records)) throw Error(`Invalid backup ${group} records. Nothing was imported.`);
@@ -77,11 +86,29 @@
     }
     // Room labels, matched tasks, existing wins and other saved personal state are not overwritten.
     const notes = [];
+    try { if (Object.prototype.hasOwnProperty.call(JSON.parse(text), 'sharedSnapshot')) notes.push('The saved household sync snapshot is ignored; only the backup board data is considered.'); } catch {}
     if (skipped.tasks) notes.push(`${skipped.tasks} matching task ID(s) will stay as they are.`);
     if (skipped.rooms) notes.push('Rooms with matching IDs keep their current settings and artwork.');
     if (!Object.values(changes).some(Boolean)) notes.push('This backup contains no new supported records.');
     const summary = {changes, skipped, existingTasks:base.tasks.length, importedTasks:incoming.tasks.length, notes};
     return {summary, source:incoming, original};
+  }
+
+  function prepareRestore(current,text,model){
+    const original=JSON.stringify(current);
+    if(typeof original!=='string')throw Error('The current board is unavailable. Nothing was restored.');
+    const source=fromText(text,model);
+    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length}};
+  }
+
+  function applyRestore(current,prepared,model){
+    if(!prepared||typeof prepared.original!=='string'||!prepared.source)throw Error('The restore preview has expired. Choose the file again; no data was changed.');
+    if(JSON.stringify(current)!==prepared.original)throw Error('The board changed since the restore preview. Choose the file again. No data was changed.');
+    return validate(prepared.source,model);
+  }
+
+  function describeRestore(summary){
+    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines. Current local board data will be replaced. The restore does not write to a live household.`;
   }
 
   function apply(current, prepared, model) {
@@ -105,5 +132,5 @@
     return fragments.join(' · ') + '. Existing matching identities, household settings and history stay unchanged. ' + summary.notes.join(' ');
   }
 
-  return Object.freeze({MAX_BYTES, fromText, prepare, apply, describe});
+  return Object.freeze({MAX_BYTES, fromText, prepare, apply, describe, prepareRestore, applyRestore, describeRestore});
 });

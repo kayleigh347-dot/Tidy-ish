@@ -50,6 +50,14 @@ test('personal calculator uses recent valid attempts, task estimate, then a 15-m
  assert.equal(Q.estimate(t,b),Math.ceil(learned));
  assert.equal(Time.average(b.features.questTimings,t.id,'someone else'),null);
 });
+test('a just-started timer is still an attempt and pause preserves only accumulated active seconds',()=>{
+ const now=Date.now(),running={startedAt:now,elapsed:0};
+ assert.equal(Time.hasAttempt(running),true);
+ running.elapsed=M.time(running,now+4200);running.startedAt=0;
+ assert.equal(M.time(running,now+600000),4200);
+ assert.equal(Time.hasAttempt(running),true);
+ assert.equal(Time.hasAttempt({startedAt:0,elapsed:0}),false);
+});
 
 test('Focus totals and time recommendations use the same personal task estimates',()=>{
  const b=M.board(),a=add(b,'A',{estimate:7,repeatDays:7,nextDue:DAY,priority:1}),bb=add(b,'B',{estimate:20,repeatDays:7,nextDue:DAY,priority:2}),owner=Time.ownerOf(b);

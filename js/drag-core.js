@@ -70,6 +70,6 @@
     if(parent.doing&&!seen.has(parent.id))board.doingOrder.unshift(parent.id);
     return board;
   }
-  function palette(index) {return ((index%6)+6)%6;}
+  function palette(index) {return ((index%8)+8)%8;}
   return {canMove,reorder,nest,isParent,palette};
 });

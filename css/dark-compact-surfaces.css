@@ -1,0 +1,90 @@
+/* Compact dark surfaces. Keep care-status pills and action buttons colour-coded. */
+.guardian-speech{background:#2c263f;color:#e9e2f0;border:1px solid #5a3c62}
+
+.new-maker{gap:8px;margin:8px auto 24px;padding:8px}
+.new-maker-heading{padding:10px 11px;border-radius:13px}
+.new-maker-room-banner{padding:9px;border-radius:11px}
+.new-maker-start,.new-maker-fields,.new-maker-task-fields{gap:8px}
+.new-maker-fields input,.new-maker-task-fields input,.new-maker-custom input,.new-maker-task-fields textarea{background:#21012a;color:#e5d9ee;border-color:#5a3c62}
+.new-maker-button{background:linear-gradient(135deg,#39234f,#2c263f);color:#d7c6e0;border-color:#705582;min-height:44px;padding:8px 10px}
+.new-maker-button.primary{background:linear-gradient(105deg,#50306b,#34715b);color:#fff}
+.new-maker-button.ghost{background:transparent;color:#c8b6d6}
+.new-maker-footer,.new-maker-control{gap:6px;padding:7px 0}
+.new-maker-days{gap:7px}
+.new-maker-fields fieldset{padding:8px}
+.new-maker-room-grid{gap:6px}
+.new-maker-check{gap:7px;padding:6px 8px;border:1px solid #5a3c62;background:#30243f;color:#e5d9ee}
+.new-maker-task{padding:8px 9px;gap:6px;border-color:#665274}
+.new-maker-task.shade-0,.room-preview-bathroom .task.position-colour-0{background:linear-gradient(120deg,#39234f,#2c263f 72%);color:#e5d9ee}
+.new-maker-task.shade-1,.room-preview-bathroom .task.position-colour-1{background:linear-gradient(120deg,#24483e,#293a38 72%);color:#d7eee4}
+.new-maker-task.shade-2,.room-preview-bathroom .task.position-colour-2{background:linear-gradient(120deg,#493047,#30243c 72%);color:#ead9e9}
+.new-maker-task.shade-3,.room-preview-bathroom .task.position-colour-3{background:linear-gradient(120deg,#293b50,#29283e 72%);color:#d9e8f3}
+.new-maker-task-fields{margin:8px 0 4px}
+.new-maker-custom{padding:9px;border-color:#665274}
+.new-maker-custom form{gap:7px;margin-top:7px}
+.new-maker-pending{padding:9px 10px;gap:5px;background:linear-gradient(140deg,#30243f,#26372f);border-color:#665274;color:#e2d8eb}
+.new-maker-pending>span{color:#c8b6d6}
+.new-maker-warning{background:#493820;color:#ffe2aa;border:1px solid #856338;padding:8px}
+.new-maker-stats{gap:6px}
+.new-maker-stats>div{padding:8px 5px;background:linear-gradient(140deg,#39234f,#293a38);color:#e5d9ee}
+.new-maker-stats strong{font-size:1.2rem}
+.new-maker-preview{gap:6px}
+.new-maker-preview-day{padding:7px;background:#2c263f;color:#e5d9ee;border-color:#665274;gap:3px}
+.new-maker-due{margin:7px 0;padding:8px;background:linear-gradient(130deg,#342544,#263c36);color:#e5d9ee}
+.new-maker-due label{gap:6px;padding:5px 0}
+.new-grind-grid{gap:6px;margin-top:7px}
+.new-grind-tile{min-height:78px;padding:8px 9px;gap:4px;border-color:#665274;color:#e5d9ee}
+.new-grind-laundry{background:linear-gradient(135deg,#39234f,#30243f)}
+.new-grind-cat{background:linear-gradient(135deg,#24483e,#293a38)}
+.new-grind-aquatic{background:linear-gradient(135deg,#293b50,#29283e)}
+.new-grind-often{background:linear-gradient(135deg,#493047,#30243c)}
+.new-grind-voice{padding:8px 10px}
+.room-preview-bathroom{background:linear-gradient(145deg,#30243f,#21352f);border-color:#665274}
+.room-preview-bathroom>.row.spread{padding:9px;gap:6px}
+.new-what-next{margin:8px 0;padding:8px;background:linear-gradient(135deg,#30243f,#26372f);color:#e5d9ee;border-color:#665274}
+.new-next-row{gap:4px;padding:7px 0}
+
+.maker-v2,.maker-v2-due{padding:10px;margin:8px 0;border-radius:15px}
+.maker-v2-hero{padding:8px 9px;margin-bottom:8px}
+.maker-v2-hero h2{font-size:1.15rem;margin-bottom:5px}
+.maker-v2-control-row{gap:5px;margin:7px 0}
+.maker-v2-fields{gap:8px;margin:7px 0}
+.maker-v2-rest{padding:7px}
+.maker-v2-rest>div{gap:5px}
+.maker-v2-group summary,.maker-v2-due summary{gap:6px;padding:8px 10px;font-size:.9rem}
+.maker-v2-rows{padding:4px;gap:2px}
+.maker-v2-task{gap:7px;padding:6px 8px}
+.maker-v2-summary{gap:6px}
+.maker-v2-summary>*{padding:6px 7px}
+.maker-v2-due .maker-v2-btn{margin:6px}
+
+/* Shared care and utility panels use the same compact dark card surface. */
+.tidy-care-list{gap:7px;padding:8px}
+.tidy-care-card{padding:10px;gap:6px}
+.tidy-utility-tile{margin:9px 0;padding:10px;border-radius:14px}
+.tidy-utility-row{gap:7px;padding:8px;margin-bottom:5px}
+
+@media(max-width:390px){
+ .new-maker{padding:6px;gap:7px}
+ .new-maker-room-grid,.new-maker-preview{gap:5px}
+ .new-maker-check{padding:6px}
+ .new-maker-footer .new-maker-button{padding-inline:7px}
+ .maker-v2,.maker-v2-due{padding:8px}
+ .maker-v2-fields{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:6px}
+ .maker-v2-control-row{gap:4px}
+}
+
+/* Compact task cards: titles use the full space up to completion; list colors stay distinct. */
+.task.position-colour-0{--pos-card-bg:#493059;--pos-card-border:#bd91d1}
+.task.position-colour-1{--pos-card-bg:#234f57;--pos-card-border:#75c5c7}
+.task.position-colour-2{--pos-card-bg:#303b6c;--pos-card-border:#9ba9ec}
+.task.position-colour-3{--pos-card-bg:#65334f;--pos-card-border:#e397b7}
+.task.position-colour-4{--pos-card-bg:#2e5946;--pos-card-border:#8bcba0}
+.task.position-colour-5{--pos-card-bg:#51406d;--pos-card-border:#c1a4e5}
+.task.position-colour-6{--pos-card-bg:#67412c;--pos-card-border:#e8a365}
+.task.position-colour-7{--pos-card-bg:#294a66;--pos-card-border:#86b9e7}
+.task[class*="position-colour-"]{background:linear-gradient(112deg,var(--pos-card-bg),color-mix(in srgb,var(--pos-card-bg),#171120 18%));border:1px solid var(--pos-card-border);border-radius:10px;box-shadow:inset 3px 0 var(--pos-card-border),0 2px 4px #10091799;margin:8px 0}
+.task:not(.doing-task) .room-task-main{grid-template-columns:auto minmax(0,1fr) auto}
+.task .room-task-main .task-title{grid-column:2;min-width:0;white-space:normal;overflow-wrap:anywhere}
+.task .actions .add-subtask{width:32px;min-width:32px;min-height:31px;padding:3px;border-radius:7px}
+.room-preview-bathroom .task[class*="position-colour-"]{background:linear-gradient(112deg,var(--pos-card-bg),color-mix(in srgb,var(--pos-card-bg),#171120 18%));border-color:var(--pos-card-border);color:#f7f4fc}

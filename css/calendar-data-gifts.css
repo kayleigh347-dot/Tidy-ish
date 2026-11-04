@@ -1,0 +1,32 @@
+.calendar-kind-symbol{font-size:1rem;line-height:1.15;color:#f3c0ff;filter:drop-shadow(0 1px 4px #8b43df)}
+.calendar-kind-symbol.seasonal{filter:drop-shadow(0 1px 4px #d98244)}
+.calendar-footnote span{white-space:nowrap}
+.calendar-occasion-month{margin:.35rem 0;border:1px solid #40305b;border-radius:.75rem;background:#160e27;overflow:hidden}
+.calendar-occasion-month>summary{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.55rem .7rem;cursor:pointer;font-weight:650;list-style-position:inside}
+.calendar-occasion-month>summary .small{margin-left:auto;padding:.08rem .45rem;border-radius:1rem;background:#302247}
+.calendar-occasion-row{display:grid;grid-template-columns:3.25rem minmax(0,1fr);gap:.05rem .45rem;align-items:baseline;padding:.38rem .7rem;border-top:1px solid #302341}
+.calendar-occasion-row time{grid-row:span 2;color:#d8b8ff;font-size:.82rem;white-space:nowrap}
+.calendar-occasion-row strong{min-width:0;font-size:.9rem;overflow-wrap:anywhere}
+.calendar-occasion-row>.small{grid-column:2;font-size:.78rem}
+.gift-tracker .gift-row{margin:.3rem 0;padding:.55rem .65rem;border-radius:.7rem;background:#170d28;border:1px solid #3c2b55}
+.gift-tracker .gift-row .row{justify-content:flex-end;gap:.35rem;margin-top:.25rem}
+.gift-tracker>.row.spread{align-items:center;gap:.5rem;margin:.55rem 0}
+.gift-tracker>.row.spread h2{margin:.2rem 0;font-size:1.05rem}
+.gift-tracker .data-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem}
+.gift-tracker .data-metrics>*{min-width:0;padding:.55rem .4rem}
+.task-data-page>.tabs.nested,.calendar-view>.tabs.nested{position:sticky;top:0;z-index:2;background:#10091d;padding:.25rem 0}
+.task-data-page .data-completion>span{line-height:1.35}
+.gift-tracker .gift-bought-check{min-width:6.4rem;border-color:#5f477c;background:#211334}
+.gift-tracker .gift-bought-check[aria-checked="true"]{color:#a3f0cb;border-color:#48a97d}
+.gift-tracker .gift-row .row{flex-wrap:wrap}
+.gift-person-checkoff{display:flex;align-items:center;justify-content:space-between;gap:.45rem;min-width:0;padding:.42rem .15rem;border-bottom:1px solid #3c2b55}
+.gift-person-checkoff:last-child{border-bottom:0}
+.gift-person-checkoff>strong{min-width:0;overflow-wrap:anywhere;color:#f1e8f5}
+.gift-person-checkoff>.row{gap:.3rem;justify-content:flex-end;flex-wrap:wrap}
+.gift-tracker .gift-checkoff{min-height:34px;padding:5px 8px;border-color:#5f477c;background:#211334;font-size:.8rem}
+.gift-tracker .gift-checkoff[aria-pressed="true"]{color:#a3f0cb;border-color:#48a97d}
+.gift-ideas-summary{display:flex;align-items:center;justify-content:space-between;margin:.45rem 0;padding:.4rem .6rem;border:1px solid #3c2b55;border-radius:.65rem;background:#170d28}
+.gift-tracker .gift-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.25rem .5rem}
+.gift-tracker .gift-row .row{grid-column:1/-1}
+.gift-tracker textarea[name="ideas"]{min-height:8rem}
+@media(max-width:390px){.gift-person-checkoff{align-items:flex-start;flex-direction:column}.gift-person-checkoff>.row{justify-content:flex-start}}
