@@ -1,0 +1,13 @@
+{
+  "name": "tidyish-alexa-skill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Alexa custom skill for adding tasks to a linked Tidy-ish household.",
+  "main": "lambda/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ask-sdk-core": "2.14.0"
+  }
+}

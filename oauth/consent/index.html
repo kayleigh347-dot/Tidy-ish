@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Connect Alexa · Tidy-ish</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #28251f; background: #f4f0e8; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 1rem; }
+    main { width: min(100%, 34rem); padding: clamp(1.25rem, 5vw, 2.25rem); border: 1px solid #d8d0c2; border-radius: 1.25rem; background: #fffdf8; box-shadow: 0 1rem 3rem #30291b16; }
+    h1 { margin: 0 0 .5rem; font-size: clamp(1.6rem, 5vw, 2.15rem); }
+    p { line-height: 1.55; }
+    label { display: block; margin: 1rem 0 .4rem; font-weight: 650; }
+    input, select { width: 100%; min-height: 2.9rem; padding: .65rem .8rem; border: 1px solid #827969; border-radius: .65rem; background: white; color: inherit; font: inherit; }
+    button { min-height: 2.9rem; padding: .65rem 1rem; border: 0; border-radius: .7rem; background: #30564e; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    button.secondary { border: 1px solid #766f63; background: transparent; color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #b27924; outline-offset: 2px; }
+    .actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.25rem; }
+    .status { min-height: 1.5em; color: #5e5142; }
+    .small { color: #5e5142; font-size: .92rem; }
+    .box { margin: 1rem 0; padding: .9rem 1rem; border-radius: .7rem; background: #f2eee5; }
+    a { color: #245b6c; }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="content" aria-live="polite"><p class="status">Opening secure sign-in…</p></div>
+  </main>
+  <script type="module">
+    const SUPABASE_URL = 'https://thviqhojcjrmqurhdkql.supabase.co';
+    const PUBLISHABLE_KEY = 'sb_publishable_ziQesp5o-pHIXINUMMdmTA_3nDFSVZr';
+    const AUTH_KEY = 'tidyish-html-v023-auth';
+    const HOUSEHOLD_METADATA_KEY = 'tidyish_alexa_house_id';
+    const authorizationId = new URLSearchParams(location.search).get('authorization_id');
+    const content = document.querySelector('#content');
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+      auth: {
+        storageKey: AUTH_KEY,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'implicit'
+      }
+    });
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    }
+
+    function showStatus(message) {
+      const status = content.querySelector('[role="status"]');
+      if (status) status.textContent = message;
+    }
+
+    function showLogin(message = '') {
+      content.innerHTML = `
+        <h1>Connect Alexa</h1>
+        <p>Sign in with the email used for your Tidy-ish household. Your saved board stays in your browser; Alexa can access only a household that is already synced.</p>
+        <form id="signin-form">
+          <label for="email">Tidy-ish email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+          <div class="actions"><button type="submit">Send sign-in link</button></div>
+        </form>
+        <p class="small" role="status">${escapeHtml(message || 'The newest sign-in email opens this secure approval page.')}</p>`;
+      content.querySelector('#signin-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = event.submitter;
+        button.disabled = true;
+        showStatus('Sending sign-in link…');
+        const email = String(new FormData(event.currentTarget).get('email') || '').trim();
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: location.href }
+        });
+        button.disabled = false;
+        showStatus(error ? 'I could not send the link. Please check the email and try again.' : 'Check your email and open the newest sign-in link. Keep this page available while you sign in.');
+      });
+    }
+
+    async function optionalRpc(name, args) {
+      const { data, error } = await supabase.rpc(name, args);
+      if (error && (error.code === 'PGRST202' || error.code === 'PGRST204')) return null;
+      if (error) throw error;
+      return data;
+    }
+
+    async function availableHouseholds(user) {
+      const houses = new Map();
+      let legacy = { houses: [] };
+      try { legacy = (await optionalRpc('mission_house_sharing', { action: 'list' })) || legacy; }
+      catch (error) {
+        if (error?.code !== 'PGRST202' && error?.code !== 'PGRST204') throw error;
+      }
+      const oldHouses = Array.isArray(legacy.houses) ? [...legacy.houses] : [];
+      if (!oldHouses.some(house => house.id === user.id)) oldHouses.push({ id: user.id, label: 'My old house' });
+      for (const house of oldHouses) {
+        if (!house?.id) continue;
+        const { data, error } = await supabase.from('mission_boards').select('user_id').eq('user_id', house.id).maybeSingle();
+        if (error) throw error;
+        if (data) houses.set(String(house.id), { id: String(house.id), label: house.label || house.name || (house.id === user.id ? 'My household' : 'Shared household'), kind: 'legacy' });
+      }
+
+      let fresh = null;
+      try { fresh = await optionalRpc('tidyish_household_v2', { action: 'list' }); }
+      catch (error) {
+        if (error?.code !== 'PGRST202' && error?.code !== 'PGRST204') throw error;
+      }
+      for (const house of Array.isArray(fresh?.houses) ? fresh.houses : []) {
+        if (!house?.id) continue;
+        try {
+          const remote = await optionalRpc('tidyish_household_v2', { action: 'read', p_house_id: house.id });
+          if (remote?.payload && Array.isArray(remote.payload.tasks)) {
+            houses.set(String(house.id), { id: String(house.id), label: house.label || house.name || 'Household', kind: 'v2' });
+          }
+        } catch (error) {
+          if (error?.code !== 'PGRST202' && error?.code !== 'PGRST204') throw error;
+        }
+      }
+      return [...houses.values()].sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    async function showConsent(session) {
+      let details;
+      try {
+        const result = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+        if (result.error) throw result.error;
+        details = result.data;
+      } catch {
+        content.innerHTML = '<h1>Alexa link unavailable</h1><p class="status" role="status">Tidy-ish account linking is not enabled yet. Please try again after the secure Alexa connection has been set up.</p>';
+        return;
+      }
+
+      const existingApprovalRedirect = details?.redirect_url || '';
+
+      const userResult = await supabase.auth.getUser();
+      if (userResult.error || !userResult.data.user) {
+        showLogin('Please sign in to the Tidy-ish account that owns the household.');
+        return;
+      }
+      const user = userResult.data.user;
+      const houses = await availableHouseholds(user);
+      if (!houses.length) {
+        content.innerHTML = `
+          <h1>Connect a household first</h1>
+          <p>Tidy-ish could not find an online household board for ${escapeHtml(user.email)}.</p>
+          <p>Open Tidy-ish, sign in, choose a household, and enable household sync. Then return to the Alexa app and link Tidy-ish again.</p>
+          <p class="small" role="status">Your browser-only tasks were not sent to Alexa.</p>`;
+        return;
+      }
+
+      const prior = String(user.user_metadata?.[HOUSEHOLD_METADATA_KEY] || '');
+      const options = houses.map(house => `<option value="${escapeHtml(house.id)}" ${house.id === prior ? 'selected' : ''}>${escapeHtml(house.label)}</option>`).join('');
+      const clientName = details?.client_name || details?.client?.name || 'Alexa';
+      const requestedScopes = typeof details?.scope === 'string' ? details.scope.trim() : '';
+      content.innerHTML = `
+        <h1>Connect Alexa to Tidy-ish</h1>
+        <p><strong>${escapeHtml(clientName)}</strong> is asking to use your Tidy-ish account.</p>
+        ${existingApprovalRedirect ? '<p class="small">You have already approved this connection. You can change which synced household Alexa uses.</p>' : ''}
+        <div class="box">
+          <p><strong>What this skill can do</strong></p>
+          <p>It reads the household board to check room names and existing tasks. It can add a task only after Alexa repeats the task and room and you say yes.</p>
+        </div>
+        <form id="consent-form">
+          <label for="household">Choose the synced household Alexa should use</label>
+          <select id="household" name="household" required>${options}</select>
+          ${requestedScopes ? `<p class="small">Requested sign-in details: ${escapeHtml(requestedScopes)}</p>` : ''}
+          <p class="small">This choice is saved to your Tidy-ish profile. Alexa uses your existing account permissions; you can disconnect it from the Alexa app.</p>
+          <div class="actions">
+            <button type="submit">Allow Alexa</button>
+            <button id="deny" class="secondary" type="button">Cancel</button>
+          </div>
+        </form>
+        <p class="small" role="status">Signed in as ${escapeHtml(user.email || 'your Tidy-ish account')}.</p>`;
+
+      content.querySelector('#consent-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const buttons = [...event.currentTarget.querySelectorAll('button')];
+        buttons.forEach(button => { button.disabled = true; });
+        showStatus('Saving your selection and connecting Alexa…');
+        const houseId = String(new FormData(event.currentTarget).get('household') || '');
+        if (!houses.some(house => house.id === houseId)) {
+          showStatus('Choose one of the listed synced households.');
+          buttons.forEach(button => { button.disabled = false; });
+          return;
+        }
+        const metadata = { ...(user.user_metadata || {}), [HOUSEHOLD_METADATA_KEY]: houseId };
+        const { error: updateError } = await supabase.auth.updateUser({ data: metadata });
+        if (updateError) {
+          showStatus('I could not save the household choice. Nothing was linked; please try again.');
+          buttons.forEach(button => { button.disabled = false; });
+          return;
+        }
+        if (existingApprovalRedirect) {
+          location.replace(existingApprovalRedirect);
+          return;
+        }
+        const approval = await supabase.auth.oauth.approveAuthorization(authorizationId);
+        if (approval.error || !approval.data?.redirect_url) {
+          showStatus('I could not finish linking Alexa. Please return to the Alexa app and try again.');
+          buttons.forEach(button => { button.disabled = false; });
+          return;
+        }
+        location.replace(approval.data.redirect_url);
+      });
+
+      content.querySelector('#deny').addEventListener('click', async event => {
+        event.currentTarget.disabled = true;
+        if (existingApprovalRedirect) {
+          showStatus('No household choice was changed. You can close this page.');
+          return;
+        }
+        showStatus('Cancelling the Alexa connection…');
+        const denied = await supabase.auth.oauth.denyAuthorization(authorizationId);
+        if (denied.error || !denied.data?.redirect_url) {
+          showStatus('I could not return to Alexa. Close this tab to cancel.');
+          event.currentTarget.disabled = false;
+          return;
+        }
+        location.replace(denied.data.redirect_url);
+      });
+    }
+
+    if (!authorizationId) {
+      content.innerHTML = '<h1>Alexa connection link is incomplete</h1><p class="status" role="status">Open the account-linking page from the Alexa app and try again.</p>';
+    } else {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) showLogin();
+      else {
+        try { await showConsent(data.session); }
+        catch {
+          content.innerHTML = '<h1>Could not load your households</h1><p class="status" role="status">Tidy-ish could not read your synced household list. No task data was changed. Please try again later.</p>';
+        }
+      }
+    }
+  </script>
+</body>
+</html>

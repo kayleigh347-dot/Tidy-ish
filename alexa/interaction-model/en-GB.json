@@ -1,0 +1,73 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "tidy ish",
+      "intents": [
+        {
+          "name": "AddTaskIntent",
+          "slots": [
+            {
+              "name": "TaskCommand",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add {TaskCommand}",
+            "add a task {TaskCommand}",
+            "remember to {TaskCommand}"
+          ]
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    },
+    "dialog": {
+      "delegationStrategy": "SKILL_RESPONSE",
+      "intents": [
+        {
+          "name": "AddTaskIntent",
+          "delegationStrategy": "ALWAYS",
+          "confirmationRequired": false,
+          "prompts": {},
+          "slots": [
+            {
+              "name": "TaskCommand",
+              "type": "AMAZON.SearchQuery",
+              "confirmationRequired": false,
+              "elicitationRequired": true,
+              "prompts": {
+                "elicitation": "Elicit.TaskCommand"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "prompts": [
+      {
+        "id": "Elicit.TaskCommand",
+        "variations": [
+          {
+            "type": "PlainText",
+              "value": "What task should I add? You can include a room, like wipe the worktops in the kitchen."
+          }
+        ]
+      }
+    ]
+  }
+}
