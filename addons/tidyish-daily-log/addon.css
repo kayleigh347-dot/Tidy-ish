@@ -1,0 +1,425 @@
+.tidyish-daily-log,
+.tidyish-daily-log-snapshot {
+  --tdl-bg: #171b2a;
+  --tdl-panel: #20263a;
+  --tdl-panel-soft: #272e45;
+  --tdl-text: #f4f3fb;
+  --tdl-muted: #c1c7da;
+  --tdl-border: #626c88;
+  --tdl-accent: #c1a8ff;
+  --tdl-good: #a7e3bc;
+  --tdl-warn: #ffd78a;
+  --tdl-focus: #fff1a8;
+  box-sizing: border-box;
+  color: var(--tdl-text);
+  color-scheme: dark;
+  font: 1rem/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-width: 0;
+}
+
+.tidyish-daily-log *,
+.tidyish-daily-log-snapshot * {
+  box-sizing: border-box;
+}
+
+.tidyish-daily-log {
+  background: var(--tdl-bg);
+  border: 1px solid var(--tdl-border);
+  border-radius: 1rem;
+  margin: 1rem auto;
+  max-width: 74rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+.tidyish-daily-log h1,
+.tidyish-daily-log h2,
+.tidyish-daily-log h3,
+.tidyish-daily-log-snapshot h2 {
+  color: var(--tdl-text);
+  line-height: 1.25;
+  margin: 0;
+}
+
+.tidyish-daily-log h1 {
+  font-size: clamp(1.35rem, 4vw, 1.8rem);
+}
+
+.tidyish-daily-log h2,
+.tidyish-daily-log-snapshot h2 {
+  font-size: 1.15rem;
+}
+
+.tidyish-daily-log h3 {
+  font-size: 1rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-header,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-section,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-form,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-stack,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-conflicts {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-header {
+  margin-bottom: 1rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-intro,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-hint,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-empty,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-detail,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-description {
+  color: var(--tdl-muted);
+  margin: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-section {
+  background: var(--tdl-panel);
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.85rem;
+  margin-block: 1rem;
+  padding: 1rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-inline-form,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-form-grid,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button-row,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-edit-summary {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar {
+  justify-content: space-between;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar > .tdl-field {
+  min-width: min(100%, 14rem);
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-field {
+  display: grid;
+  flex: 1 1 12rem;
+  gap: 0.3rem;
+  min-width: min(100%, 10rem);
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-label {
+  color: var(--tdl-muted);
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-input {
+  background: #111522;
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.55rem;
+  color: var(--tdl-text);
+  font: inherit;
+  min-height: 2.8rem;
+  max-width: 100%;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+textarea.tdl-input {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-input:focus-visible,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button:focus-visible {
+  outline: 3px solid var(--tdl-focus);
+  outline-offset: 2px;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button {
+  align-items: center;
+  background: var(--tdl-panel-soft);
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.6rem;
+  color: var(--tdl-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.8rem;
+  padding: 0.55rem 0.9rem;
+  text-align: center;
+  touch-action: manipulation;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button:hover {
+  border-color: var(--tdl-accent);
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-primary {
+  background: #47376e;
+  border-color: var(--tdl-accent);
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-metrics {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  margin: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-metric {
+  background: var(--tdl-panel-soft);
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.65rem;
+  min-width: 0;
+  padding: 0.7rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-metric dt {
+  color: var(--tdl-muted);
+  font-size: 0.86rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-metric dd {
+  font-size: 1.2rem;
+  font-weight: 750;
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-list {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-list-row,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-edit-row,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-conflict {
+  background: var(--tdl-panel-soft);
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.65rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 0.7rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-list-row {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  justify-content: space-between;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-list-row > p {
+  flex-basis: 100%;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-status {
+  color: var(--tdl-warn);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-done {
+  color: var(--tdl-good);
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-review,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-message {
+  background: #392f21;
+  border: 1px solid #a58c59;
+  border-radius: 0.6rem;
+  color: #fff0c8;
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.8rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-message:empty {
+  display: none;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-total-line {
+  font-weight: 750;
+  margin: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-edit-row {
+  display: grid;
+  gap: 0.65rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-edit-summary {
+  align-items: center;
+  justify-content: space-between;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-edit-form {
+  border-top: 1px solid var(--tdl-border);
+  padding-top: 0.7rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-conflict-choice {
+  border-top: 1px solid var(--tdl-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+  padding-top: 0.65rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-conflict-choice p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-chart-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  min-width: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-chart {
+  background: var(--tdl-panel-soft);
+  border: 1px solid var(--tdl-border);
+  border-radius: 0.7rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0.8rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bars {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-row {
+  align-items: center;
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: 5.4rem minmax(2rem, 1fr) 5.2rem;
+  min-width: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-label,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-value {
+  color: var(--tdl-muted);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-value {
+  text-align: right;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-track {
+  background: #101421;
+  border-radius: 99rem;
+  display: block;
+  height: 0.7rem;
+  overflow: hidden;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar {
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-task-bar,
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-recorded-bar {
+  background: #a98bf2;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-manual-bar {
+  background: #7fc8ed;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-extra-bar {
+  background: #8bd4a4;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-distraction-bar {
+  background: #f0bd72;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-work-bar {
+  background: #df91ad;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-graph-totals {
+  margin-top: 0.8rem;
+}
+
+:where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-rewash-status {
+  color: var(--tdl-muted);
+  margin-inline-start: 0.5rem;
+}
+
+@media (max-width: 38rem) {
+  .tidyish-daily-log {
+    border-radius: 0.7rem;
+    padding: 0.85rem;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-section {
+    padding: 0.8rem;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar,
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-toolbar > *,
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-inline-form > * {
+    width: 100%;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button-row {
+    width: 100%;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-button-row .tdl-button {
+    flex: 1 1 7rem;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-row {
+    grid-template-columns: 4.6rem minmax(1.5rem, 1fr) 4.6rem;
+  }
+
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-label,
+  :where(.tidyish-daily-log, .tidyish-daily-log-snapshot) .tdl-bar-value {
+    font-size: 0.72rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tidyish-daily-log *,
+  .tidyish-daily-log-snapshot * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
