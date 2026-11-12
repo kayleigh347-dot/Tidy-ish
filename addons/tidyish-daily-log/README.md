@@ -1,6 +1,6 @@
 # Tidy-ish Daily Log add-on
 
-This is a fresh, standalone package for the Task Data and laundry re-wash features. It does not import code from another app and does not modify the existing Tidy-ish files. It is dormant until the host app explicitly loads and mounts it.
+This is a fresh, standalone package for the Task Data and laundry re-wash features. It does not import code from another app. Tidy-ish now loads and mounts this package from the host app.
 
 Files in this package:
 
@@ -10,11 +10,11 @@ Files in this package:
 
 ## Current boundary
 
-The add-on stores its records under tidyish.daily-log-addon.v1 in browser local storage by default. It does not modify task records, completion IDs, points, Undo state, Focus timing, or laundry-cycle progress.
+The host stores add-on revisions in `board.features.dailyLogRecords` and re-wash events in `board.features.dailyLogRewashes`. Tidy-ish includes both arrays in local backup, restore, merge, and household sync. The standalone package still offers a browser local-storage adapter for independent use.
 
-The current app's backup and household-sync model has explicit feature allowlists. This separate storage key is therefore local to one browser and is not included in the app's existing backup, restore, or sync flows. Showing these records inside the built-in Task Data or Calendar also requires a later host-app integration. No existing app file has been changed as part of this package.
+The feature does not modify task records, completion IDs, points, Undo state, Focus timing, or laundry-cycle progress. The laundry button records a separate dated event.
 
-For a future sync-aware adapter, provide loadState and saveState callbacks backed by the host's approved data model and call mergeStates when reconciling copies. Do not assume that adding an unknown property to the host board will make it persist or sync.
+`js/daily-log-host.js` loads this package. The app mounts its Task Data panel, Calendar snapshots, and re-wash buttons through `mount.mjs`, using the host board as the storage adapter.
 
 ## Host snapshot shape
 
@@ -49,35 +49,18 @@ mountTaskDataAddon takes a getBoardSnapshot callback. It should return a new, re
 
 completionTaskIds should contain all individual completion IDs needed to mark a planned parent task complete. The add-on reads this snapshot and does not mutate it.
 
-## Later host integration points
+## Host integration
 
-Load the module and stylesheet only in a separately reviewed integration change:
+The classic host script loads the package modules dynamically:
 
-    import {
-      mountTaskDataAddon,
-      mountLaundryRewashButton,
-      renderDailySnapshot
-    } from "./addons/tidyish-daily-log/mount.mjs";
-    import "./addons/tidyish-daily-log/addon.css";
+    import('../addons/tidyish-daily-log/core.mjs');
+    import('../addons/tidyish-daily-log/mount.mjs');
 
-Mount the Task Data panel into a new container with:
+The host passes `loadState` and `saveState` callbacks backed by the two board arrays. `getBoardSnapshot(date)` returns task completions, the selected date's scheduled tasks, and rooms. Planned parent tasks include the IDs of their leaf completions.
 
-    const taskDataAddon = mountTaskDataAddon(container, {
-      getBoardSnapshot,
-      storageKey: "tidyish.daily-log-addon.v1"
-    });
+The Daily Log tab is inside Task Data. Selecting a date in the Calendar opens the same snapshot renderer and offers a link to that date in Task Data. Active laundry loads expose “Re-washed” once the load has started; finished one-off loads retain the control in the Finished loads list.
 
-When a Calendar date is selected, call renderDailySnapshot(container, state, selectedDate, getBoardSnapshot()). The state value comes from the add-on storage adapter; it is separate from the household board until the host is deliberately changed.
-
-Add the re-wash button only to an actual active laundry-load card with a positive slot number:
-
-    const rewash = mountLaundryRewashButton(loadCard, load.slot, {
-      label: "Load " + load.slot,
-      loadId: String(load.slot),
-      storageKey: "tidyish.daily-log-addon.v1"
-    });
-
-The button writes only a dated re-wash event to the add-on state. The daily snapshot shows that event under “Laundry re-washes.” It does not advance, undo, or award points for the laundry cycle.
+The date snapshot shows re-wash entries under “Laundry re-washes.” They do not advance, undo, or award points for the laundry cycle.
 
 ## Adapter options
 
@@ -87,7 +70,7 @@ mountTaskDataAddon and mountLaundryRewashButton accept one of:
 - storageApi and optional storageKey
 - loadState() and saveState(state) callbacks
 
-These calls are synchronous. For Task Data and laundry to share their local add-on state, use the same adapter or storage key. A custom adapter is responsible for persistence and, if later approved, household syncing and backup inclusion.
+These calls are synchronous. The host adapter persists the normalized state through the app's existing board mutation path so records are backed up and synchronized with the household.
 
 ## Exports
 

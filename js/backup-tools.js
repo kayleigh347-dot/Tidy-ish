@@ -10,8 +10,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const MAX_BYTES = 15 * 1024 * 1024;
-  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines'];
-  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines']);
+  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes'];
+  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes']);
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
   function ids(records, collection) {

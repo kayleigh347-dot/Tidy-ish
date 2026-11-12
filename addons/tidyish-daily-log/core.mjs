@@ -366,7 +366,7 @@ function groupsForDay(index, kind, date) {
   return (index.byKindDay.get(kind + '\0' + date) || []).filter(group => group.heads.some(head => head.date === date));
 }
 
-function dailySnapshot(state, date, host, index, filters, effective) {
+function dailySnapshot(state, date, host, index, filters, effective, rewashesForDate) {
   if (!isDay(date)) throw Error('Choose a valid snapshot date.');
   const conflicts = [], wins = [];
   for (const win of effective) {
@@ -397,7 +397,7 @@ function dailySnapshot(state, date, host, index, filters, effective) {
   const extraMinutes = achievements.reduce((sum, item) => sum + (Number(item.minutes) || 0), 0);
   const workMinutes = wins.reduce((sum, win) => sum + (Number(win.minutes) || 0), 0) + extraMinutes;
   const distractionMinutes = distractions.reduce((sum, item) => sum + item.minutes, 0);
-  const rewashes = state.rewashes.filter(row => row.date === date).sort((a, b) => a.at.localeCompare(b.at));
+  const rewashes = (rewashesForDate || state.rewashes.filter(row => row.date === date)).slice().sort((a, b) => a.at.localeCompare(b.at));
   const recordConflicts = [totalGroup, planGroup, ...achievementGroups, ...distractionGroups].filter(group => group?.conflict).length + conflicts.length;
   return {
     date, wins, planned, achievements, distractions, rewashes, completionConflicts: conflicts,
@@ -446,6 +446,18 @@ export function statistics(stateValue, host = {}, options = {}) {
   const period = ['7', '30', '90', '365', 'all'].includes(String(options.period)) ? String(options.period) : '30';
   const initialIndex = groupIndex(state);
   const effective = effectiveCompletions(state, host.completions || [], initialIndex);
+  const effectiveByDate = new Map(), rewashesByDate = new Map();
+  for (const row of effective) {
+    const rowDates = row._dateConflict ? row._dateCandidates || [] : row._effectiveDate ? [row._effectiveDate] : [];
+    for (const day of rowDates) {
+      if (!effectiveByDate.has(day)) effectiveByDate.set(day, []);
+      effectiveByDate.get(day).push(row);
+    }
+  }
+  for (const row of state.rewashes) {
+    if (!rewashesByDate.has(row.date)) rewashesByDate.set(row.date, []);
+    rewashesByDate.get(row.date).push(row);
+  }
   const dates = [
     ...state.records.map(row => row.date),
     ...state.rewashes.map(row => row.date),
@@ -477,7 +489,7 @@ export function statistics(stateValue, host = {}, options = {}) {
 
   const indexedDates = [...new Set(dates)].filter(day => day >= start).sort();
   for (const day of indexedDates) {
-    const item = dailySnapshot(state, day, host, initialIndex, options, effective);
+    const item = dailySnapshot(state, day, host, initialIndex, options, effectiveByDate.get(day) || [], rewashesByDate.get(day) || []);
     const key = groupSize === 'day' ? day : groupSize === 'week' ? mondayOf(day) : day.slice(0, 7);
     const row = buckets.get(key);
     if (!row) continue;

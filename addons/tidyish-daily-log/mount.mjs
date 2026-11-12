@@ -8,6 +8,7 @@ import {
   deleteDistraction,
   editDistraction,
   emptyState,
+  isDay,
   localDay,
   normalizeState,
   recordLaundryRewash,
@@ -16,7 +17,7 @@ import {
   setDailyTotal,
   snapshot,
   statistics
-} from './core.mjs';
+} from './core.mjs?v=20261112-connected1';
 
 function element(tag, className = '', value = '') {
   const item = document.createElement(tag);
@@ -295,8 +296,8 @@ function getStateAccess(options) {
   };
 }
 
-function hostSnapshot(options) {
-  const value = typeof options.getBoardSnapshot === 'function' ? options.getBoardSnapshot() : {};
+function hostSnapshot(options, date) {
+  const value = typeof options.getBoardSnapshot === 'function' ? options.getBoardSnapshot(date) : {};
   if (!value || typeof value !== 'object') return { completions: [], planned: [], rooms: [] };
   return {
     completions: Array.isArray(value.completions) ? value.completions : [],
@@ -315,15 +316,17 @@ export function mountTaskDataAddon(root, options = {}) {
   if (!root || typeof root.replaceChildren !== 'function') throw Error('Choose a container for the Task Data add-on.');
   const stateAccess = getStateAccess(options);
   let state = normalizeState(stateAccess.load());
-  let selectedDate = localDay(typeof options.now === 'function' ? options.now() : options.now || new Date());
-  let period = '30';
-  let selectedCompletionId = '';
-  let correctionDate = selectedDate;
-  let editingDistractionId = '';
+  const viewState = options.viewState && typeof options.viewState === 'object' ? options.viewState : {};
+  const defaultDate = isDay(options.initialDate) ? options.initialDate : localDay(typeof options.now === 'function' ? options.now() : options.now || new Date());
+  let selectedDate = isDay(viewState.selectedDate) ? viewState.selectedDate : defaultDate;
+  let period = ['7', '30', '90', '365', 'all'].includes(String(viewState.period)) ? String(viewState.period) : '30';
+  let selectedCompletionId = typeof viewState.selectedCompletionId === 'string' ? viewState.selectedCompletionId : '';
+  let correctionDate = isDay(viewState.correctionDate) ? viewState.correctionDate : selectedDate;
+  let editingDistractionId = typeof viewState.editingDistractionId === 'string' ? viewState.editingDistractionId : '';
   let message = '';
 
   const now = () => typeof options.now === 'function' ? options.now() : options.now || new Date();
-  const host = () => hostSnapshot(options);
+  const host = () => hostSnapshot(options, selectedDate);
   const write = next => {
     const validated = normalizeState(next);
     stateAccess.save(validated);
@@ -477,6 +480,7 @@ export function mountTaskDataAddon(root, options = {}) {
   function onSubmit(event) {
     const form = event.target.closest('form[data-kind]');
     if (!form || !root.contains(form)) return;
+    event.stopPropagation();
     event.preventDefault();
     const values = Object.fromEntries(new FormData(form));
     const kind = form.dataset.kind;
@@ -504,6 +508,8 @@ export function mountTaskDataAddon(root, options = {}) {
 
   function onChange(event) {
     const target = event.target;
+    if (!root.contains(target)) return;
+    event.stopPropagation();
     if (target.matches('[data-role="snapshot-date"]')) {
       if (!target.value) return;
       selectedDate = target.value;
@@ -524,6 +530,7 @@ export function mountTaskDataAddon(root, options = {}) {
   function onClick(event) {
     const target = event.target.closest('[data-action]');
     if (!target || !root.contains(target)) return;
+    event.stopPropagation();
     try {
       const action = target.dataset.action;
       if (action === 'today') {
@@ -564,7 +571,8 @@ export function mountTaskDataAddon(root, options = {}) {
       root.removeEventListener('click', onClick);
       root.replaceChildren();
     },
-    getState() { return normalizeState(state); }
+    getState() { return normalizeState(state); },
+    getViewState() { return { selectedDate, period, selectedCompletionId, correctionDate, editingDistractionId }; }
   });
 }
 
@@ -579,7 +587,8 @@ export function mountLaundryRewashButton(container, slot, options = {}) {
   const status = element('span', 'tdl-rewash-status');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
-  const onClick = () => {
+  const onClick = event => {
+    event.stopPropagation();
     buttonElement.disabled = true;
     try {
       const next = recordLaundryRewash(stateAccess.load(), number, typeof options.now === 'function' ? options.now() : options.now || new Date(), {
