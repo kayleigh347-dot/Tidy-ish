@@ -17,7 +17,7 @@ import {
   setDailyTotal,
   snapshot,
   statistics
-} from './core.mjs?v=20261112-connected1';
+} from './core.mjs?v=20261114-stage2';
 
 function element(tag, className = '', value = '') {
   const item = document.createElement(tag);

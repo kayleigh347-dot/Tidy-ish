@@ -278,6 +278,31 @@ export function resolveRecord(state, recordId, revisionId, options = {}) {
   return append(state, recordId, kind, date, fields, { ...options, resolve: true, deleted: !!deleted });
 }
 
+
+export function combinePlannedTasks(date, calendarRows = [], doingRows = [], today = localDay()) {
+  if (!isDay(date) || !isDay(today)) throw Error('Choose a valid snapshot date.');
+  if (!Array.isArray(calendarRows) || !Array.isArray(doingRows)) throw Error('Invalid planned task lists.');
+  const planned = [];
+  const byId = new Map();
+  const sources = row => [...(Array.isArray(row.sources) ? row.sources : []), ...(row.source ? [row.source] : [])].filter(value => typeof value === 'string' && value);
+  const completionIds = row => Array.isArray(row.completionTaskIds) ? row.completionTaskIds.filter(id => typeof id === 'string' && id) : [row.taskId];
+  // Doing Now is today's live intention, not historical evidence.
+  for (const row of [...calendarRows, ...(date === today ? doingRows : [])]) {
+    if (!row || typeof row.taskId !== 'string' || !row.taskId) continue;
+    const existing = byId.get(row.taskId);
+    if (existing) {
+      existing.sources = [...new Set([...existing.sources, ...sources(row)])];
+      existing.completionTaskIds = [...new Set([...existing.completionTaskIds, ...completionIds(row)])];
+      if (existing.minutes == null && row.minutes != null) existing.minutes = row.minutes;
+      continue;
+    }
+    const entry = { ...row, date, sources: [...new Set(sources(row))], completionTaskIds: [...new Set(completionIds(row))] };
+    byId.set(row.taskId, entry);
+    planned.push(entry);
+  }
+  return planned;
+}
+
 export function capturePlannedDay(state, date, tasks = [], options = {}) {
   if (!isDay(date)) throw Error('Choose a valid planned date.');
   if (!Array.isArray(tasks)) throw Error('Choose a valid planned task list.');
@@ -335,6 +360,36 @@ export function effectiveCompletions(state, completions = [], index) {
     return correction.conflict ? { ...completion, _dateConflict: true, _dateCandidates: correction.candidates } :
       correction.date ? { ...completion, _effectiveDate: correction.date } : { ...completion };
   });
+}
+
+
+const ukCompletionDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
+});
+function ukCompletionDay(at) {
+  const instant = new Date(at);
+  if (!Number.isFinite(instant.getTime())) return null;
+  const parts = Object.fromEntries(ukCompletionDateFormatter.formatToParts(instant).map(part => [part.type, part.value]));
+  return parts.year + '-' + parts.month + '-' + parts.day;
+}
+export function projectCompletionDates(board, stateValue) {
+  const wins = board?.features?.wins;
+  if (!Array.isArray(wins) || !wins.length) return board;
+  const state = normalizeState(stateValue);
+  const corrections = new Map(revisionGroups(state)
+    .filter(group => group.kind === 'completion-date' && group.current && !group.conflict)
+    .map(group => [group.current.completionId, group.current.date]));
+  if (!corrections.size) return board;
+  let changed = false;
+  const projected = wins.map(win => {
+    if (!win || !corrections.has(win.id)) return win;
+    const date = corrections.get(win.id);
+    if (!isDay(date) || ukCompletionDay(win.at) === date) return win;
+    changed = true;
+    return { ...win, at: date + 'T12:00:00.000Z', _dailyLogOriginalAt: win.at, _dailyLogCorrectedDate: date };
+  });
+  // This board is for display only. Never persist it.
+  return changed ? { ...board, features: { ...board.features, wins: projected } } : board;
 }
 
 export function recordLaundryRewash(stateValue, slot, now = new Date(), metadata = {}) {
