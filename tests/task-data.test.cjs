@@ -101,6 +101,18 @@ test('Day view counts individual records by UK calendar date and keeps archive t
  assert.equal(JSON.stringify(b),before);
 });
 
+test('archive planning rejects impossible cutoff dates without mutating records',()=>{
+ const {b,t}=taskBoard();
+ b.features.wins.push({id:'archive-date-check',taskId:t.id,rootId:t.id,room:t.room,at:'2026-01-10T10:00:00Z',points:1});
+ const original=JSON.stringify(b);
+ for(const cutoff of ['2026-02-30','2026-04-31','2025-02-29','2026-13-01','2026-00-10']){
+  assert.throws(()=>Data.planArchive(b,t.id,cutoff),/Choose a valid date/);
+  assert.equal(JSON.stringify(b),original,'invalid cutoff must leave the board unchanged');
+ }
+ assert.doesNotThrow(()=>Data.planArchive(b,t.id,'2024-02-29'));
+ assert.equal(JSON.stringify(b),original,'valid archive planning must also be read-only');
+});
+
 test('Day filtering rejects invalid dates without changing stored completions',()=>{
  const {b}=taskBoard(),before=JSON.stringify(b);
  assert.equal(Data.validDay('2026-02-30'),false);

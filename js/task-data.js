@@ -126,7 +126,7 @@
     return String(win?.title||'Unknown task');
   }
   function planArchive(board,id,beforeDate){
-    const date=String(beforeDate||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Choose a valid date before removing history.');
+    const date=String(beforeDate||'');if(!validDay(date))throw Error('Choose a valid date before removing history.');
     const [y,m,d]=date.split('-').map(Number),cutoff=new Date(y,m-1,d).getTime();if(!Number.isFinite(cutoff))throw Error('Choose a valid date before removing history.');
     const task=(board.tasks||[]).find(t=>t.id===id||t.children?.some(c=>c.id===id));if(!task)throw Error('Quest not found. No history was changed.');
     const isChild=task.id!==id;
