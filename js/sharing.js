@@ -5,6 +5,50 @@ const storageCodec=window.TidyStorageCodec;
 const SUPABASE_URL='https://thviqhojcjrmqurhdkql.supabase.co',PUBLIC_KEY='sb_publishable_ziQesp5o-pHIXINUMMdmTA_3nDFSVZr',AUTH_KEY='tidyish-html-v023-auth';
 let liveChannel=null,liveHouseKey="",liveSubscribed=false,pendingNotice=false,remoteSave=false;
 let client=null,loading=null,session=null,houses=[],members=[],newMembers=[],people=[],busy=false,status='Not connected. Changes are saved in this browser.',timer=null,invite='',conflicts=[],generation=0;
+// Invitation codes are issued by Supabase. A link only transports an existing code;
+// visiting it never grants access or imports a household automatically.
+const PENDING_INVITE_KEY='tidyish-v023-pending-invite'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':'');
+function readPendingInvite(){
+ const fromUrl=String(new URLSearchParams(location.search).get('invite')||'').trim();
+ let stored='';try{stored=sessionStorage.getItem(PENDING_INVITE_KEY)||'';}catch{}
+ const code=fromUrl||stored;
+ if(!code||code.length>256)return '';
+ if(fromUrl)try{sessionStorage.setItem(PENDING_INVITE_KEY,code);}catch{}
+ return code;
+}
+let pendingInvite=readPendingInvite();
+function inviteLink(code){
+ if(!code)return '';
+ const url=new URL('index.html',location.href);
+ url.search='';url.hash='';url.searchParams.set('invite',code);
+ return url.href;
+}
+function inviteCode(response){
+ const code=typeof response==='string'?response:response?.code;
+ return typeof code==='string'&&code.trim()?code.trim():'';
+}
+function clearPendingInvite(){
+ pendingInvite='';
+ try{sessionStorage.removeItem(PENDING_INVITE_KEY);}catch{}
+ const url=new URL(location.href);
+ if(url.searchParams.has('invite')&&window.history?.replaceState){
+  url.searchParams.delete('invite');window.history.replaceState(window.history.state,'',url.href);
+ }
+}
+async function copyInviteLink(){
+ const link=inviteLink(invite);
+ if(!link)throw Error('Create an invitation link first.');
+ try{
+  if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
+  await navigator.clipboard.writeText(link);
+  U.notice('Invitation link copied.');
+ }catch{
+  const input=document.getElementById('house-invite-link');
+  if(input){input.focus();input.select();U.notice('Copy the selected invitation link manually.');}
+  else U.notice('Copy the invitation link shown above.');
+ }
+}
+
 if(!U||!M||!S)throw Error('Sharing requires the current Tidyish model and UI. Nothing was synced.');
 const {button:btn,field,card,detail,esc}=U;
 function statusChanged(message){status=message;U.onSyncStatus();}
@@ -53,7 +97,7 @@ function panel(){
  const board=U.getBoard(),state=board.features.browserSync,user=session?.user;
  const savedName=String(board.features.householdName||'').trim();
  const options=houses.map(h=>[h.id,h.id===state?.house&&savedName?savedName:h.label]);
- return card(`<h2>Connected household</h2><p class="small" role="status">${esc(status)}</p>${busy?'<p class="gold small">Working…</p>':''}${!user?`<form id="house-signin">${field('Email used for your household','email','','email','required autocomplete="email"')}<button ${busy?'disabled':''}>Send sign-in link</button></form><p class="small">Open the newest email link in this browser. The local preview address must be permitted in Supabase’s redirect URLs.</p>`:`<p class="small">${esc(user.email)}</p>`}<div class="row">${btn('Refresh households','house-refresh','','',busy?'disabled':'')}${user?btn('Sign out','house-signout','','ghost',busy?'disabled':''):''}</div>${houses.length?`<form id="house-select">${U.select('Household','house',options,state?.house||user?.id)}<button ${busy?'disabled':''}>Preview household</button></form>`:''}${state?`<div class="row spread"><span class="small">Connected: ${esc(savedName||houses.find(h=>h.id===state.house)?.label||state.house)}</span>${user?btn('Rename household','house-rename','','ghost',busy?'disabled':''):''}</div>${!approved(state)?'<p class="small">Automatic uploads are paused until you explicitly enable sync for this household.</p>':''}${btn(approved(state)?'Refresh now':'Enable sync for this household','house-sync','','',busy?'disabled':'')}${detail('Pending differences',conflicts.length?conflicts.map((c,i)=>`<section class="card"><h3>${esc(c.label)}</h3><p class="small">Browser: ${esc(display(c.local))}</p><p class="small">Household: ${esc(display(c.shared))}</p><div class="row">${btn('Keep browser version','house-conflict',i,'','data-side="local"')}${btn('Use household version','house-conflict',i,'','data-side="shared"')}</div></section>`).join(''):'<p class="small">No differences awaiting review.</p>',conflicts.length>0)}`:''}${user?card(`<h3>Start Fresh Household</h3><p class="small">Create a completely separate household using the tasks and completion history in THIS browser. Your old household remains unchanged. A one-time Supabase setup is needed.</p>${btn('Start Fresh Household','house-fresh','','',busy?'disabled':'')}`):''}${user?detail('Share or join a house',`<div class="row">${btn('Create invite code','house-invite')}${btn('Cancel unused invite','house-cancel-invite','','ghost')}</div>${invite?`<p class="gold">${esc(invite)}</p><p class="small">Share this code privately. It gives access to your own house.</p>`:''}<form id="house-join">${field('Invitation code','code','','text','required autocomplete="off"')}<button ${busy?'disabled':''}>Join household</button></form>${(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).length?'<h3>Members of selected household</h3>'+(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).map(p=>`<p class="small">${esc(p.email)} ${btn('Remove access','house-remove',p.id,'ghost')}</p>`).join(''):''}`):''}`);
+ return card(`<h2>Connected household</h2><p class="small" role="status">${esc(status)}</p>${busy?'<p class="gold small">Working…</p>':''}${!user?`${pendingInvite?'<p class="small">Household invitation received. Sign in first; joining is a separate choice.</p>':''}<form id="house-signin">${field('Email used for your household','email','','email','required autocomplete="email"')}<button ${busy?'disabled':''}>Send sign-in link</button></form><p class="small">Open the newest email link in this browser. The local preview address must be permitted in Supabase’s redirect URLs.</p>`:`<p class="small">${esc(user.email)}</p>`}<div class="row">${btn('Refresh households','house-refresh','','',busy?'disabled':'')}${user?btn('Sign out','house-signout','','ghost',busy?'disabled':''):''}</div>${houses.length?`<form id="house-select">${U.select('Household','house',options,state?.house||user?.id)}<button ${busy?'disabled':''}>Preview household</button></form>`:''}${state?`<div class="row spread"><span class="small">Connected: ${esc(savedName||houses.find(h=>h.id===state.house)?.label||state.house)}</span>${user?btn('Rename household','house-rename','','ghost',busy?'disabled':''):''}</div>${!approved(state)?'<p class="small">Automatic uploads are paused until you explicitly enable sync for this household.</p>':''}${btn(approved(state)?'Refresh now':'Enable sync for this household','house-sync','','',busy?'disabled':'')}${detail('Pending differences',conflicts.length?conflicts.map((c,i)=>`<section class="card"><h3>${esc(c.label)}</h3><p class="small">Browser: ${esc(display(c.local))}</p><p class="small">Household: ${esc(display(c.shared))}</p><div class="row">${btn('Keep browser version','house-conflict',i,'','data-side="local"')}${btn('Use household version','house-conflict',i,'','data-side="shared"')}</div></section>`).join(''):'<p class="small">No differences awaiting review.</p>',conflicts.length>0)}`:''}${user?card(`<h3>Start Fresh Household</h3><p class="small">Create a completely separate household using the tasks and completion history in THIS browser. Your old household remains unchanged. A one-time Supabase setup is needed.</p>${btn('Start Fresh Household','house-fresh','','',busy?'disabled':'')}`):''}${user?detail('Share or join a house',`<div class="row">${btn('Create invitation link','house-invite')}${btn('Cancel unused invite','house-cancel-invite','','ghost')}</div>${invite?`<p class="gold">Invitation code: ${esc(invite)}</p><label class="field">Invitation link<input id="house-invite-link" type="text" readonly value="${esc(inviteLink(invite))}" aria-label="Invitation link"></label>${btn('Copy invitation link','house-copy-invite','','ghost')}<p class="small">Share privately. The recipient must sign in and choose Join household.</p>`:''}${pendingInvite?'<p class="small">Invitation ready. Joining will let you preview the shared household before opening it.</p>':''}<form id="house-join">${field('Invitation code','code',pendingInvite,'text','required autocomplete="off"')}<button ${busy?'disabled':''}>Join household</button></form>${(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).length?'<h3>Members of selected household</h3>'+(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).map(p=>`<p class="small">${esc(p.email)} ${btn('Remove access','house-remove',p.id,'ghost')}</p>`).join(''):''}`,!!pendingInvite):''}`);
 }
 function display(x){return x===undefined||x===null?'Removed / empty':typeof x==='object'?JSON.stringify(x).slice(0,1000):String(x).slice(0,1000);}
 async function run(work){if(busy)return;busy=true;U.onSyncStatus();try{return await work();}catch(e){statusChanged(e.message);U.notice(e.message);throw e;}finally{busy=false;U.onSyncStatus();if(pendingNotice){pendingNotice=false;queue();}}}
@@ -198,11 +242,29 @@ const actions={
  'house-refresh':()=>run(async()=>{await refreshHouses();statusChanged('Households refreshed. Choose one to preview.')}),
  'house-sync':()=>{approve(U.getBoard().features.browserSync);listenForHouseholdChanges();return sync()},
  'house-signout':()=>run(async()=>{generation++;clearTimeout(timer);stopListening();const db=await init(),{error}=await db.auth.signOut({scope:'local'});if(error)throw error;session=null;houses=[];people=[];members=[];statusChanged('Signed out. All local work is kept.')}),
- 'house-invite':()=>run(async()=>{const house=U.getBoard().features.browserSync;invite=((house?.kind==='v2')?await callNew('invite',{p_house_id:house.house}):await call('invite')).code||'';if(!invite)throw Error('No invitation code was returned.');statusChanged('Invite created for your own house. Share the displayed code privately.')}),
- 'house-cancel-invite':()=>run(async()=>{const house=U.getBoard().features.browserSync;if(house?.kind==='v2')await callNew('cancel-invite',{p_house_id:house.house});else await call('cancel-invite');invite='';statusChanged('Unused invitation cancelled.')}),
+ 'house-invite':()=>run(async()=>{
+  invite=''; // A failed reissue must not leave a possibly revoked link on screen.
+  const house=U.getBoard().features.browserSync;
+  if(!house?.house)throw Error('Choose and connect a household before creating an invitation link.');
+  const user=await verified();
+  if(house.kind!=='v2'&&house.house!==user.id)throw Error('Only the owner can invite others. Select your own household.');
+  if(house?.kind==='v2'){
+   if(!house.house)throw Error('Choose your household before creating an invitation.');
+   const selected=houses.find(h=>h.id===house.house);
+   if(selected?.ownerId&&selected.ownerId!==user.id)throw Error('Only the household owner can create an invitation link.');
+  }
+  // Do not invent a code or quietly fall back to another household after a v2 RPC failure.
+  const result=house?.kind==='v2'?await callNew('invite',{p_house_id:house.house}):await call('invite');
+  const code=inviteCode(result);
+  if(!code)throw Error('Supabase did not return an invitation code. No link was generated.');
+  invite=code;
+  statusChanged('Invitation link created for your household. Share it privately.');
+ }),
+ 'house-copy-invite':()=>copyInviteLink(),
+ 'house-cancel-invite':()=>run(async()=>{const house=U.getBoard().features.browserSync;if(!house?.house)throw Error('Choose and connect a household before cancelling an invitation.');if(house.kind==='v2')await callNew('cancel-invite',{p_house_id:house.house});else await call('cancel-invite');invite='';statusChanged('Unused invitation cancelled.')}),
  'house-remove':el=>U.confirmDialog('Remove household access?','This removes this member’s access to your house. Previously downloaded copies remain on their device.',()=>{run(async()=>{const house=U.getBoard().features.browserSync;if(house?.kind==='v2')await callNew('remove-member',{p_house_id:house.house,target_member:el.dataset.id});else await call('remove-member',{target_member:el.dataset.id});await refreshHouses();statusChanged('Member access removed.')}).catch(()=>{});},'Remove access'),
  'house-conflict':el=>{const c=conflicts[Number(el.dataset.id)];if(!c)return;U.change(b=>{b.features.browserSync.choices[c.key]={side:el.dataset.side,token:c.token};b.features.browserSync.conflicts=b.features.browserSync.conflicts.filter(x=>x.key!==c.key)},{sync:false});conflicts=conflicts.filter(x=>x.key!==c.key);U.onSyncStatus();queue();}
 };
-async function submit(form,fd){if(form.id==='house-signin')return run(async()=>{const db=await init(),email=String(fd.get('email')).trim(),redirect=new URL('index.html',location.href).href,{error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:redirect,shouldCreateUser:false}});if(error)throw error;statusChanged('Check your email and open the newest sign-in link in this browser.');});if(form.id==='house-select')return run(()=>preview(String(fd.get('house'))));if(form.id==='house-join')return run(async()=>{const code=String(fd.get('code')).trim();if(!code)throw Error('Paste an invitation code.');let data;try{data=await callNew('join',{invite_code:code});}catch(e){if(!/Invite expired or invalid/i.test(e.message))throw e;data=await call('join',{invite_code:code});}await refreshHouses();statusChanged('Invitation accepted. Preview the shared house before opening it.');if(data.houseId)await preview(data.houseId);});}
-const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{listenForHouseholdChanges();queue();});document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message));U.onSyncStatus();
+async function submit(form,fd){if(form.id==='house-signin')return run(async()=>{const db=await init(),email=String(fd.get('email')).trim(),redirect=new URL('index.html',location.href).href,{error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:redirect,shouldCreateUser:false}});if(error)throw error;statusChanged('Check your email and open the newest sign-in link in this browser.');});if(form.id==='house-select')return run(()=>preview(String(fd.get('house'))));if(form.id==='house-join')return run(async()=>{const code=String(fd.get('code')).trim();if(!code)throw Error('Paste an invitation code.');let data;try{data=await callNew('join',{invite_code:code});}catch(e){if(!/Invite expired or invalid/i.test(e.message))throw e;data=await call('join',{invite_code:code});}await refreshHouses();clearPendingInvite();statusChanged('Invitation accepted. Preview the shared house before opening it.');if(data.houseId)await preview(data.houseId);});}
+const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{listenForHouseholdChanges();queue();});document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message));if(pendingInvite)U.navigate('settings');U.onSyncStatus();
 })();
