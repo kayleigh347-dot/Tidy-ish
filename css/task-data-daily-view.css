@@ -1,0 +1,38 @@
+/* Task Data daily landing/navigation only. No completed-row or history styling changes. */
+.task-data-daily-view .task-data-daily-heading { margin: 0 0 12px; }
+.task-data-daily-view .task-data-daily-heading h2 { margin: 0 0 4px; }
+.task-data-daily-view .task-data-daily-heading p { margin: 0; }
+.task-data-daily-view .task-data-day-nav {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(175px,1.35fr) minmax(0,1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.task-data-daily-view .task-data-day-nav .task-data-day-date {
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+}
+.task-data-daily-view .task-data-day-nav input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 1rem;
+}
+.task-data-daily-view .task-data-day-nav button {
+  min-width: 0;
+  min-height: 44px;
+  white-space: normal;
+}
+@media(max-width: 650px) {
+  .task-data-daily-view .task-data-day-nav {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    grid-template-areas: "prev next" "date date" "today today";
+  }
+  .task-data-daily-view .task-data-day-prev { grid-area: prev; }
+  .task-data-daily-view .task-data-day-next { grid-area: next; }
+  .task-data-daily-view .task-data-day-date { grid-area: date; }
+  .task-data-daily-view .task-data-day-today { grid-area: today; }
+}

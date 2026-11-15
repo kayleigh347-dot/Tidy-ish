@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const M=window.TidyModel, S=window.TidySchedule, OCAL=window.TidyOwnerCalendar, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, Q=window.TidyQuestUI, CQ=window.TidyQuestFocus, TIME=window.TidyQuestTime, FTOOLS=window.TidyFocusTools, L=window.TidyQuestLibrary, MEM=window.TidyQuestMemory, REC=window.TidyQuestRecommendations, CARE=window.TidyCare, CW=window.TidyCustomWarnings, OCC=window.TidyOccasional, Z=window.TidyMakerUIV2, V=window.TidyMakerV2, LOC=window.TidyLocationBook, TSC=window.TidyStorageCodec, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let grindSection='cat',calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='overview',dataDay=M.date(),dataTaskId='',calendarView='plan',giftView='christmas',giftPersonTab='all',giftStatusTab='needs-wrap',scheduleWeek=0;
+let grindSection='cat',calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='day',dataDay=M.date(),dataTaskId='',calendarView='plan',giftView='christmas',giftPersonTab='all',giftStatusTab='needs-wrap',scheduleWeek=0;
 let activityLoadPromise=null,activityLoadAttempted=false,activityLoadError='',pendingActivityDate='';
 let libraryQuery='',libraryRoom='all',libraryKind='all',libraryPriority='all',libraryTag='';
 let dataMeterView='clean',daybookDate='',dailyLogViewState=null,dailyLogPageInstance=null,dailyLogLaundryInstances=[];
@@ -538,7 +538,11 @@ function editDataCompletion(id){
  const content=`<p class="small">This edits the historical record only. The Quest, original time, points and timers stay unchanged.</p>`+field('Completed task title','title',win.title||'','text','required maxlength="140"')+field('Completed by (display name)','person',win.person||'Unattributed','text','required maxlength="100"')+field('Completion date','date',day,'date','required');
  dialog('Edit completed task',content,fd=>{
   const values={title:fd.get('title'),person:fd.get('person'),date:fd.get('date')};
-  if(change(b=>TD.editCompletion(b,id,values,core))){closeDialog(true);notice('Completion corrected. Original time, points and timers were kept.');}
+  if(change(b=>TD.editCompletion(b,id,values,core))){
+   closeDialog(true);
+   if(route==='data'&&dataView==='day'&&dataDay!==String(values.date)){dataDay=String(values.date);render();}
+   notice('Completion corrected. Original time, points and timers were kept.');
+  }
  },{saveLabel:'Save correction'});
 }
 function dataTaskPanel(){
@@ -568,10 +572,11 @@ function dataPage(){
  const roomSelect=`<label class="field task-data-filter">Room<select id="data-room-filter" aria-label="Filter Task Data by room">${roomChoices.map(([id,label])=>`<option value="${esc(id)}" ${id===chosen?'selected':''}>${esc(label)}</option>`).join('')}</select></label>`;
   if(dataView==='day'){
    const one=window.TidyTaskData.summarizeDay(historyBoard,{day:dataDay,roomId:dataRoom});
-   const navigation=`<div class="row" role="group" aria-label="Day navigation" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end">${button('‹ Previous day','data-day-prev','','ghost')}<label class="field task-data-filter">Date<input id="data-day-picker" type="date" aria-label="Task Data date" value="${esc(dataDay)}"></label>${button('Next day ›','data-day-next','','ghost')}${button('Today','data-day-today','','ghost')}</div>`;
+   const readableDay=new Date(`${dataDay}T12:00:00Z`).toLocaleDateString('en-GB',{timeZone:'Europe/London',weekday:'long',day:'numeric',month:'long',year:'numeric'});
+   const navigation=`<div class="task-data-day-nav" role="group" aria-label="Daily Task Data date navigation">${button('‹ Previous day','data-day-prev','','ghost task-data-day-prev')}<label class="field task-data-filter task-data-day-date">Choose date<input id="data-day-picker" type="date" aria-label="Task Data date" value="${esc(dataDay)}"></label>${button('Next day ›','data-day-next','','ghost task-data-day-next')}${button('Today','data-day-today','','ghost task-data-day-today')}</div>`;
    const numbers=`<div class="data-metrics">${card(`<strong>${one.count}</strong><span>Completions</span>`)}${card(`<strong>${one.points}</strong><span>Points</span>`)}${card(`<strong>${one.minutes}</strong><span>Minutes</span>`)}</div>`;
    const rows=one.wins.map(w=>dataCompletionRow(w,true)).join('')||'<p>No recorded completions on this day.</p>';
-   return `<section class="task-data-page">${viewTabs}${navigation}${roomSelect}${numbers}${card(`<h2>Completed on ${esc(dataDay)}</h2>${rows}`)}<p class="small">Archived summaries are not assigned to individual days and cannot be edited.</p></section>`;
+   return `<section class="task-data-page task-data-daily-view">${viewTabs}<header class="task-data-daily-heading"><h2>Daily view</h2><p class="small">Choose a day to review completed tasks. Use the spanner to correct a record.</p></header>${navigation}${roomSelect}${numbers}${card(`<h3>Completed on ${esc(readableDay)}</h3>${rows}`)}<p class="small">Archived summaries are not assigned to individual days and cannot be edited.</p></section>`;
   }
  const barMax=Math.max(...d.entries.map(x=>x.count),1);
  const byRoom=d.entries.length?d.entries.map(x=>`<div class="bar-row"><span>${esc(room(x.id)?.name||({'general':'General','laundry':'Laundry'}[x.id]||x.id))}</span><div class="bar-track"><span class="bar" style="width:${Math.round(x.count/barMax*100)}%"></span><small>${x.count}</small></div></div>`).join(''):'<p>No recorded completions in these filters.</p>';
@@ -982,7 +987,7 @@ const actions={
  'schedule-pick-all':()=>{scheduleSelected=null;render()},
  'schedule-pick-none':()=>{scheduleSelected=new Set();render()},
  'schedule-add-task':()=>taskEditor(null,false,'scheduled'),
- 'data-view':el=>{if(!['overview','day','rooms','quests','focus','occasional','daybook'].includes(el.dataset.id))return;if(el.dataset.id==='day'&&dataView!=='day')dataDay=M.date();dataView=el.dataset.id;render()},'calendar-view':el=>{if(!['plan','activity'].includes(el.dataset.id))return;calendarView=el.dataset.id;render()},'data-meter-view':el=>{if(!['clean','elapsed'].includes(el.dataset.id))return;dataMeterView=el.dataset.id;render()},
+ 'data-view':el=>{if(!['overview','day','rooms','quests','focus','occasional','daybook'].includes(el.dataset.id))return;dataView=el.dataset.id;render()},'calendar-view':el=>{if(!['plan','activity'].includes(el.dataset.id))return;calendarView=el.dataset.id;render()},'data-meter-view':el=>{if(!['clean','elapsed'].includes(el.dataset.id))return;dataMeterView=el.dataset.id;render()},
  'data-period':el=>{dataPeriod=el.dataset.id;dataVisible=12;render()},'data-day-prev':()=>{dataDay=M.plus(dataDay,-1);render()},
  'data-day-next':()=>{dataDay=M.plus(dataDay,1);render()},
  'data-day-today':()=>{dataDay=M.date();render()},
