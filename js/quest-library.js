@@ -127,7 +127,7 @@ function autocompleteSavedTasks(board,query,room='',limit=6){
   }
   return {...item,autocompleteRank:rank?rank+(sameRoom?15:0):0,sameRoom};
  }).filter(item=>item.autocompleteRank>0)
-  .sort((a,b)=>b.autocompleteRank-a.autocompleteRank||a.title.localeCompare(b.title)||a.roomName.localeCompare(b.roomName))
+  .sort((a,b)=>Number(b.sameRoom)-Number(a.sameRoom)||b.autocompleteRank-a.autocompleteRank||a.title.localeCompare(b.title)||a.roomName.localeCompare(b.roomName))
   .slice(0,max);
 }
 function draftFromSavedTask(item){
