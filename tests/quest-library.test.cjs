@@ -56,3 +56,53 @@ test('stage-02 settings survive normalization and shared-household project/impor
  const imported=SM.importRaw(outgoing).tasks.find(x=>x.id===t.id);
  assert.ok(imported);assert.deepEqual(imported.tags,['worktops','easy']);assert.equal(imported.checkDays,9);assert.equal(imported.taskType,'maintenance');
 });
+test('saved-task matcher accepts aliases and close spelling while preferring the selected room',()=>{
+ const b=fresh(),living=M.task({room:'living',title:'Vacuum carpet',estimate:15,messImpact:'medium'}),bathroom=M.task({room:'bathroom',title:'Vacuum carpet',estimate:25});
+ M.add(b,living);M.add(b,bathroom);
+ const match=L.matchSavedTask(b,'hoover carpett','living');
+ assert.ok(match);assert.equal(match.id,living.id);assert.equal(match.sourceType,'task');
+ assert.equal(L.matchSavedTask(b,'Vacuum carpet','living').id,living.id);
+ assert.equal(L.matchSavedTask(b,'Vacuum carpet','bathroom').id,bathroom.id);
+ assert.equal(L.matchSavedTask(b,'Vacuum carpet',''),null);
+ assert.equal(L.matchSavedTask(b,'astronaut garden','living'),null);
+ assert.equal(L.matchSavedTask(b,'x'.repeat(161),'living'),null);
+});
+test('saved-task matcher suppresses equally likely cross-room choices',()=>{
+ const b=fresh();M.add(b,M.task({room:'living',title:'Clean sink'}));M.add(b,M.task({room:'bathroom',title:'Clean sink'}));
+ assert.equal(L.matchSavedTask(b,'Clean sing',''),null);
+ assert.equal(L.matchSavedTask(b,'Clean sing','living').room,'living');
+});
+test('saved reusable templates can be suggested without creating a task',()=>{
+ const b=fresh(),saved=M.task({room:'living',title:'Dust picture frames',estimate:8});b.features.templates.push(saved);
+ const match=L.matchSavedTask(b,'dust pictre frames','living');
+ assert.ok(match);assert.equal(match.sourceType,'template');assert.equal(match.id,saved.id);assert.equal(b.tasks.length,0);
+});
+test('applying a saved task returns only reusable draft settings',()=>{
+ const saved=M.task({room:'living',title:'Wipe shelves',tools:'Cloth',notes:'Use the blue cloth',estimate:12,priority:2,effort:'Light',messImpact:'none',tags:['weekly'],taskType:'maintenance',children:[M.child({title:'Move ornaments',tools:'Box'})]});
+ saved.done=true;saved.assigned='Alex';saved.warningEnabled=true;saved.repeatDays=7;saved.timerSeconds=99;
+ const draft=L.draftFromSavedTask(saved);
+ assert.deepEqual(Object.keys(draft).sort(),['title','children','tools','notes','estimate','priority','effort','messImpact','tags','taskType'].sort());
+ assert.deepEqual(draft.children,[{title:'Move ornaments'}]);assert.equal(draft.estimate,12);assert.equal(draft.messImpact,'none');
+ assert.equal('done' in draft,false);assert.equal('assigned' in draft,false);assert.equal('repeatDays' in draft,false);assert.equal('warningEnabled' in draft,false);
+});
+test('a completed Quest remains completed when used as a suggestion source',()=>{
+ const b=fresh(),saved=M.task({room:'living',title:'Wipe shelves',estimate:12});M.add(b,saved);M.finish(b,saved.id,true);
+ const wins=JSON.stringify(b.features.wins),match=L.matchSavedTask(b,'wip shelves','living'),draft=L.draftFromSavedTask(match);
+ assert.ok(draft);assert.equal(saved.done,true);assert.equal(JSON.stringify(b.features.wins),wins);assert.equal(L.hasActiveDuplicate(b,draft.title,'living'),false);
+ assert.equal(L.findDuplicateTask(b,draft.title,'living').id,saved.id);assert.equal(saved.done,true);assert.equal(JSON.stringify(b.features.wins),wins);
+});
+test('duplicate guard blocks active copies but leaves completed history untouched',()=>{
+ const b=fresh(),saved=M.task({room:'living',title:'Wipe shelves'});M.add(b,saved);
+ assert.equal(L.hasActiveDuplicate(b,'wipe shelves','living'),true);
+ assert.equal(L.findDuplicateTask(b,'wipe shelves','living').id,saved.id);
+ saved.done=true;
+ assert.equal(L.hasActiveDuplicate(b,'Wipe shelves','living'),false);assert.equal(L.findDuplicateTask(b,'Wipe shelves','living').id,saved.id);
+ assert.equal(L.findDuplicateTask(b,'Wipe shelves','bathroom'),null);assert.equal(saved.done,true);assert.equal(b.tasks.length,1);
+});
+test('Add Saved Task reactivates the same completed Quest and preserves history',()=>{
+ const b=fresh(),template=M.task({room:'living',title:'Dust shelves'});b.features.templates.push(template);
+ const active=M.templateCopy(template,'living');M.add(b,active);M.finish(b,active.id,true);
+ const wins=JSON.stringify(b.features.wins),taskId=active.id,selected=b.tasks.find(x=>x.templateId===template.id&&x.room==='living');
+ if(selected?.done)M.reactivate(b,selected.id);
+ assert.equal(b.tasks.length,1);assert.equal(selected.id,taskId);assert.equal(selected.done,false);assert.equal(JSON.stringify(b.features.wins),wins);
+});

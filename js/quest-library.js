@@ -47,6 +47,80 @@ function scoring(item,q){
  }
  return score;
 }
+const MATCH_STOP_WORDS=new Set(['a','an','and','down','for','of','the','to','up','your','my']);
+function matchWords(value){return words(value).filter(word=>!MATCH_STOP_WORDS.has(word)).slice(0,24);}
+function editDistance(a,b){
+ if(a===b)return 0;if(Math.abs(a.length-b.length)>2)return 3;
+ let previous=Array.from({length:b.length+1},(_,i)=>i);
+ for(let i=1;i<=a.length;i++){
+  const current=[i];let rowMin=i;
+  for(let j=1;j<=b.length;j++){
+   const value=Math.min(current[j-1]+1,previous[j]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1));
+   current[j]=value;rowMin=Math.min(rowMin,value);
+  }
+  if(rowMin>2)return 3;previous=current;
+ }
+ return previous[b.length];
+}
+function wordSimilarity(a,b){
+ if(a===b)return 1;
+ if((equivalents.get(a)||new Set()).has(b))return .94;
+ if(Math.min(a.length,b.length)>=4&&(a.startsWith(b)||b.startsWith(a)))return .86;
+ const length=Math.max(a.length,b.length),distance=editDistance(a,b),limit=length>=8?2:1;
+ return distance<=limit&&1-distance/length>=.72?1-distance/length:0;
+}
+function titleSimilarity(query,title){
+ const q=matchWords(query),target=matchWords(title);if(!q.length||!target.length)return {score:0,qCoverage:0,tCoverage:0,bestWord:0};
+ const pairs=[];
+ q.forEach((left,qi)=>target.forEach((right,ti)=>{const value=wordSimilarity(left,right);if(value)pairs.push({qi,ti,value});}));
+ pairs.sort((a,b)=>b.value-a.value);
+ const usedQ=new Set(),usedT=new Set();let total=0,bestWord=0;
+ for(const pair of pairs){if(usedQ.has(pair.qi)||usedT.has(pair.ti))continue;usedQ.add(pair.qi);usedT.add(pair.ti);total+=pair.value;bestWord=Math.max(bestWord,pair.value);}
+ const qCoverage=total/q.length,tCoverage=total/target.length,score=qCoverage+tCoverage?2*qCoverage*tCoverage/(qCoverage+tCoverage):0;
+ return {score,qCoverage,tCoverage,bestWord};
+}
+function savedTaskCandidates(board){
+ const rooms=new Map((board.rooms||[]).map(r=>[r.id,r.name])),hidden=new Set(board.features?.hiddenTemplates||[]),candidates=[],seen=new Set();
+ const add=(item,sourceType)=>{
+  if(!item||!item.title||!kindAllowed(item))return;
+  const room=String(item.room||''),key=`${room}|${fold(item.title)}`;
+  const previous=seen.has(key);
+  if(previous){if(sourceType!=='template')return;const at=candidates.findIndex(row=>row.key===key);if(at>=0)candidates.splice(at,1);}
+  seen.add(key);candidates.push({...item,sourceType,room,roomName:rooms.get(room)||'General',key});
+ };
+ for(const item of board.tasks||[])if(!item.archived)add(item,'task');
+ for(const item of board.features?.templates||[])if(!hidden.has(item.id))add(item,'template');
+ return candidates;
+}
+function matchSavedTask(board,query,room=''){
+ const value=String(query||'').trim();if(value.length>160)return null;
+ const normalized=fold(value);if(!normalized||matchWords(value).length===0)return null;
+ const candidates=savedTaskCandidates(board).map(item=>{
+  const similarity=titleSimilarity(value,item.title),sameRoom=!!room&&item.room===room;
+  const oneWordAllowed=matchWords(value).length===1&&sameRoom&&similarity.qCoverage>=.9&&similarity.bestWord>=.9;
+  const strong=similarity.score>=.74&&similarity.qCoverage>=.67&&similarity.tCoverage>=.55;
+  return {...item,matchScore:similarity.score+(sameRoom ? .1 : 0),matchSimilarity:similarity,sameRoom,eligible:strong||oneWordAllowed};
+ }).filter(item=>item.eligible).sort((a,b)=>b.matchScore-a.matchScore||Number(b.sameRoom)-Number(a.sameRoom)||Number(b.sourceType==='template')-Number(a.sourceType==='template'));
+ const best=candidates[0];if(!best)return null;
+ if(candidates[1]&&best.matchScore-candidates[1].matchScore<.08)return null;
+ return best;
+}
+function draftFromSavedTask(item){
+ if(!item)return null;
+ return {
+  title:String(item.title||''),children:(item.children||[]).map(child=>({title:String(child.title||'')})),
+  tools:String(item.tools||''),notes:String(item.notes||''),estimate:Number(item.estimate)||0,
+  priority:Number(item.priority)||3,effort:String(item.effort||''),messImpact:String(item.messImpact||'normal'),
+  tags:tags(item),taskType:String(item.taskType||'cleaning')
+ };
+}
+function findDuplicateTask(board,title,room='',side=false,excludeId=''){
+ const normalized=fold(title);if(!normalized)return null;
+ return (board.tasks||[]).find(item=>item.id!==excludeId&&!item.archived&&!!item.side===!!side&&String(item.room||'')===String(room||'')&&fold(item.title)===normalized)||null;
+}
+function hasActiveDuplicate(board,title,room='',side=false,excludeId=''){
+ const match=findDuplicateTask(board,title,room,side,excludeId);return !!match&&!match.done;
+}
 function catalogue(board,opts={}){
  const rooms=new Map((board.rooms||[]).map(r=>[r.id,r.name]));
  const hidden=new Set(board.features?.hiddenTemplates||[]),existing=new Set();
@@ -79,5 +153,5 @@ function addSuggestion(board,id,M){
  created.children=choice.subtasks.map(x=>M.child({title:typeof x==='string'?x:x.title||'',followupTitle:typeof x==='string'?'':x.followupTitle||'',parentId:created.id}));
  M.add(board,created);return {id:created.id,added:true};
 }
-return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,SUGGESTIONS});
+return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,SUGGESTIONS});
 });

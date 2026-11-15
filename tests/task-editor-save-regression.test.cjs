@@ -116,3 +116,54 @@ test('Task save still uses the established board mutation path', () => {
   assert.match(source, /M\.add\(b,saved\)/);
   assert.match(source, /messImpact:String\(fd\.get\('messImpact'\)/);
 });
+
+test('new task title shows an explicit saved-task suggestion and keep-title choice', () => {
+  assert.match(source, /suggestSavedTasks=creating&&mode==='task'/);
+  assert.match(source, /data-task-title-suggestion/);
+  assert.match(source, /L\?\.matchSavedTask\?\.\(board,value,roomValue\)\?\?null/);
+  assert.match(source, /button\('Use this saved task'/);
+  assert.match(source, /button\('Keep my title'/);
+  assert.match(source, /L\?\.draftFromSavedTask\?\.\(match\)/);
+});
+
+test('typed and dictated titles clear stale matches before the debounce', () => {
+  const start = source.indexOf("document.addEventListener('input',e=>{if(e.target.name!=='title'");
+  const end = source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /state\.current=null;if\(host\)host\.innerHTML='';clearTimeout\(taskTitleSuggestionTimer\)/);
+  assert.match(handler, /setTimeout\(renderTaskTitleSuggestion,160\)/);
+  assert.match(source, /dispatchEvent\(new Event\('input',\{bubbles:true\}\)\)/);
+});
+
+test('suggestion buttons return keyboard focus to the task title', () => {
+  assert.match(source, /function focusTaskTitleInput\(\)\{editor\.querySelector\('#modal-form \[name="title"\]'\)\?\.focus\(\{preventScroll:true\}\);\}/);
+  assert.match(source, /state\.applying=false;renderTaskTitleSuggestion\(\);focusTaskTitleInput\(\);/);
+  assert.match(source, /state\.dismissedTitle=String\(input\.value\|\|''\)\.trim\(\)/);
+  const dismissStart = source.indexOf('function dismissTaskTitleSuggestion()');
+  const dismissEnd = source.indexOf('\nfunction taskEditor(', dismissStart);
+  assert.match(source.slice(dismissStart, dismissEnd), /focusTaskTitleInput\(\)/);
+});
+
+test('changing rooms clears a prior Keep my title dismissal and rematches', () => {
+  const start = source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'");
+  const end = source.indexOf("\n let librarySearchTimer", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /taskTitleSuggestionState\.dismissedTitle='';clearTimeout\(taskTitleSuggestionTimer\);renderTaskTitleSuggestion\(\)/);
+});
+
+test('new task duplicates of completed Quests explain the Do again path', () => {
+  assert.match(source, /L\?\.findDuplicateTask\?\.\(b,saved\.title,saved\.room,saved\.side\)/);
+  assert.match(source, /duplicate\.done\?'This completed task already exists in this room\. Use “Do again” on the existing task or edit that task instead\.'/);
+  assert.match(source, /button\('Do again','library-reactivate'/);
+});
+
+test('Add Saved Task still reactivates its completed matching Quest', () => {
+  const start = source.indexOf("'activate-template':");
+  const end = source.indexOf("'pause-task':", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /if\(active\.done\)M\.reactivate\(b,active\.id\)/);
+  assert.match(handler, /else M\.add\(b,M\.templateCopy\(t,id,fd\.has\('doing'\)\)\)/);
+});
