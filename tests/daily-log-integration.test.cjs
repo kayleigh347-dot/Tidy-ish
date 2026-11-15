@@ -68,3 +68,24 @@ test('Daily Log statistics use corrected completion dates and retain laundry re-
   assert.equal(day.distractionMinutes, 15);
   assert.equal(day.workMinutes, 25);
 });
+
+test('Edited completion metadata and date correction survive household round trip',async()=>{
+  const core=await import('../addons/tidyish-daily-log/core.mjs');
+  const Data=require('../js/task-data.js'),b=M.board();
+  const t=M.task({id:'quest-one',title:'Canonical title',room:'kitchen'});b.tasks.push(t);
+  b.features.wins.push({id:'win-one',taskId:t.id,rootId:t.id,title:'Recorded title',room:t.room,at:'2026-11-14T13:25:00Z',minutes:12,measured:true,points:1,person:'Original name',_actor:'auth-user'});
+  const originalAt=b.features.wins[0].at;
+  Data.editCompletion(b,'win-one',{title:'Corrected title',person:'Corrected name',date:'2026-11-10'},core);
+  const raw=Shared.project(b,{},'account'),restored=Shared.importRaw(raw);
+  const win=restored.features.wins.find(w=>w.id==='win-one');
+  assert.equal(win.title,'Corrected title');assert.equal(win.person,'Corrected name');
+  assert.equal(win._actor,'auth-user');assert.equal(win.at,originalAt);
+  assert.equal(win.points,1);assert.equal(win.minutes,12);
+  assert.equal(restored.tasks.find(item=>item.id==='quest-one').title,'Canonical title');
+  const log={schemaVersion:1,records:restored.features.dailyLogRecords,rewashes:restored.features.dailyLogRewashes};
+  const display=core.projectCompletionDates(restored,log);
+  assert.equal(Data.summarizeDay(display,{day:'2026-11-10'}).count,1);
+  assert.equal(Data.summarizeDay(display,{day:'2026-11-14'}).count,0);
+  assert.equal(display.features.wins[0]._dailyLogCorrectedDate,'2026-11-10');
+  assert.equal(restored.features.wins[0].at,originalAt);
+});

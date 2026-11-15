@@ -8,6 +8,19 @@
   'use strict';
   const allowed = new Set(['7', '30', '90', 'all']);
   const dateKey = date => [date.getFullYear(), String(date.getMonth()+1).padStart(2,'0'), String(date.getDate()).padStart(2,'0')].join('-');
+  function validDay(day){
+    if(typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;
+    const parsed=new Date(day+'T12:00:00.000Z');
+    return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===day;
+  }
+  const ukDay=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+  function completionDay(win){
+    if(validDay(win?._dailyLogCorrectedDate))return win._dailyLogCorrectedDate;
+    const at=Date.parse(win?.at||'');
+    if(!Number.isFinite(at))return '';
+    const parts=Object.fromEntries(ukDay.formatToParts(new Date(at)).map(part=>[part.type,part.value]));
+    return parts.year+'-'+parts.month+'-'+parts.day;
+  }
   function descendants(root,start){const found=new Set([start]);for(let i=0;i<(root?.children||[]).length;i++)for(const c of root.children)if(found.has(c.parentId))found.add(c.id);return found;}
   function periodOf(value){const at=Date.parse(value||'');if(!Number.isFinite(at))return 'Undated';const d=new Date(at);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
   function ensurePeriod(map,period){if(!map.has(period))map.set(period,{period,count:0,points:0,validCount:0,excludedCount:0,notedCount:0,kinds:{}});return map.get(period);}
@@ -45,6 +58,31 @@
     let legacyArchive=0;for(const x of (Array.isArray(board?.features?.completionSummaries)?board.features.completionSummaries:[])){const count=Number(x?.count);if(Number.isFinite(count)&&count>0)legacyArchive+=count;}
     const archivedCount=archives.reduce((n,x)=>n+(Number(x.count)||0),0);
     return {period,roomId,count:filtered.length+(period==='all'?archivedCount:0),points,minutes,entries,wins:sorted,trend:lastSeven,undated,archiveCount:legacyArchive,archivedCount};
+  }
+  function summarizeDay(board,{day,roomId='all'}={}){
+    if(!validDay(day))throw Error('Choose a valid Task Data date.');
+    const wins=(board?.features?.wins||[]).filter(w=>w&&
+      (roomId==='all'||(w.room||'general')===roomId)&&completionDay(w)===day)
+      .sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
+    return {day,roomId,wins,count:wins.length,
+      points:wins.reduce((n,w)=>n+Math.max(0,Number(w.points)||0),0),
+      minutes:wins.reduce((n,w)=>n+Math.max(0,Number(w.minutes)||0),0)};
+  }
+  function editCompletion(board,id,{title,person,date}={},core){
+    const wins=board?.features?.wins,win=Array.isArray(wins)?wins.find(w=>w?.id===id):null;
+    if(!win)throw Error('This completion is unavailable or archived. No changes saved.');
+    if(!core?.normalizeState||!core?.correctCompletionDate||!core?.completionDate||!core?.isDay)throw Error('Daily Log is unavailable. No changes saved.');
+    title=String(title??'').trim();person=String(person??'').trim();
+    if(!title||title.length>140)throw Error('Enter a completed-task title of 1–140 characters.');
+    if(!person||person.length>100)throw Error('Enter a displayed person of 1–100 characters.');
+    if(!core.isDay(date))throw Error('Choose a valid completion date.');
+    const state=core.normalizeState({schemaVersion:1,records:board.features.dailyLogRecords||[],rewashes:board.features.dailyLogRewashes||[]});
+    if(core.completionDate(state,win).conflict)throw Error('Resolve this completion date conflict in Daily Log before editing.');
+    const corrected=core.correctCompletionDate(state,win,date);
+    win.title=title;win.person=person;
+    board.features.dailyLogRecords=corrected.records;
+    board.features.dailyLogRewashes=corrected.rewashes;
+    return win;
   }
   function perQuest(board,id,owner=''){
     const task=(board.tasks||[]).find(t=>t.id===id||t.children?.some(c=>c.id===id));
@@ -120,5 +158,5 @@
     board.features.wins=board.features.wins.filter(w=>!removedWinSet.has(w));board.features.questTimings=board.features.questTimings.filter(r=>!removedAttemptSet.has(r));
     return {winsRemoved:removedWins.length,attemptsRemoved:removedAttempts.length,pointsPreserved:removedWins.reduce((n,w)=>n+(Number.isFinite(Number(w.points))?Number(w.points):1),0)};
   }
-  return Object.freeze({summarize,perQuest,attemptTitle,planArchive,applyArchive});
+  return Object.freeze({summarize,summarizeDay,validDay,completionDay,editCompletion,perQuest,attemptTitle,planArchive,applyArchive});
 });

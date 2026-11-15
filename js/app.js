@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const M=window.TidyModel, S=window.TidySchedule, OCAL=window.TidyOwnerCalendar, B=window.TidyBackup, D=window.TidyDrag, W=window.TidyScheduleWizard, Q=window.TidyQuestUI, CQ=window.TidyQuestFocus, TIME=window.TidyQuestTime, FTOOLS=window.TidyFocusTools, L=window.TidyQuestLibrary, MEM=window.TidyQuestMemory, REC=window.TidyQuestRecommendations, CARE=window.TidyCare, CW=window.TidyCustomWarnings, OCC=window.TidyOccasional, Z=window.TidyMakerUIV2, V=window.TidyMakerV2, LOC=window.TidyLocationBook, TSC=window.TidyStorageCodec, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let grindSection='cat',calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='overview',dataTaskId='',calendarView='plan',giftView='christmas',giftPersonTab='all',giftStatusTab='needs-wrap',scheduleWeek=0;
+let grindSection='cat',calendarOffset=0,dataPeriod='30',dataRoom='all',dataVisible=12,dataView='overview',dataDay=M.date(),dataTaskId='',calendarView='plan',giftView='christmas',giftPersonTab='all',giftStatusTab='needs-wrap',scheduleWeek=0;
 let activityLoadPromise=null,activityLoadAttempted=false,activityLoadError='',pendingActivityDate='';
 let libraryQuery='',libraryRoom='all',libraryKind='all',libraryPriority='all',libraryTag='';
 let dataMeterView='clean',daybookDate='',dailyLogViewState=null,dailyLogPageInstance=null,dailyLogLaundryInstances=[];
@@ -173,14 +173,14 @@ window.addEventListener('popstate',event=>{
  }
  route=previous.route;roomId=previous.roomId||roomId;
  tab=previous.tab||'tasks';doingTab=previous.doingTab||'doing';sideTab=previous.sideTab||'all';
- if(typeof dataView==='string'&&['overview','rooms','quests','focus','occasional','daybook'].includes(previous.dataView))dataView=previous.dataView;
+ if(typeof dataView==='string'&&['overview','day','rooms','quests','focus','occasional','daybook'].includes(previous.dataView))dataView=previous.dataView;
  search='';openTasks.clear();render();window.scrollTo(0,0);
 });
 const savedBack=window.history.state?.tidyishBack;
 if(savedBack&&backRouteNames.has(savedBack.route)){
  route=savedBack.route;roomId=savedBack.roomId||roomId;
  tab=savedBack.tab||tab;doingTab=savedBack.doingTab||doingTab;sideTab=savedBack.sideTab||sideTab;
- if(typeof dataView==='string'&&['overview','rooms','quests','focus','occasional'].includes(savedBack.dataView))dataView=savedBack.dataView;
+ if(typeof dataView==='string'&&['overview','day','rooms','quests','focus','occasional','daybook'].includes(savedBack.dataView))dataView=savedBack.dataView;
 }
 rememberBackState();
 function tabs(entries,chosen,action,cls=''){return `<div class="tabs ${cls}" role="tablist">${entries.map(([id,label])=>button(esc(label),action,id,id===chosen?'active':'',`role="tab" aria-selected="${id===chosen}"`)).join('')}</div>`;}
@@ -521,6 +521,23 @@ function occasionalEditor(existing=null){
   if(change(b=>{if(existing){const task=b.tasks.find(x=>x.id===existing.id);const changedDue=task.nextDue!==details.nextDue||Number(task.repeatMonths)!==details.repeatMonths;Object.assign(task,details);if(changedDue&&task.calendarSchedule){task.calendarSchedule={firstDue:details.nextDue,unit:'months',every:details.repeatMonths};}}else M.add(b,M.task({...details,occasionKind:'occasional',calendarEnabled:true,messImpact:'small'}));}))closeDialog(true);
  },{saveLabel:existing?'Save changes':'Add job'});
 }
+function dataCompletionRow(w,withPoints=false){
+ return `<div class="data-completion"><strong>${esc(w.title||'Completed task')}</strong><span>${esc(dailyLogCompletionLabel(w))} · ${esc(w.person||'Unattributed')}${withPoints?` · ${Number(w.points)||0} point(s)`:''}</span>${button('Edit completion','data-edit-completion',w.id,'ghost')}</div>`;
+}
+function editDataCompletion(id){
+ const win=(F().wins||[]).find(w=>w?.id===id),core=window.TidyDailyLogCore,TD=window.TidyTaskData;
+ if(!win||!core?.completionDate||!TD?.editCompletion){notice('Completion editing is unavailable. No changes were saved.');return;}
+ let effective;
+ try{effective=core.completionDate(dailyLogState(),win);}catch(error){notice(error.message);return;}
+ if(effective.conflict){notice('Resolve this completion date conflict in Daily Log before editing.');return;}
+ const day=effective.date||TD.completionDay(win);
+ if(!day){notice('This completion has no valid date to correct.');return;}
+ const content=`<p class="small">This edits the historical record only. The Quest, original time, points and timers stay unchanged.</p>`+field('Completed task title','title',win.title||'','text','required maxlength="140"')+field('Completed by (display name)','person',win.person||'Unattributed','text','required maxlength="100"')+field('Completion date','date',day,'date','required');
+ dialog('Edit completed task',content,fd=>{
+  const values={title:fd.get('title'),person:fd.get('person'),date:fd.get('date')};
+  if(change(b=>TD.editCompletion(b,id,values,core))){closeDialog(true);notice('Completion corrected. Original time, points and timers were kept.');}
+ },{saveLabel:'Save correction'});
+}
 function dataTaskPanel(){
  const rootTask=task(dataTaskId),child=rootTask?.children.find(c=>c.id===dataTaskId),t=child||rootTask;if(!t)return `<p>Task unavailable.</p>${button('Back to Task Data','data-task-back','','ghost')}`;
  const historyBoard=dailyLogHistoryBoard(),d=window.TidyTaskData?.perQuest(historyBoard,t.id,TIME.ownerOf(board));if(!d)return '<p>History unavailable.</p>';
@@ -532,25 +549,32 @@ function dataTaskPanel(){
  const checkDays=Number(t.checkDays)||0;
  const percent=memory?.lastDone?(checkDays>0&&days!==null?Math.max(0,Math.min(100,Math.round((1-days/checkDays)*100))):100):0;
  const perTaskMeter=`<section class="quest-memory-meter" aria-label="Quest completion and inspection status"><div class="row spread"><strong>Quest memory</strong><div class="row">${button('Clean Meter','data-meter-view','clean',dataMeterView==='clean'?'selected':'ghost')}${button('Since last done','data-meter-view','elapsed',dataMeterView==='elapsed'?'selected':'ghost')}</div></div>${dataMeterView==='clean'?`<div class="fancy-meter ${percent>=90?'clean':percent>=60?'lived':percent>=20?'messy':'chaos'}" role="meter" aria-label="Recorded completion freshness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span class="meter-fill" style="width:${percent}%"></span></div><p class="small">${!memory?.lastDone?'No completion has been recorded.':checkDays>0?'Based on the optional check interval, not a measurement of real cleanliness.':'Shows the last recorded completion only. This as-needed Quest has no automatic cleanliness estimate.'}</p>`:`<p><strong>${days===null?'Never recorded':days===0?'Completed today':days+' calendar day'+(days===1?'':'s')+' since last completion'}</strong></p><p class="small">${memory?.mode==='condition'?'Check the actual condition before deciding to clean.':esc(memory?.label||'As needed')}</p>`}</section>`;
- const completions=card(`<h3>Completions</h3>${d.wins.slice(0,12).map(w=>`<div class="data-completion"><strong>${esc(w.title)}</strong><span>${esc(dailyLogCompletionLabel(w))} · ${esc(w.person||'Unattributed')} · ${w.points||0} point(s)</span></div>`).join('')||'<p>No recorded completions yet.</p>'}${d.olderWinPeriods.length?`<h4>Older completion summaries</h4>${grouped(d.olderWinPeriods,'completion')}`:''}`);
+ const completions=card(`<h3>Completions</h3>${d.wins.slice(0,12).map(w=>dataCompletionRow(w,true)).join('')||'<p>No recorded completions yet.</p>'}${d.olderWinPeriods.length?`<h4>Older completion summaries</h4>${grouped(d.olderWinPeriods,'completion')}`:''}`);
  const modeToggle=button(t.oneOff?'One-off · make repeatable':'Mark as one-off','data-one-off-toggle',t.id,t.oneOff?'selected':'ghost');
  if(t.oneOff)return `<section class="task-data-page">${button('‹ Task Data','data-task-back','','ghost')}<div class="row spread"><h2>${esc(t.title)}</h2>${modeToggle}</div><div class="data-metrics">${card(`<strong>${d.count}</strong><span>Completions</span>`)}${card(`<strong>${d.points}</strong><span>Points</span>`)}</div>${completions}${button('Export this Quest history','data-export-quest',t.id,'ghost')}</section>`;
  return `<section class="task-data-page">${button('‹ Task Data','data-task-back','','ghost')}<div class="row spread"><h2>${esc(t.title)}</h2><div class="row">${modeToggle}${button('Export this Quest history','data-export-quest',t.id,'ghost')}</div></div>${perTaskMeter}<div class="data-metrics">${card(`<strong>${d.count}</strong><span>Completions</span>`)}${card(`<strong>${d.lastDone?esc(dailyLogCompletionLabel(d.wins[0])):'Unknown'}</strong><span>Most recent completion</span>`)}${card(`<strong>${time(d.fastestMs)}</strong><span>Fastest valid time (mine)</span>`)}${card(`<strong>${time(d.slowestMs)}</strong><span>Slowest valid time (mine)</span>`)}${card(`<strong>${time(d.averageMs)}</strong><span>Recent-weighted average (mine)</span>`)}</div>${completions}${card(`<h3>Timed attempts · all household members</h3>${(d.visibleAttempts||[]).map(r=>`<div class="data-completion"><strong>${esc(time(r.durationMs))} · ${esc(r.kind)}${r.excludedFromLearning?' · Excluded from estimate':''}</strong><span>${esc(when(r.at))} · ${esc(r.owner||'Unattributed')}</span>${r.note?`<p>${esc(r.note)}</p>`:''}${r.kind==='valid'&&!r.excludedFromLearning?button('Exclude from estimate','data-exclude-time',r.id,'ghost'):''}</div>`).join('')||'<p>No timed attempts recorded.</p>'}${d.olderAttemptPeriods.length?`<h4>Older attempt summaries</h4>${grouped(d.olderAttemptPeriods,'attempt')}`:''}</div>`)}${card(`<h3>History storage</h3><p>Export older detail before removing it. The newest eight valid times per member and Quest, fastest and slowest valid times, noted attempts, latest completion, completion totals and points stay in the household record.</p><label class="field">Remove detail recorded before<input type="date" name="historyBeforeDate" value="${before}"></label>${button('Export old detail & review removal','data-archive-quest-history',t.id,'ghost')}`)}</section>`;
 }
 function dataPage(){
  if(dataTaskId)return dataTaskPanel();
- const viewTabs=tabs([['overview','Overview'],['rooms','Rooms'],['quests','Quests'],['focus','Focus & timers'],['occasional','Occasional/seasonal'],['daybook','Daily Log']],dataView,'data-view','nested');
+ const viewTabs=tabs([['overview','Overview'],['day','Day'],['rooms','Rooms'],['quests','Quests'],['focus','Focus & timers'],['occasional','Occasional/seasonal'],['daybook','Daily Log']],dataView,'data-view','nested');
  if(dataView==='daybook')return `<section class="task-data-page daily-log-page">${viewTabs}<div id="tidyish-daily-log">Loading Daily Log…</div></section>`;
  if(!window.TidyTaskData)return card('Task Data summaries are unavailable. Saved completions have not been changed.');
  const historyBoard=dailyLogHistoryBoard(),d=window.TidyTaskData.summarize(historyBoard,{period:dataPeriod,roomId:dataRoom});
  const roomChoices=[['all','All rooms'],['general','General / No room'],['laundry','Laundry'],...rooms().map(r=>[r.id,r.name])];
  const chosen=roomChoices.some(([id])=>id===dataRoom)?dataRoom:'all';
  const roomSelect=`<label class="field task-data-filter">Room<select id="data-room-filter" aria-label="Filter Task Data by room">${roomChoices.map(([id,label])=>`<option value="${esc(id)}" ${id===chosen?'selected':''}>${esc(label)}</option>`).join('')}</select></label>`;
+  if(dataView==='day'){
+   const one=window.TidyTaskData.summarizeDay(historyBoard,{day:dataDay,roomId:dataRoom});
+   const navigation=`<div class="row" role="group" aria-label="Day navigation" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end">${button('‹ Previous day','data-day-prev','','ghost')}<label class="field task-data-filter">Date<input id="data-day-picker" type="date" aria-label="Task Data date" value="${esc(dataDay)}"></label>${button('Next day ›','data-day-next','','ghost')}${button('Today','data-day-today','','ghost')}</div>`;
+   const numbers=`<div class="data-metrics">${card(`<strong>${one.count}</strong><span>Completions</span>`)}${card(`<strong>${one.points}</strong><span>Points</span>`)}${card(`<strong>${one.minutes}</strong><span>Minutes</span>`)}</div>`;
+   const rows=one.wins.map(w=>dataCompletionRow(w,true)).join('')||'<p>No recorded completions on this day.</p>';
+   return `<section class="task-data-page">${viewTabs}${navigation}${roomSelect}${numbers}${card(`<h2>Completed on ${esc(dataDay)}</h2>${rows}`)}<p class="small">Archived summaries are not assigned to individual days and cannot be edited.</p></section>`;
+  }
  const barMax=Math.max(...d.entries.map(x=>x.count),1);
  const byRoom=d.entries.length?d.entries.map(x=>`<div class="bar-row"><span>${esc(room(x.id)?.name||({'general':'General','laundry':'Laundry'}[x.id]||x.id))}</span><div class="bar-track"><span class="bar" style="width:${Math.round(x.count/barMax*100)}%"></span><small>${x.count}</small></div></div>`).join(''):'<p>No recorded completions in these filters.</p>';
  const trendMax=Math.max(...d.trend.map(x=>x.count),1);
  const trend=`<div class="data-trend" role="img" aria-label="Completions by day for the last seven days: ${d.trend.map(x=>`${x.day}: ${x.count}`).join('; ')}">${d.trend.map(x=>`<div class="data-trend-day"><span class="data-trend-count">${x.count||''}</span><span class="data-trend-track"><span style="height:${x.count?Math.max(8,Math.round(x.count/trendMax*100)):0}%"></span></span><span class="data-trend-label">${esc(x.day.slice(5))}</span></div>`).join('')}</div>`;
- const history=d.wins.slice(0,dataVisible).map(w=>`<div class="data-completion"><strong>${esc(w.title||'Completed task')}</strong><span>${esc(dailyLogCompletionLabel(w))} · ${esc(w.person||'Unattributed')}</span></div>`).join('')||'<p>No recorded completions in these filters.</p>';
+ const history=d.wins.slice(0,dataVisible).map(w=>dataCompletionRow(w)).join('')||'<p>No recorded completions in these filters.</p>';
  const metrics=`<div class="data-metrics">${card(`<strong>${d.count}</strong><span>Completions</span>`)}${card(`<strong>${d.points}</strong><span>Points</span>`)}${card(`<strong>${d.minutes}</strong><span>Minutes</span>`)}</div>`;
  const periodTabs=tabs([['7','7 days'],['30','30 days'],['90','90 days'],['all','All']],dataPeriod,'data-period','nested');
  const common=`${viewTabs}${periodTabs}`;
@@ -899,8 +923,11 @@ const actions={
  'schedule-pick-all':()=>{scheduleSelected=null;render()},
  'schedule-pick-none':()=>{scheduleSelected=new Set();render()},
  'schedule-add-task':()=>taskEditor(null,false,'scheduled'),
- 'data-view':el=>{if(!['overview','rooms','quests','focus','occasional','daybook'].includes(el.dataset.id))return;dataView=el.dataset.id;render()},'calendar-view':el=>{if(!['plan','activity'].includes(el.dataset.id))return;calendarView=el.dataset.id;render()},'data-meter-view':el=>{if(!['clean','elapsed'].includes(el.dataset.id))return;dataMeterView=el.dataset.id;render()},
- 'data-period':el=>{dataPeriod=el.dataset.id;dataVisible=12;render()},
+ 'data-view':el=>{if(!['overview','day','rooms','quests','focus','occasional','daybook'].includes(el.dataset.id))return;if(el.dataset.id==='day'&&dataView!=='day')dataDay=M.date();dataView=el.dataset.id;render()},'calendar-view':el=>{if(!['plan','activity'].includes(el.dataset.id))return;calendarView=el.dataset.id;render()},'data-meter-view':el=>{if(!['clean','elapsed'].includes(el.dataset.id))return;dataMeterView=el.dataset.id;render()},
+ 'data-period':el=>{dataPeriod=el.dataset.id;dataVisible=12;render()},'data-day-prev':()=>{dataDay=M.plus(dataDay,-1);render()},
+ 'data-day-next':()=>{dataDay=M.plus(dataDay,1);render()},
+ 'data-day-today':()=>{dataDay=M.date();render()},
+
  'data-more':()=>{dataVisible+=12;render()},
  extra:()=>dialog('Extra rooms',rooms().filter(r=>!positions[houseKey(r)]).map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')||'<p>No extra rooms</p>'),
  'all-rooms':()=>dialog('All rooms',rooms().map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')),
@@ -961,6 +988,7 @@ const actions={
  'data-open-task':el=>{dataTaskId=el.dataset.child||el.dataset.id;dataView='quests';if(editor.open)closeDialog(true);if(route==='data')render();else navigate('data');},
  'data-one-off-toggle':el=>{const id=el.dataset.id,existing=board.tasks.find(t=>t.id===id||t.children.some(c=>c.id===id)),current=existing?.id===id?existing:existing?.children.find(c=>c.id===id);if(!current)throw Error('Quest no longer exists.');const nextStatus=!current.oneOff;if(change(b=>{const parent=b.tasks.find(t=>t.id===id||t.children.some(c=>c.id===id)),target=parent?.id===id?parent:parent?.children.find(c=>c.id===id);if(!target)throw Error('Quest no longer exists.');target.oneOff=nextStatus;}))notice(nextStatus?'Marked one-off. Existing records are kept.':'One-off status removed.');},
  'data-task-back':()=>{dataTaskId='';render()},
+ 'data-edit-completion':el=>editDataCompletion(el.dataset.id),
  'data-export-quest':el=>{const id=el.dataset.id,rootTask=task(id)||board.tasks.find(x=>x.children.some(c=>c.id===id)),found=rootTask?.id===id?rootTask:rootTask?.children.find(c=>c.id===id);if(!rootTask||!found)throw Error('Quest no longer available. No export was created.');const rows=window.TidyTaskData?.perQuest(board,id,TIME.ownerOf(board));if(!rows)throw Error('Task Data is unavailable.');const safeTitle=String(found.title||'Quest').replace(/[^a-z0-9_-]+/gi,'-').slice(0,48).replace(/^-+|-+$/g,'')||'Quest';const backup={format:'tidyish-quest-history-v2',exportedAt:new Date().toISOString(),task:{id:found.id,room:rootTask.room,title:found.title},completed:rows.wins,attempts:rows.attempts,olderSummaries:rows.archives};download(`Tidyish-${safeTitle}-${M.date()}.json`,JSON.stringify(backup,null,2));},
  'data-pick-task':()=>dialog('Open Task Data',board.tasks.map(t=>button(esc(t.title),'data-open-task',t.id,'wide ghost')).join('')||'<p>No tasks available.</p>'),
  'data-exclude-time':el=>confirmDialog('Exclude this time from learning?', 'Its completion, points, original time and note will remain visible to every household member.',()=>change(b=>{const row=b.features.questTimings.find(r=>r.id===el.dataset.id);if(!row)throw Error('Attempt not found.');row.excludedFromLearning=true;}),'Exclude time'),
@@ -1299,6 +1327,7 @@ document.addEventListener('change',e=>{if(e.target?.dataset?.makerV2)Z?.change(e
 document.addEventListener('input',e=>{if(route==='focus'||route==='clearway'||route==='doing-focus')Q?.input(e)});
 document.addEventListener('toggle',e=>{if(route==='focus'||route==='clearway'||route==='doing-focus')Q?.sectionToggle(e);},true);
 document.addEventListener('change',e=>{if(route==='focus'||route==='clearway'||route==='doing-focus')Q?.change(e);if(e.target.id==='data-room-filter'){dataRoom=e.target.value;dataVisible=12;render();}});
+document.addEventListener('change',e=>{if(e.target.id!=='data-day-picker')return;if(!window.TidyTaskData?.validDay(e.target.value)){notice('Choose a valid date.');e.target.value=dataDay;return;}dataDay=e.target.value;render();});
 document.addEventListener('change',e=>{if(e.target.id!=='schedule-preview-minutes')return;const raw=e.target.value.trim();if(raw!==''&&(!/^\d+$/.test(raw)||Number(raw)<1||Number(raw)>1440)){notice('Choose 1–1440 planning minutes or leave blank for no limit.');e.target.value=schedulePreviewMinutes;return;}schedulePreviewMinutes=raw;render();});
 document.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file||!['backup-file','csv-file'].includes(e.target.id))return;try{if(file.size>15*1024*1024)throw Error('Choose a backup smaller than 15 MB.');const text=await file.text();if(e.target.id==='backup-file'){reviewBackup(text);}else{const rows=parseCSV(text),header=rows.shift()||[];if(!header.includes('title')||!header.includes('room'))throw Error('CSV needs title and room columns.');const added=rows.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]||'']))).map(r=>{const found=board.rooms.find(x=>x.id===r.room||x.name.toLowerCase()===r.room.toLowerCase());if(r.room&&!found)throw Error('Unknown room: '+r.room);if(!r.title.trim())throw Error('Every task needs a title.');if(r.sidequest&&!['true','false'].includes(r.sidequest.toLowerCase()))throw Error('sidequest must be true or false.');return M.task({title:r.title.trim(),room:found?.id||'',side:r.sidequest.toLowerCase()==='true',tools:r.tools||'',notes:r.notes||''})}).filter(t=>!board.tasks.some(x=>x.title===t.title&&x.room===t.room));confirmDialog('Preview task upload',`${added.length} new tasks. Existing tasks are kept and matching title/room pairs are skipped.`,()=>change(b=>added.reverse().forEach(t=>M.add(b,t))),'Add these tasks');}}catch(err){notice(err.message)}finally{e.target.value=''}});
 function parseCSV(text){const rows=[];let row=[],value='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){value+='"';i++}else quoted=!quoted;}else if(c===','&&!quoted){row.push(value);value='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);rows.push(row);row=[];value='';}else value+=c;}if(quoted)throw Error('CSV contains an unclosed quote.');if(value||row.length){row.push(value);rows.push(row)}return rows;}

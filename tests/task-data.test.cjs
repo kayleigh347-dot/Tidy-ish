@@ -84,3 +84,26 @@ test('slowest valid attempt stays visible and survives old-detail archiving',()=
  const plan=Data.planArchive(b,t.id,'2026-01-01');assert.ok(plan.removedAttempts.some(r=>r.id==='attempt-1')===false);
  Data.applyArchive(b,plan);const after=Data.perQuest(b,t.id,owner);assert.equal(after.slowestMs,900000);assert.ok(after.visibleAttempts.some(r=>r.id==='attempt-1'));
 });
+
+test('Day view counts individual records by UK calendar date and keeps archive totals out',()=>{
+ const {b,t}=taskBoard();
+ b.features.wins.push(
+  {id:'a',taskId:t.id,room:'kitchen',at:'2026-10-24T23:30:00Z',points:1,minutes:4},
+  {id:'b',taskId:t.id,room:'kitchen',at:'2026-10-25T00:30:00Z',points:2,minutes:5},
+  {id:'c',taskId:t.id,room:'kitchen',at:'2026-10-25T01:30:00Z',points:1,minutes:6},
+  {id:'other',taskId:t.id,room:'bathroom',at:'2026-10-25T13:00:00Z',points:1,minutes:3}
+ );
+ b.features.taskDataArchives.push({id:'summary',kind:'completion',period:'2026-10',count:15,points:15,minutes:50});
+ const before=JSON.stringify(b),day=Data.summarizeDay(b,{day:'2026-10-25',roomId:'kitchen'});
+ assert.deepEqual(day.wins.map(w=>w.id),['c','b','a']);
+ assert.deepEqual([day.count,day.points,day.minutes],[3,4,15]);
+ assert.equal(Data.summarizeDay(b,{day:'2026-10-25'}).count,4);
+ assert.equal(JSON.stringify(b),before);
+});
+
+test('Day filtering rejects invalid dates without changing stored completions',()=>{
+ const {b}=taskBoard(),before=JSON.stringify(b);
+ assert.equal(Data.validDay('2026-02-30'),false);
+ assert.throws(()=>Data.summarizeDay(b,{day:'2026-02-30'}),/valid Task Data date/);
+ assert.equal(JSON.stringify(b),before);
+});
