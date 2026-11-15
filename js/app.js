@@ -523,7 +523,9 @@ function occasionalEditor(existing=null){
  },{saveLabel:existing?'Save changes':'Add job'});
 }
 function dataCompletionRow(w,withPoints=false){
- return `<div class="data-completion"><strong>${esc(w.title||'Completed task')}</strong><span>${esc(dailyLogCompletionLabel(w))} · ${esc(w.person||'Unattributed')}${withPoints?` · ${Number(w.points)||0} point(s)`:''}</span>${button('Edit completion','data-edit-completion',w.id,'ghost')}</div>`;
+ const title=String(w.title||'Completed task');
+ const details=`${esc(dailyLogCompletionLabel(w))} · ${esc(w.person||'Unattributed')}${withPoints?` · ${Number(w.points)||0} point(s)`:''}`;
+ return `<div class="data-completion data-completion-record"><div class="data-completion-line"><strong>${esc(title)}</strong><span class="data-completion-meta"> · ${details}</span></div>${button('<span aria-hidden="true">🔧</span>','data-edit-completion',w.id,'ghost data-completion-edit',`aria-label="Edit completion: ${esc(title)}" title="Edit completion"`)}</div>`;
 }
 function editDataCompletion(id){
  const win=(F().wins||[]).find(w=>w?.id===id),core=window.TidyDailyLogCore,TD=window.TidyTaskData;
