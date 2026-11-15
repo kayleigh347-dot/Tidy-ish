@@ -105,6 +105,31 @@ function matchSavedTask(board,query,room=''){
  if(candidates[1]&&best.matchScore-candidates[1].matchScore<.08)return null;
  return best;
 }
+// Autocomplete is a bounded, read-only list: literal substrings first,
+// then known alternative words and close spelling. Never inserts a task.
+function autocompleteSavedTasks(board,query,room='',limit=6){
+ const value=String(query||'').trim();
+ if(!value||value.length>160)return [];
+ const normalized=fold(value),terms=matchWords(value);
+ if(!normalized||!terms.length)return [];
+ const max=Math.max(1,Math.min(8,Number(limit)||6));
+ return savedTaskCandidates(board).map(item=>{
+  const title=fold(item.title),sameRoom=!!room&&item.room===room;
+  let rank=0;
+  if(title===normalized)rank=500;
+  else if(title.startsWith(normalized))rank=400;
+  else if(title.includes(normalized))rank=300;
+  else if(value.length>=3){
+   const similar=titleSimilarity(value,item.title);
+   const strong=similar.score>=.74&&similar.qCoverage>=.67&&similar.tCoverage>=.55;
+   const singleWord=terms.length===1&&similar.qCoverage>=.85&&similar.bestWord>=.85;
+   if(strong||singleWord)rank=150+similar.score*100;
+  }
+  return {...item,autocompleteRank:rank?rank+(sameRoom?15:0):0,sameRoom};
+ }).filter(item=>item.autocompleteRank>0)
+  .sort((a,b)=>b.autocompleteRank-a.autocompleteRank||a.title.localeCompare(b.title)||a.roomName.localeCompare(b.roomName))
+  .slice(0,max);
+}
 function draftFromSavedTask(item){
  if(!item)return null;
  return {
@@ -153,5 +178,5 @@ function addSuggestion(board,id,M){
  created.children=choice.subtasks.map(x=>M.child({title:typeof x==='string'?x:x.title||'',followupTitle:typeof x==='string'?'':x.followupTitle||'',parentId:created.id}));
  M.add(board,created);return {id:created.id,added:true};
 }
-return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,SUGGESTIONS});
+return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,autocompleteSavedTasks,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,SUGGESTIONS});
 });

@@ -106,3 +106,24 @@ test('Add Saved Task reactivates the same completed Quest and preserves history'
  if(selected?.done)M.reactivate(b,selected.id);
  assert.equal(b.tasks.length,1);assert.equal(selected.id,taskId);assert.equal(selected.done,false);assert.equal(JSON.stringify(b.features.wins),wins);
 });
+
+test('inline autocomplete matches a substring anywhere and stays bounded',()=>{
+ const b=fresh();
+ for(const title of ['Dust the picture frames','Clean bathroom mirror','Wipe mirror edges','Polish hallway mirror','Clean mirrors again','Shine glass mirror','Bathroom mirrors'])M.add(b,M.task({title,room:'living'}));
+ const list=L.autocompleteSavedTasks(b,'mirror','living');
+ assert.ok(list.length>1);assert.ok(list.length<=6);
+ assert.ok(list.some(item=>item.title==='Clean bathroom mirror'));
+ assert.ok(!list.some(item=>item.title==='Dust the picture frames'));
+ assert.deepEqual(L.autocompleteSavedTasks(b,'','living'),[]);
+});
+test('autocomplete treats vacuum as an alias for Hoover without rewriting saved names',()=>{
+ const b=fresh();M.add(b,M.task({title:'Hoover carpet',room:'living'}));
+ const results=L.autocompleteSavedTasks(b,'vacuum','living');
+ assert.equal(results[0].title,'Hoover carpet');
+ assert.equal(b.tasks[0].title,'Hoover carpet');
+});
+test('autocomplete prefers same-room matches but allows cross-room titles',()=>{
+ const b=fresh();M.add(b,M.task({title:'Hoover floor',room:'living'}));M.add(b,M.task({title:'Hoover stairs',room:'entrance'}));
+ const result=L.autocompleteSavedTasks(b,'hoover','living');
+ assert.equal(result[0].room,'living');assert.equal(result.length,2);
+});

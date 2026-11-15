@@ -117,40 +117,43 @@ test('Task save still uses the established board mutation path', () => {
   assert.match(source, /messImpact:String\(fd\.get\('messImpact'\)/);
 });
 
-test('new task title shows an explicit saved-task suggestion and keep-title choice', () => {
-  assert.match(source, /suggestSavedTasks=creating&&mode==='task'/);
-  assert.match(source, /data-task-title-suggestion/);
-  assert.match(source, /L\?\.matchSavedTask\?\.\(board,value,roomValue\)\?\?null/);
-  assert.match(source, /button\('Use this saved task'/);
-  assert.match(source, /button\('Keep my title'/);
-  assert.match(source, /L\?\.draftFromSavedTask\?\.\(match\)/);
+test('task title displays an inline autocomplete list with tappable options', () => {
+  assert.match(source, /class=\"task-title-autocomplete\"/);
+  assert.match(source, /task-autocomplete-list/);
+  assert.match(source, /task-autocomplete-choice/);
+  assert.match(source, /L\?\.autocompleteSavedTasks\?\.\(board,value,selectedRoom,6\)/);
+  assert.match(source, /task-title-suggestion-use/);
+  assert.doesNotMatch(source, /Did you mean/);
 });
 
-test('typed and dictated titles clear stale matches before the debounce', () => {
-  const start = source.indexOf("document.addEventListener('input',e=>{if(e.target.name!=='title'");
-  const end = source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'", start);
-  assert.ok(start >= 0 && end > start);
-  const handler = source.slice(start, end);
-  assert.match(handler, /state\.current=null;if\(host\)host\.innerHTML='';clearTimeout\(taskTitleSuggestionTimer\)/);
-  assert.match(handler, /setTimeout\(renderTaskTitleSuggestion,160\)/);
+test('typed and dictated input clears stale autocomplete options', () => {
+  const start=source.indexOf("document.addEventListener('input',e=>{if(e.target.name!=='title'");
+  const end=source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'",start);
+  assert.ok(start>=0&&end>start);
+  assert.match(source.slice(start,end), /hideTaskTitleSuggestions\(\)/);
+  assert.match(source, /setTimeout\(renderTaskTitleSuggestion,130\)/);
   assert.match(source, /dispatchEvent\(new Event\('input',\{bubbles:true\}\)\)/);
 });
 
-test('suggestion buttons return keyboard focus to the task title', () => {
-  assert.match(source, /function focusTaskTitleInput\(\)\{editor\.querySelector\('#modal-form \[name="title"\]'\)\?\.focus\(\{preventScroll:true\}\);\}/);
-  assert.match(source, /state\.applying=false;renderTaskTitleSuggestion\(\);focusTaskTitleInput\(\);/);
-  assert.match(source, /state\.dismissedTitle=String\(input\.value\|\|''\)\.trim\(\)/);
-  const dismissStart = source.indexOf('function dismissTaskTitleSuggestion()');
-  const dismissEnd = source.indexOf('\nfunction taskEditor(', dismissStart);
-  assert.match(source.slice(dismissStart, dismissEnd), /focusTaskTitleInput\(\)/);
+test('selection copies only reviewed task settings without saving', () => {
+  assert.match(source, /state\?\.matches\?\.find\(row=>row.id===el\?\.dataset\?\.id\)/);
+  assert.match(source, /L\?\.draftFromSavedTask\?\.\(match\)/);
+  assert.match(source, /hideTaskTitleSuggestions\(\)/);
+  assert.match(source, /focusTaskTitleInput\(\)/);
 });
 
-test('changing rooms clears a prior Keep my title dismissal and rematches', () => {
-  const start = source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'");
-  const end = source.indexOf("\n let librarySearchTimer", start);
-  assert.ok(start >= 0 && end > start);
-  const handler = source.slice(start, end);
-  assert.match(handler, /taskTitleSuggestionState\.dismissedTitle='';clearTimeout\(taskTitleSuggestionTimer\);renderTaskTitleSuggestion\(\)/);
+test('autocomplete supports arrows, enter and Escape plus click-outside dismissal', () => {
+  assert.match(source, /e.key==='ArrowDown'/);
+  assert.match(source, /e.key==='Enter'/);
+  assert.match(source, /e.key==='Escape'/);
+  assert.match(source, /e.target.closest\('\.task-title-autocomplete'\)/);
+});
+
+test('changing rooms dismisses stale matches and rematches', () => {
+  const start=source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'");
+  const end=source.indexOf("\n let librarySearchTimer",start);
+  assert.ok(start>=0&&end>start);
+  assert.match(source.slice(start,end), /taskTitleSuggestionState\.dismissedTitle='';hideTaskTitleSuggestions\(\);renderTaskTitleSuggestion\(\)/);
 });
 
 test('new task duplicates of completed Quests explain the Do again path', () => {
@@ -166,4 +169,41 @@ test('Add Saved Task still reactivates its completed matching Quest', () => {
   const handler = source.slice(start, end);
   assert.match(handler, /if\(active\.done\)M\.reactivate\(b,active\.id\)/);
   assert.match(handler, /else M\.add\(b,M\.templateCopy\(t,id,fd\.has\('doing'\)\)\)/);
+});
+
+test('selecting saved task copies time and mess impact without opening More options', () => {
+  const first = source.indexOf('function copyReusableTaskSettingsToForm(');
+  const last = source.indexOf('\nfunction useTaskTitleSuggestion(', first);
+  assert.ok(first >= 0 && last > first, 'Reusable-settings helper should exist');
+  const routine = source.slice(first, last);
+  const expected = {
+    title: 'Hoover carpet', children: [{ title: 'Move chair' }],
+    tools: 'Hoover', notes: 'Under sofa', estimate: 15, priority: 2,
+    effort: 'Medium', messImpact: 'big', tags: ['floors'], taskType: 'cleaning'
+  };
+  for (const initiallyOpen of [false, true]) {
+    const moreOptions = { open: initiallyOpen };
+    const childOptions = { open: initiallyOpen };
+    const controls = Object.fromEntries(
+      ['title','children','tools','notes','estimate','priority','effort',
+       'messImpact','tags','taskType'].map(name=>[name,{value:''}])
+    );
+    const editor = { querySelector(selector) {
+      const name = /\[name="([^"]+)"\]/.exec(selector)?.[1];
+      return name ? controls[name] : null;
+    } };
+    const context = {editor};
+    vm.runInNewContext(routine+'\nthis.populate = copyReusableTaskSettingsToForm;',context);
+    context.populate(expected);
+    assert.equal(controls.title.value,'Hoover carpet');
+    assert.equal(controls.estimate.value,'15');
+    assert.equal(controls.messImpact.value,'big');
+    assert.equal(controls.children.value,'Move chair');
+    assert.equal(controls.tools.value,'Hoover');
+    assert.equal(controls.notes.value,'Under sofa');
+    assert.equal(moreOptions.open,initiallyOpen,'More options visibility must not change');
+    assert.equal(childOptions.open,initiallyOpen,'Subtask visibility must not change');
+  }
+  assert.match(source,/copyReusableTaskSettingsToForm\(draft\)/);
+  assert.match(source,/saveLabel:creating\?'Add task':'Save'/);
 });

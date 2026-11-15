@@ -699,35 +699,58 @@ async function readPhotoTaskList(){
  }catch(error){const fileMode=location.protocol==='file:';say(fileMode?'Photo reading needs the app opened from localhost or its HTTPS address; this file:// copy blocks the OCR worker.':(error.message||'Could not read this photo. Try another image.'));}
  finally{if(buttonEl)buttonEl.disabled=false;}
 }
+// Suggestions are plain tappable rows immediately below the title input.
+// Neither matching nor choosing writes to the household board.
+function hideTaskTitleSuggestions({dismiss=false}={}){
+ const state=taskTitleSuggestionState;
+ if(!state)return;
+ const input=editor.querySelector('#modal-form [name="title"]');
+ if(dismiss&&input)state.dismissedTitle=String(input.value||'').trim();
+ state.matches=[];
+ const host=editor.querySelector('[data-task-title-suggestion]');
+ if(host)host.innerHTML='';
+ if(input)input.setAttribute('aria-expanded','false');
+ clearTimeout(taskTitleSuggestionTimer);
+}
 function renderTaskTitleSuggestion(){
  const state=taskTitleSuggestionState;if(!state||!editor.open||state.applying)return;
- const input=editor.querySelector('#modal-form [name="title"]'),host=editor.querySelector('[data-task-title-suggestion]');if(!input||!host)return;
+ const input=editor.querySelector('#modal-form [name="title"]'),host=editor.querySelector('[data-task-title-suggestion]');
+ if(!input||!host)return;
  const value=String(input.value||'').trim();
- if(state.appliedTitle&&value===state.appliedTitle){host.innerHTML=`<p class="small" role="status" aria-live="polite">Settings copied from “${esc(state.appliedFrom)}”. Review and edit them before adding this as a new task.</p>`;return;}
- if(state.dismissedTitle===value){host.innerHTML='';return;}
- const roomValue=editor.querySelector('#modal-form [name="room"]')?.value||'';
- const match=L?.matchSavedTask?.(board,value,roomValue)??null;state.current=match;
- if(!match){host.innerHTML='';return;}
- const source=match.sourceType==='template'?'Saved reusable task':'Existing task',roomName=match.roomName||'General';
- const settings=[];if(match.tools)settings.push(`Tools: ${String(match.tools).replace(/\n/g,', ')}`);if(Number(match.estimate)>0)settings.push(`${Number(match.estimate)} minute estimate`);if(Number(match.priority)>0)settings.push(`Priority ${Number(match.priority)}`);if(match.messImpact)settings.push(`Mess: ${match.messImpact}`);if(match.children?.length)settings.push(`${match.children.length} subtask${match.children.length===1?'':'s'}`);
- host.innerHTML=`<div class="task-title-suggestion" role="group" aria-label="Saved task suggestion"><p role="status" aria-live="polite">Did you mean “${esc(match.title)}”? <span class="small">${esc(source)} · ${esc(roomName)}${settings.length?` · ${esc(settings.join(' · '))}`:''}</span></p><div class="row">${button('Use this saved task','task-title-suggestion-use',match.id,'primary')}${button('Keep my title','task-title-suggestion-dismiss','','ghost')}</div></div>`;
-}
-function useTaskTitleSuggestion(el){
- const state=taskTitleSuggestionState,match=state?.current;if(!state||!match)return;
- if(el?.dataset?.id&&el.dataset.id!==match.id)return;
- const draft=L?.draftFromSavedTask?.(match);if(!draft)return;
- state.applying=true;
- const values={title:draft.title,children:draft.children.map(child=>child.title).join('\n'),tools:draft.tools,notes:draft.notes,estimate:String(draft.estimate),priority:String(draft.priority),effort:draft.effort,messImpact:draft.messImpact,tags:draft.tags.join(', '),taskType:draft.taskType};
- for(const [name,value] of Object.entries(values)){const field=editor.querySelector(`#modal-form [name="${name}"]`);if(field)field.value=value;}
- state.appliedTitle=draft.title;state.appliedFrom=match.title;state.current=null;state.dismissedTitle='';
- const title=editor.querySelector('#modal-form [name="title"]');if(title)title.dispatchEvent(new Event('input',{bubbles:true}));
- state.applying=false;renderTaskTitleSuggestion();focusTaskTitleInput();
+ if(!value||state.dismissedTitle===value||state.appliedTitle===value){hideTaskTitleSuggestions();return;}
+ const selectedRoom=editor.querySelector('#modal-form [name="room"]')?.value||'';
+ const matches=L?.autocompleteSavedTasks?.(board,value,selectedRoom,6)||[];
+ state.matches=matches;
+ input.setAttribute('aria-expanded',matches.length?'true':'false');
+ if(!matches.length){host.innerHTML='';return;}
+ host.innerHTML=`<ul class="task-autocomplete-list" aria-label="Matching saved task names">${matches.map(item=>`<li>${button(`<span class="task-autocomplete-name">${esc(item.title)}</span><span class="task-autocomplete-room">${esc(item.roomName)} · ${item.sourceType==='template'?'Saved reusable task':'Existing task'}</span>`,'task-title-suggestion-use',item.id,'task-autocomplete-choice',`aria-label="Use ${esc(item.title)} from ${esc(item.roomName)}"`)}</li>`).join('')}</ul>`;
 }
 function focusTaskTitleInput(){editor.querySelector('#modal-form [name="title"]')?.focus({preventScroll:true});}
-function dismissTaskTitleSuggestion(){
- const state=taskTitleSuggestionState,input=editor.querySelector('#modal-form [name="title"]');if(!state||!input)return;
- state.dismissedTitle=String(input.value||'').trim();state.current=null;renderTaskTitleSuggestion();focusTaskTitleInput();
+// Copy reusable values into existing controls only. Never open More options
+// or Add subtask automatically; Kayleigh can expand either to review them.
+function copyReusableTaskSettingsToForm(draft){
+ const values={title:draft.title,children:draft.children.map(child=>child.title).join('\n'),tools:draft.tools,notes:draft.notes,estimate:String(draft.estimate),priority:String(draft.priority),effort:draft.effort,messImpact:draft.messImpact,tags:draft.tags.join(', '),taskType:draft.taskType};
+ for(const [name,value] of Object.entries(values)){
+  const field=editor.querySelector(`#modal-form [name="${name}"]`);
+  if(field)field.value=value;
+ }
 }
+function useTaskTitleSuggestion(el){
+ const state=taskTitleSuggestionState;
+ const match=state?.matches?.find(row=>row.id===el?.dataset?.id);
+ if(!match)return;
+ const draft=L?.draftFromSavedTask?.(match);if(!draft)return;
+ state.applying=true;
+ copyReusableTaskSettingsToForm(draft);
+ state.appliedTitle=draft.title;
+ state.dismissedTitle='';
+ hideTaskTitleSuggestions();
+ const title=editor.querySelector('#modal-form [name="title"]');
+ if(title)title.dispatchEvent(new Event('input',{bubbles:true}));
+ state.applying=false;
+ focusTaskTitleInput();
+}
+function dismissTaskTitleSuggestion(){hideTaskTitleSuggestions({dismiss:true});focusTaskTitleInput();}
 function taskEditor(original=null,template=false,mode='task'){
  const creating=!original&&!template;
  const suggestSavedTasks=creating&&mode==='task';
@@ -742,7 +765,8 @@ function taskEditor(original=null,template=false,mode='task'){
  }
  const selectedTools=t.tools.split('\n').map(x=>x.trim()).filter(Boolean);
  const scheduleFields=creating&&mode==='scheduled'?`<div class="schedule-entry"><div class="columns">${field('Repeat every','repeatValue',1,'number','required min="1" max="3650" step="1"')}${select('Unit','repeatUnit',[['days','Days'],['weeks','Weeks'],['months','Months']],'weeks')}</div>${field('First due date (optional)','firstDue','','date')}<p class="small">Without a first due date, the calendar preview starts after the first interval.</p></div>`:'';
- const core=tabBar+field('Task name','title',t.title,'text','required maxlength="500"')+(suggestSavedTasks?'<div data-task-title-suggestion></div>':'')+select('Room','room',[['','No room (Homeless)'],...rooms().map(r=>[r.id,r.name])],t.room)+`<div class="add-task-options" role="group" aria-label="Task location and priority">${check('Add to Doing Now','doing',t.doing)}${check('Needs attention','attention',t.attention)}${check('Sidequest','side',t.side)}</div>`+detail('Add subtask',area('Subtasks — one per line','children',t.children.map(c=>c.title).join('\n')))+scheduleFields;
+ const titleField=field('Task name','title',t.title,'text',suggestSavedTasks?'required maxlength="500" autocomplete="off" aria-expanded="false" aria-controls="task-title-autocomplete-list"':'required maxlength="500"');
+ const core=tabBar+(suggestSavedTasks?`<div class="task-title-autocomplete">${titleField}<div id="task-title-autocomplete-list" data-task-title-suggestion></div></div>`:titleField)+select('Room','room',[['','No room (Homeless)'],...rooms().map(r=>[r.id,r.name])],t.room)+`<div class="add-task-options" role="group" aria-label="Task location and priority">${check('Add to Doing Now','doing',t.doing)}${check('Needs attention','attention',t.attention)}${check('Sidequest','side',t.side)}</div>`+detail('Add subtask',area('Subtasks — one per line','children',t.children.map(c=>c.title).join('\n')))+scheduleFields;
  const commonTools=F().tools.map(tool=>check(tool,'tool',selectedTools.includes(tool),`value="${esc(tool)}"`)).join('');
  const warningSettings=detail('Warning indicator · optional',`${check('Show a warning for this task','warningEnabled',t.warningEnabled)}<p class="small">Green stays on Home only. Due warnings also appear in the top bar and follow the task through household sync.</p><div class="columns">${field('First due date','warningFirstDue',t.warningFirstDue,'date')}${field('Repeat after completion (days; 0 = do not repeat)','warningRepeatDays',Number(t.warningRepeatDays)||0,'number','min="0" max="3650" step="1"')}</div><p class="small">Completion clears the warning. Set a repeat interval to make it due again after that many days; 0 leaves it clear until you set a new due date.</p><div class="warning-stage-fields"><strong>Escalate after due · days overdue</strong><div class="columns">${field('Amber','warningAmberDays',Number(t.warningAmberDays)||1,'number','min="1" max="3650" step="1"')}${field('Red','warningRedDays',Number(t.warningRedDays)||2,'number','min="2" max="3650" step="1"')}${field('Flashing red','warningFlashingDays',Number(t.warningFlashingDays)||3,'number','min="3" max="3650" step="1"')}</div></div>`);
  const more=detail('More options',area('Tools — one per line','tools',t.tools)+field('Custom tool (optional)','customTool','')+check('Add to Tools List','saveCustomTool')+(commonTools?detail('Common Tools',`<div class="compact-tools">${commonTools}</div>`):'')+area('Notes','notes',t.notes)+`<div class="columns">${field('Estimate (minutes)','estimate',t.estimate,'number','min="0" max="100000"')}${field('Priority (1 highest, 5 lowest)','priority',t.priority,'number','min="1" max="5"')}</div>`+field('Physical effort','effort',t.effort)+field('Check interval (days; 0 = as needed)','checkDays',Number(t.checkDays)||0,'number','min="0" max="3650" step="1"')+select('How to suggest','conditionMode', [['as-needed','As needed'],['check','Reminder to check'],['condition','Inspect condition before doing']],t.conditionMode||'as-needed')+`<div class="memory-suggestion-setting">${check('Show in “What should I do?” suggestions','showInSuggestions',t.showInSuggestions!==false)}<p class="small">Shared with everyone in this household.</p></div><div class="columns">${field('Priority ranking weight','rankPriorityWeight',t.rankPriorityWeight??1,'number','min="0" max="10" step="0.25"')}${field('Last-done ranking weight','rankRecencyWeight',t.rankRecencyWeight??1,'number','min="0" max="10" step="0.25"')}${field('Mess ranking weight','rankMessWeight',t.rankMessWeight??1,'number','min="0" max="10" step="0.25"')}</div>`+warningSettings+area('Search tags (comma or line separated)','tags',(Array.isArray(t.tags)?t.tags:[]).join(', '))+select('Task type','taskType',[['cleaning','Cleaning'],['organising','Organising'],['maintenance','Maintenance'],['other','Other'],...(!['cleaning','organising','maintenance','other'].includes(t.taskType)?[[t.taskType,t.taskType]]:[])],t.taskType||'cleaning')+field('Due date (optional)','dueDate',t.dueDate,'date')+select('Mess impact','messImpact',['none','tiny','small','normal','big'].map(x=>[x,x]),t.messImpact)+assigneeField(t)+field('Area','area',t.area)+select('Sidequest tab','sideKind',sideChoices().filter(([id])=>id!=='all'),t.sideKind)+`<label class="field">Attach image<input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></label>${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Current attachment">${check('Remove image','removeImage')}`:''}${M.repeat(t)?'<p class="small">Existing repeat rules are preserved. Schedule editing will follow later.</p>':''}`);
@@ -782,7 +806,7 @@ function taskEditor(original=null,template=false,mode='task'){
    if(fd.has('saveCustomTool')&&!b.features.tools.some(tool=>tool.toLowerCase()===customTool.toLowerCase()))b.features.tools.push(customTool);
   })){closeDialog(true);notice('Task saved');}
   },{saveLabel:creating?'Add task':'Save',afterSave:more});
- if(suggestSavedTasks)taskTitleSuggestionState={current:null,dismissedTitle:'',appliedTitle:'',appliedFrom:'',applying:false};
+ if(suggestSavedTasks)taskTitleSuggestionState={matches:[],dismissedTitle:'',appliedTitle:'',applying:false};
 }
 
 function assigneeField(t){const people=window.TidySharing?.people()||[];return people.length?select('Assigned to','assignedUserId',[['','Anyone'],...people.map(p=>[p.id,p.name]),...(t.assignedUserId&&!people.some(p=>p.id===t.assignedUserId)?[[t.assignedUserId,t.assigned||'Current assignment']]:[])],t.assignedUserId):field('Assigned to','assigned',t.assigned);}
@@ -1076,8 +1100,28 @@ case 'add-room':{const name=String(fd.get('name')).trim();if(!name||board.rooms.
 case 'name-form':change(b=>b.features.displayName=String(fd.get('name')).trim());notice('Name saved');break;
 case 'tools-form':change(b=>b.features.tools=[...new Set(String(fd.get('tools')).split('\n').map(s=>s.trim()).filter(Boolean))]);notice('Tools saved');break;
 default:await window.TidySharing?.submit?.(e.target,fd);}}catch(err){notice(err.message)}});
- document.addEventListener('input',e=>{if(e.target.name!=='title'||!taskTitleSuggestionState||!editor.contains(e.target))return;const state=taskTitleSuggestionState;if(state.applying)return;const value=String(e.target.value||'').trim(),host=editor.querySelector('[data-task-title-suggestion]');if(state.appliedTitle&&value!==state.appliedTitle){state.appliedTitle='';state.appliedFrom='';}if(state.dismissedTitle&&value!==state.dismissedTitle)state.dismissedTitle='';state.current=null;if(host)host.innerHTML='';clearTimeout(taskTitleSuggestionTimer);if(value)taskTitleSuggestionTimer=setTimeout(renderTaskTitleSuggestion,160);});
- document.addEventListener('change',e=>{if(e.target.name!=='room'||!taskTitleSuggestionState||!editor.contains(e.target))return;taskTitleSuggestionState.dismissedTitle='';clearTimeout(taskTitleSuggestionTimer);renderTaskTitleSuggestion();});
+ document.addEventListener('input',e=>{if(e.target.name!=='title'||!taskTitleSuggestionState||!editor.contains(e.target))return;const state=taskTitleSuggestionState;if(state.applying)return;const value=String(e.target.value||'').trim(),host=editor.querySelector('[data-task-title-suggestion]');if(state.appliedTitle&&value!==state.appliedTitle){state.appliedTitle='';state.appliedFrom='';}if(state.dismissedTitle&&value!==state.dismissedTitle)state.dismissedTitle='';hideTaskTitleSuggestions();if(value)taskTitleSuggestionTimer=setTimeout(renderTaskTitleSuggestion,130);});
+ document.addEventListener('change',e=>{if(e.target.name!=='room'||!taskTitleSuggestionState||!editor.contains(e.target))return;taskTitleSuggestionState.dismissedTitle='';hideTaskTitleSuggestions();renderTaskTitleSuggestion();});
+ // Arrow keys, Enter and Escape are available alongside touch/click and Tab.
+ document.addEventListener('keydown',e=>{
+  if(!taskTitleSuggestionState||!editor.open)return;
+  const title=editor.querySelector('#modal-form [name="title"]');
+  const options=[...editor.querySelectorAll('.task-autocomplete-choice')];
+  const index=options.indexOf(document.activeElement),atTitle=document.activeElement===title;
+  if(e.key==='Escape'&&(atTitle||index>=0)&&options.length){e.preventDefault();dismissTaskTitleSuggestion();return;}
+  if(atTitle&&options.length&&e.key==='ArrowDown'){e.preventDefault();options[0].focus();return;}
+  if(atTitle&&options.length&&e.key==='Enter'){e.preventDefault();options[0].click();return;}
+  if(index>=0&&(e.key==='ArrowDown'||e.key==='ArrowUp')){
+   e.preventDefault();
+   const next=e.key==='ArrowDown'?options[(index+1)%options.length]:index===0?null:options[index-1];
+   if(next)next.focus();else title?.focus();
+  }
+ });
+ // Clicking elsewhere closes the list without changing the manual title.
+ document.addEventListener('click',e=>{
+  if(!taskTitleSuggestionState||!editor.open||e.target.closest('.task-title-autocomplete'))return;
+  hideTaskTitleSuggestions({dismiss:true});
+ });
  let librarySearchTimer;document.addEventListener('input',e=>{if(e.target.id==='quest-library-query'){libraryQuery=e.target.value;const cursor=e.target.selectionStart;clearTimeout(librarySearchTimer);librarySearchTimer=setTimeout(()=>{if(route!=='library')return;render();const input=$('#quest-library-query');input?.focus();try{input?.setSelectionRange(cursor,cursor)}catch{}},180);}});
 document.addEventListener('input',e=>{if(e.target.id!=='focus-sound-volume')return;soundVolume=Math.min(.3,Math.max(0,Number(e.target.value)/100||0));const output=$('#focus-sound-output');if(output)output.value=Math.round(soundVolume*100)+'%';if(music)music.volume=soundVolume;});
 document.addEventListener('change',e=>{if(e.target.id!=='focus-sound-volume')return;try{localStorage.setItem(SOUND_VOLUME_KEY,String(soundVolume));}catch{notice('Sound level will reset when this tab closes.');}});

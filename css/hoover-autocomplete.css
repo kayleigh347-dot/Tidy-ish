@@ -1,0 +1,12 @@
+/* Task-name autocomplete: dropdown directly below its input, not a modal panel. */
+.task-title-autocomplete{position:relative;min-width:0}
+.task-title-autocomplete>.field{margin-bottom:0}
+.task-title-autocomplete [data-task-title-suggestion]:empty{display:none}
+.task-title-autocomplete [data-task-title-suggestion]:not(:empty){position:absolute;top:100%;left:0;right:0;z-index:1050}
+.task-autocomplete-list{list-style:none;margin:0;padding:4px;max-height:min(260px,42dvh);overflow-y:auto;overscroll-behavior:contain;background:#30213f;border:1px solid #d8b970;border-radius:0 0 12px 12px;box-shadow:0 9px 22px #0b071b99}
+.task-autocomplete-list li{padding:0;margin:0}
+.task-autocomplete-list .task-autocomplete-choice{width:100%;min-height:44px;display:block;text-align:left;padding:9px 12px;border-radius:8px;background:transparent;color:#f5f2f5;border:1px solid transparent;overflow-wrap:anywhere}
+.task-autocomplete-list .task-autocomplete-choice:hover,.task-autocomplete-list .task-autocomplete-choice:focus-visible{background:#544165;border-color:#e7c576;outline:2px solid #e7c576;outline-offset:-2px}
+.task-autocomplete-name{display:block;font-weight:650}
+.task-autocomplete-room{display:block;font-size:.78rem;color:#d7d3e1;margin-top:2px}
+@media(max-width:390px){.task-autocomplete-list{max-height:min(220px,38dvh)}}
