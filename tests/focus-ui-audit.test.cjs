@@ -55,6 +55,76 @@ test('Room Focus offers Clear the Way or Skip before task selection',()=>{
  assert.doesNotMatch(ui,/showFocusIntro/);
 });
 
+test('Start new Room Focus from a saved active session offers Clear the Way and a visible Skip',()=>{
+ const {board,UI,dialogs}=setup(),task=M.task({id:'focus-clearway-prev',title:'Keep this room task',room:'kitchen',doing:true});board.tasks.push(task);
+ UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-accepted');
+ assert.equal(UI.get().phase,'active');
+ UI.enter(board,'kitchen','focus');
+ assert.equal(dialogs.at(-1).title,'Previous Focus found');
+ const before=dialogs.length;
+ click(UI,'quest-fresh-overwrite');
+ assert.equal(dialogs.length,before+1);
+ assert.equal(dialogs.at(-1).title,'Room Focus');
+ assert.match(dialogs.at(-1).body,/Start with Clear the Way, or skip to choose tasks\?/);
+ assert.match(dialogs.at(-1).body,/data-action="focus-start-clearway" data-id="kitchen"[^>]*>Clear the Way<\/button>/);
+ assert.match(dialogs.at(-1).body,/data-action="focus-skip-clearway" data-id="kitchen"[^>]*>Skip<\/button>/);
+ assert.equal(UI.get().phase,'pick');
+ assert.deepEqual(UI.get().startedIds,[]);
+ assert.deepEqual(UI.get().questIds,[]);
+ assert.equal(board.tasks[0],task);
+ assert.equal(task.doing,true);
+ // App's existing Skip route calls openQuestFocus(), which reloads this fresh session.
+ UI.enter(board,'kitchen','focus');
+ assert.equal(dialogs.length,before+1,'Skip must not trigger another previous-session prompt');
+ assert.equal(UI.get().phase,'pick');
+ // App's existing Clear the Way route calls openClearWay() without changing room tasks.
+ UI.enter(board,'kitchen','clear');
+ assert.equal(UI.get().phase,'clear-choose');
+ assert.equal(board.tasks[0],task);
+});
+
+test('Resume and Change tasks keep their existing saved Focus behaviour',()=>{
+ const {board,UI,dialogs}=setup(),task=M.task({id:'focus-saved-resume',title:'Original Focus task',room:'kitchen'});board.tasks.push(task);
+ UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-accepted');
+ UI.enter(board,'kitchen','focus');
+ const before=dialogs.length;
+ click(UI,'quest-fresh-load');
+ assert.equal(dialogs.length,before,'Resume must not display a new-session prompt');
+ assert.equal(UI.get().phase,'active');
+ assert.deepEqual(UI.get().startedIds,[task.id]);
+ UI.enter(board,'kitchen','focus');
+ const after=dialogs.length;
+ click(UI,'quest-fresh-change');
+ assert.equal(dialogs.length,after,'Change tasks must not display a new-session prompt');
+ assert.equal(UI.get().phase,'pick');
+ assert.deepEqual(UI.get().questIds,[task.id]);
+});
+
+test('Start new Doing Now Focus does not offer a room-only Clear the Way prompt',()=>{
+ const {board,UI,dialogs}=setup(),task=M.task({id:'focus-doing-saved',title:'Doing task',room:'kitchen',doing:true});board.tasks.push(task);
+ UI.enter(board,'kitchen','focus','doing');UI.pick(task.id);click(UI,'quest-accepted');
+ UI.enter(board,'kitchen','focus','doing');
+ assert.equal(dialogs.at(-1).title,'Previous Focus found');
+ const before=dialogs.length;
+ click(UI,'quest-fresh-overwrite');
+ assert.equal(dialogs.length,before);
+ assert.equal(UI.get().phase,'pick');
+ assert.deepEqual(UI.get().startedIds,[]);
+});
+
+test('Restarting an unfinished Clear the Way routine keeps the original routine flow',()=>{
+ const {board,UI,dialogs}=setup();
+ UI.enter(board,'kitchen','clear');click(UI,'quest-begin-clear');
+ assert.equal(UI.get().phase,'clear-active');
+ UI.enter(board,'kitchen','clear');
+ assert.equal(dialogs.at(-1).title,'Previous Focus found');
+ const before=dialogs.length;
+ click(UI,'quest-fresh-overwrite');
+ assert.equal(dialogs.length,before,'Clear the Way restart must not show Room Focus prompt');
+ assert.equal(UI.get().phase,'clear-choose');
+ assert.ok(UI.get().steps.length>0);
+});
+
 test('resuming Focus lists saved tasks and changing selection replaces only Focus membership',()=>{
  const {board,UI,dialogs}=setup(),oldTask=M.task({id:'focus-old',title:'Existing task',room:'kitchen',doing:true}),newTask=M.task({id:'focus-new',title:'New task',room:'kitchen'});board.tasks.push(oldTask,newTask);
  UI.enter(board,'kitchen','focus');UI.pick(oldTask.id);click(UI,'quest-go');click(UI,'quest-accepted');UI.enter(board,'kitchen','focus');

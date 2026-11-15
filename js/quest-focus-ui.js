@@ -133,7 +133,7 @@ function handle(el){if(!api||!el?.dataset?.action?.startsWith('quest-'))return f
  case 'quest-exit':editing=null;api.leave();break;
  case 'quest-fresh-load':api.closeDialog(true);api.render();break;
  case 'quest-fresh-change':{api.closeDialog(true);const ids=session.phase==='active'?session.startedIds.filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return t&&!t.done;}):Q.uniqueIds([...(session.replaceStarted?session.startedIds:[]),...session.questIds]).filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return t&&!t.done;});set({phase:'pick',questIds:ids,replaceStarted:session.startedIds.length>0,addMethod:'manual',limitMinutes:null,limitCount:null});break;}
- case 'quest-fresh-overwrite':{const fresh=Q.session(room,undefined,scope);if(clearMode){fresh.phase='clear-choose';fresh.steps=Q.standardSelection(board,room);}api.closeDialog(true);set(fresh);break;}
+ case 'quest-fresh-overwrite':{const fresh=Q.session(room,undefined,scope);if(clearMode){fresh.phase='clear-choose';fresh.steps=Q.standardSelection(board,room);}api.closeDialog(true);if(set(fresh)&&!clearMode&&scope==='room')modal('Room Focus',`<p>Start with Clear the Way, or skip to choose tasks?</p><div class="quest-actions">${btn('Clear the Way','focus-start-clearway',room,'quest-yes')}${btn('Skip','focus-skip-clearway',room,'quest-no')}</div>`);break;}
  case 'quest-intro-close':api.closeDialog(true);break;
  case 'quest-editor-exit':editing=null;api.render();break;
  case 'quest-reload':load(board,api.room(),true,clearMode,scope);api.render();break;
