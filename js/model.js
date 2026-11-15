@@ -45,6 +45,15 @@
     if (value instanceof Date && Number.isFinite(value.getTime())) return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
     throw Error('Invalid date. No saved work changed.');
   }
+  // Recurrence advances from the UK calendar day of the recorded completion,
+  // not the device's local date (which may be a different day at the same instant).
+  const ukDayFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'});
+  function ukCompletionDay(isoTimestamp) {
+    const instant=new Date(isoTimestamp);
+    if(!Number.isFinite(instant.getTime()))throw Error('Invalid completion timestamp. No saved work changed.');
+    const parts=Object.fromEntries(ukDayFormat.formatToParts(instant).map(x=>[x.type,x.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
   function plus(day,amount) {
     const d=parseDay(day);if (!d || !Number.isInteger(Number(amount))) throw Error('Invalid calendar date or day count.');
     d.setUTCDate(d.getUTCDate()+Number(amount));return d.toISOString().slice(0,10);
@@ -273,8 +282,9 @@
       t._canUndoFamily=true;t._completionIds=added;
       t.children.forEach(c=>{c.done=true;c.elapsed=time(c);c.startedAt=0;});
       t.elapsed=time(t);t.startedAt=0;t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;
-      if(repeat(t))t.nextDue=next(t,date());
-      if(t.warningEnabled){t.warningUndo={warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};t.warningLastCompletedAt=t.completedAt;t.warningNextDue=Number(t.warningRepeatDays)>0?plus(date(),Number(t.warningRepeatDays)):'';}
+      const completedDay=ukCompletionDay(t.completedAt);
+      if(repeat(t))t.nextDue=next(t,completedDay);
+      if(t.warningEnabled){t.warningUndo={warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};t.warningLastCompletedAt=t.completedAt;t.warningNextDue=Number(t.warningRepeatDays)>0?plus(completedDay,Number(t.warningRepeatDays)):'';}
       followup(b,t,t);
     }else{
       if(t._canUndoFamily===false)throw Error('This completion needs Undo from the original device. No saved records changed.');
@@ -326,7 +336,7 @@
     // Parent subtasks reflect the completion status of their children.
     for(let i=0;i<t.children.length;i++)for(const p of t.children){const children=t.children.filter(x=>x.parentId===p.id);if(children.length)p.done=children.every(x=>x.done);}
     const all=t.children.every(x=>x.done);
-    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()].map(x=>x.done);t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,state])=>({id,...state})),added:changedWinIds,nextDue:t.nextDue||'',warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};if(repeat(t))t.nextDue=next(t,date());if(t.warningEnabled){t.warningUndo={warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};t.warningLastCompletedAt=t.completedAt;t.warningNextDue=Number(t.warningRepeatDays)>0?plus(date(),Number(t.warningRepeatDays)):'';}}
+    if(done&&all&&!t.done){t.done=true;t.completedAt=new Date().toISOString();if(t.scheduleMakerManaged)t.scheduleActive=false;t._canUndoFamily=true;t.undoChildren=[...before.values()].map(x=>x.done);t._completionIds=t.children.map(x=>x._winId).filter(Boolean);t._finishState={before:[...before].map(([id,state])=>({id,...state})),added:changedWinIds,nextDue:t.nextDue||'',warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};const completedDay=ukCompletionDay(t.completedAt);if(repeat(t))t.nextDue=next(t,completedDay);if(t.warningEnabled){t.warningUndo={warningNextDue:t.warningNextDue||'',warningLastCompletedAt:t.warningLastCompletedAt||''};t.warningLastCompletedAt=t.completedAt;t.warningNextDue=Number(t.warningRepeatDays)>0?plus(completedDay,Number(t.warningRepeatDays)):'';}}
     if(!done&&t.done){const state=t._finishState||t.warningUndo;t.done=false;t.completedAt='';if(state){t.warningNextDue=state.warningNextDue||'';t.warningLastCompletedAt=state.warningLastCompletedAt||'';}delete t.warningUndo;delete t._finishState;}
   }
   function refresh(b,today=date()) {
