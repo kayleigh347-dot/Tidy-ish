@@ -1184,10 +1184,10 @@ function liftChildToRoot(b,rootId,childId,targetId,after,view){
  }
  return promoted.id;
 }
-let childGesture=null,childHover=null,childPendingTimer=0;
-function clearChildOver(){document.querySelectorAll('.child.drag-over').forEach(x=>x.classList.remove('drag-over'));}
+let childGesture=null,childHover=null,childPendingTimer=0,childScrollTimer=0;
+function clearChildOver(){document.querySelectorAll('.child.drag-over').forEach(x=>x.classList.remove('drag-over','child-drop-before','child-drop-after'));}
 function resetChildGesture(){
- clearTimeout(childPendingTimer);childPendingTimer=0;
+ clearTimeout(childPendingTimer);childPendingTimer=0;clearInterval(childScrollTimer);childScrollTimer=0;
  const g=childGesture;childGesture=null;
  g?.ghost?.remove();g?.row?.classList.remove('child-lifted');
  if(g?.armed)document.body.classList.remove('task-dragging');
@@ -1197,7 +1197,8 @@ function childTargetAt(g,x,y){
  const underneath=document.elementFromPoint(x,y);
  const row=underneath?.closest?.('[data-child-id]');
  if(row&&row.dataset.rootId===g.root&&row.dataset.parentId===g.parent&&row.dataset.childId!==g.child){
-  return {kind:'sibling',id:row.dataset.childId};
+  const rect=row.getBoundingClientRect();
+  return {kind:'sibling',id:row.dataset.childId,after:y>=rect.top+rect.height/2};
  }
  // Only the edge of a card or the actual gap can lift a subtask to top-level.
  // Do not accidentally promote when dragging across sibling rows or task buttons.
@@ -1219,15 +1220,23 @@ function childTargetAt(g,x,y){
 function moveChildPreview(g,x,y){
  const next=childTargetAt(g,x,y);childHover=next;
  clearChildOver();hideRootInsertionLine();
- if(next?.kind==='sibling')document.querySelector(`[data-child-id="${CSS.escape(next.id)}"]`)?.classList.add('drag-over');
+ if(next?.kind==='sibling')document.querySelector(`[data-child-id="${CSS.escape(next.id)}"]`)?.classList.add('drag-over',next.after?'child-drop-after':'child-drop-before');
  if(next?.kind==='root')setRootInsertionLine(next.card,next.after?'after':'before');
  if(g.ghost){g.ghost.style.left=Math.max(8,Math.min(innerWidth-200,x+12))+'px';g.ghost.style.top=Math.max(5,Math.min(innerHeight-45,y-32))+'px';}
+}
+// Continue scrolling while a held subtask reaches a viewport edge, even without pointer movement.
+function childAutoscroll(){
+ const g=childGesture;if(!g?.armed)return;
+ const edge=65,height=window.innerHeight||document.documentElement.clientHeight;
+ const direction=g.y<edge?-1:g.y>height-edge?1:0;
+ if(direction){window.scrollBy(0,direction*14);moveChildPreview(g,g.x,g.y);}
 }
 function armChildDrag(g){
  if(childGesture!==g||g.armed)return;
  g.armed=true;g.row.classList.add('child-lifted');document.body.classList.add('task-dragging');
  g.ghost=document.createElement('div');g.ghost.className='task-drag-ghost';g.ghost.textContent=g.title;
  document.body.appendChild(g.ghost);moveChildPreview(g,g.x,g.y);
+ childScrollTimer=setInterval(childAutoscroll,65);
 }
 document.addEventListener('dragstart',e=>{if(e.target.closest('.child,.child-grip,.task'))e.preventDefault();});
 document.addEventListener('pointerdown',e=>{
@@ -1255,7 +1264,7 @@ document.addEventListener('pointerup',e=>{
  if(g.armed)suppressDragClickUntil=Date.now()+550;
  resetChildGesture();
  if(!destination)return;
- if(destination.kind==='sibling')reorderChild(g.root,g.child,destination.id);
+ if(destination.kind==='sibling')reorderChild(g.root,g.child,destination.id,destination.after);
  else if(destination.kind==='root'){
   if(change(b=>liftChildToRoot(b,g.root,g.child,destination.id,destination.after,g.view))){notice('Subtask moved back to main tasks.');openTasks.add(g.root);}
  }

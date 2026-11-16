@@ -463,6 +463,8 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .child .child-grip{touch-action:none;cursor:grab;flex:0 0 auto}
 .child.child-lifted{outline:2px dashed #ffe291;outline-offset:1px;background:linear-gradient(120deg,#5a3c6244,#38446633)}
 .child.drag-over{outline:2px solid #f8c662;outline-offset:2px;border-radius:8px}
+.child.drag-over.child-drop-before{box-shadow:inset 0 3px 0 var(--gold)}
+.child.drag-over.child-drop-after{box-shadow:inset 0 -3px 0 var(--gold)}
 .room-child .child-grip{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:30px;padding:0 4px;font-size:1.1rem;background:transparent;border:1px solid #89b7c27a;color:#f7e5ad;border-radius:8px}
 /* The Stage 10F body-level golden insertion line remains the only root insertion marker. */
 
