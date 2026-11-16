@@ -28,10 +28,10 @@
   }
   const weekday = date => { const d=parseDay(date);return d?d.getUTCDay():null; }; // Sun=0
   const mondayWeekday = date => { const day=weekday(date);return day === null ? null : day || 7; }; // Mon=1, Sun=7
-  function isRepeat(t) {return Number(t?.repeatDays)>0||Number(t?.repeatMonths)>0;}
+  function isRepeat(t) {return Number(t?.repeatDays)>0||Number(t?.repeatMonths)>0||!!t?.repeatWeekdays?.length;}
   function nextInterval(t,date) {
     if(Number(t.repeatMonths)>0)return addMonths(date,Math.max(1,Number(t.repeatMonths)));
-    return addDays(date,Math.max(1,Number(t.repeatDays)));
+    return addDays(date,Math.max(1,Number(t.repeatDays)||1));
   }
   function repeatAllowed(t,date) {
     const day=mondayWeekday(date);
