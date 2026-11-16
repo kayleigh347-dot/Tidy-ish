@@ -7,6 +7,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const allowed = new Set(['7', '30', '90', 'all']);
+  // Resolve on use: browser loads quest-time-core after task-data.js.
+  const timing = () => typeof globalThis !== 'undefined' && globalThis.TidyQuestTime
+    ? globalThis.TidyQuestTime : (typeof module === 'object' && module.exports ? require('./quest-time-core.js') : null);
+  const learnedMs = row => timing()?.learningDuration(row) ?? null;
+  const isLearned = row => timing()?.valid(row) === true;
   const dateKey = date => [date.getFullYear(), String(date.getMonth()+1).padStart(2,'0'), String(date.getDate()).padStart(2,'0')].join('-');
   function validDay(day){
     if(typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;
@@ -26,8 +31,8 @@
   function ensurePeriod(map,period){if(!map.has(period))map.set(period,{period,count:0,points:0,validCount:0,excludedCount:0,notedCount:0,kinds:{}});return map.get(period);}
   function summarizePeriods(rows,archives,type){
     const groups=new Map();
-    for(const row of rows){const g=ensurePeriod(groups,periodOf(row.at));g.count++;if(type==='completion')g.points+=Number.isFinite(Number(row.points))?Number(row.points):1;else{g.kinds[row.kind]=(g.kinds[row.kind]||0)+1;if(row.kind==='valid'&&!row.excludedFromLearning)g.validCount++;if(row.excludedFromLearning)g.excludedCount++;if(row.note)g.notedCount++;}}
-    for(const row of archives){const period=row.period||'Undated',g=ensurePeriod(groups,period),count=Math.max(0,Number(row.count)||0);g.count+=count;if(type==='completion')g.points+=Number(row.points)||0;else{const kind=row.attemptKind||'unknown';g.kinds[kind]=(g.kinds[kind]||0)+count;if(kind==='valid'&&!row.excludedFromLearning)g.validCount+=Number(row.validCount??count)||0;if(row.excludedFromLearning)g.excludedCount+=count;g.notedCount+=Number(row.noteCount)||0;}}
+    for(const row of rows){const g=ensurePeriod(groups,periodOf(row.at));g.count++;if(type==='completion')g.points+=Number.isFinite(Number(row.points))?Number(row.points):1;else{g.kinds[row.kind]=(g.kinds[row.kind]||0)+1;if(isLearned(row))g.validCount++;if(row.excludedFromLearning)g.excludedCount++;if(row.note)g.notedCount++;}}
+    for(const row of archives){const period=row.period||'Undated',g=ensurePeriod(groups,period),count=Math.max(0,Number(row.count)||0);g.count+=count;if(type==='completion')g.points+=Number(row.points)||0;else{const kind=row.attemptKind||'unknown';g.kinds[kind]=(g.kinds[kind]||0)+count;g.validCount+=Number(row.validCount??(kind==='valid'&&!row.excludedFromLearning?count:0))||0;if(row.excludedFromLearning)g.excludedCount+=count;g.notedCount+=Number(row.noteCount)||0;}}
     return [...groups.values()].sort((a,b)=>b.period.localeCompare(a.period));
   }
   function summarize(board, opts={}) {
@@ -95,13 +100,13 @@
     const archives=(board.features?.taskDataArchives||[]).filter(a=>family.has(a.taskId)||(!isChild&&a.rootId===rootId));
     const completionArchives=archives.filter(a=>a.kind==='completion');
     const attemptArchives=archives.filter(a=>a.kind==='attempt'&&a.taskId===id);
-    const valid=attempts.filter(r=>r.kind==='valid'&&!r.excludedFromLearning&&Number(r.durationMs)>0);
+    const valid=attempts.filter(isLearned);
     const mine=owner?valid.filter(r=>r.owner===owner):valid;
-    const fastest=mine.length?Math.min(...mine.map(r=>Number(r.durationMs))):null;
-    const fastestRow=mine.find(r=>Number(r.durationMs)===fastest);
-    const slowest=mine.length?Math.max(...mine.map(r=>Number(r.durationMs))):null;
-    const slowestRow=mine.find(r=>Number(r.durationMs)===slowest);
-    const recent=mine.slice(0,8);let weighted=0,weight=0;recent.forEach((r,i)=>{const w=.78**i;weighted+=Number(r.durationMs)*w;weight+=w;});
+    const fastest=mine.length?Math.min(...mine.map(learnedMs)):null;
+    const fastestRow=mine.find(r=>learnedMs(r)===fastest);
+    const slowest=mine.length?Math.max(...mine.map(learnedMs)):null;
+    const slowestRow=mine.find(r=>learnedMs(r)===slowest);
+    const recent=mine.slice(0,8);let weighted=0,weight=0;recent.forEach((r,i)=>{const w=.78**i;weighted+=learnedMs(r)*w;weight+=w;});
     const visible=new Set(attempts.slice(0,8));if(fastestRow)visible.add(fastestRow);if(slowestRow)visible.add(slowestRow);for(const r of attempts)if(r.note)visible.add(r);
     const visibleAttempts=attempts.filter(r=>visible.has(r));
     const olderAttempts=attempts.filter(r=>!visible.has(r));
@@ -136,8 +141,8 @@
     const attemptKeep=new Set();
     const groups=new Map();for(const r of attempts.filter(r=>family.has(r.taskId))){const key=String(r.taskId)+'\u0000'+String(r.owner||'');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);}
     for(const rows of groups.values()){
-      const eligible=rows.filter(r=>r.kind==='valid'&&!r.excludedFromLearning&&Number(r.durationMs)>0).sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
-      eligible.slice(0,8).forEach(r=>attemptKeep.add(r));if(eligible.length){attemptKeep.add(eligible.reduce((best,r)=>Number(r.durationMs)<Number(best.durationMs)?r:best));attemptKeep.add(eligible.reduce((best,r)=>Number(r.durationMs)>Number(best.durationMs)?r:best));}
+      const eligible=rows.filter(isLearned).sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
+      eligible.slice(0,8).forEach(r=>attemptKeep.add(r));if(eligible.length){attemptKeep.add(eligible.reduce((best,r)=>learnedMs(r)<learnedMs(best)?r:best));attemptKeep.add(eligible.reduce((best,r)=>learnedMs(r)>learnedMs(best)?r:best));}
       rows.filter(r=>r.note).forEach(r=>attemptKeep.add(r));
     }
     const matchesWin=w=>family.has(w.taskId)||(!isChild&&w.rootId===task.id);
@@ -152,7 +157,7 @@
     if(!board.features.taskDataArchives)board.features.taskDataArchives=[];
     const groups=new Map(),put=(key,row)=>{if(!groups.has(key))groups.set(key,row);else{const g=groups.get(key);g.count++;g.points+=row.points||0;g.minutes+=row.minutes||0;g.validCount+=row.validCount||0;g.noteCount+=row.noteCount||0;}};
     for(const w of removedWins){const period=periodOf(w.at),key=['completion',w.taskId,w.rootId||plan.rootId,w.room||'',period,w.person||''].join('|');put(key,{kind:'completion',taskId:w.taskId,rootId:w.rootId||plan.rootId,title:w.title||'',room:w.room||'',person:w.person||'Unattributed',period,count:1,points:Number.isFinite(Number(w.points))?Number(w.points):1,minutes:Number(w.minutes)||0,validCount:0,noteCount:0});}
-    for(const r of removedAttempts){const period=periodOf(r.at),excluded=!!r.excludedFromLearning,key=['attempt',r.taskId,plan.rootId,r.owner||'',period,r.kind||'unknown',excluded].join('|');put(key,{kind:'attempt',taskId:r.taskId,rootId:plan.rootId,title:'',room:'',owner:r.owner||'Unattributed',period,attemptKind:r.kind||'unknown',excludedFromLearning:excluded,count:1,points:0,minutes:0,validCount:r.kind==='valid'&&!excluded?1:0,noteCount:r.note?1:0});}
+    for(const r of removedAttempts){const period=periodOf(r.at),excluded=!!r.excludedFromLearning,key=['attempt',r.taskId,plan.rootId,r.owner||'',period,r.kind||'unknown',excluded].join('|');put(key,{kind:'attempt',taskId:r.taskId,rootId:plan.rootId,title:'',room:'',owner:r.owner||'Unattributed',period,attemptKind:r.kind||'unknown',excludedFromLearning:excluded,count:1,points:0,minutes:0,validCount:isLearned(r)?1:0,noteCount:r.note?1:0});}
     for(const [key,row] of groups){const safe=key.replace(/[^a-z0-9_-]+/gi,'-').slice(0,56);board.features.taskDataArchives.push({id:'tda-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9)+'-'+safe,...row});}
     const removedWinSet=new Set(removedWins);const removedAttemptSet=new Set(removedAttempts);
     board.features.wins=board.features.wins.filter(w=>!removedWinSet.has(w));board.features.questTimings=board.features.questTimings.filter(r=>!removedAttemptSet.has(r));

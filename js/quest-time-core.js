@@ -1,11 +1,33 @@
 /* Tidy-ish Quest Timer learning core. Pure, deterministic calculations; no global storage writes. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.TidyQuestTime=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';
  const BUFFER_MS=5*60000, REPEAT_MS=60000, SNOOZE_MS=5*60000, RECENT_LIMIT=8, DECAY=.78;
- function valid(r){return r&&!r.excludedFromLearning&&r.kind==='valid'&&Number.isFinite(Number(r.durationMs))&&Number(r.durationMs)>0&&Number.isFinite(Date.parse(r.at||''));}
+ // Raw elapsed time is never overwritten. A quantified interruption contributes only worked time.
+ function distraction(elapsedMs, rawMinutes){
+  const elapsed=Number(elapsedMs);
+  if(!Number.isFinite(elapsed)||elapsed<0)throw Error('Invalid recorded time. No changes saved.');
+  if(rawMinutes===null||rawMinutes===undefined||String(rawMinutes).trim()==='')return {distractionMinutes:null,workDurationMs:null};
+  const raw=String(rawMinutes).trim();
+  if(!/^\d+(?:\.\d+)?$/.test(raw))throw Error('Enter a valid number of distraction minutes.');
+  const minutes=Number(raw),deducted=Math.round(minutes*60000);
+  if(!Number.isFinite(minutes)||!Number.isFinite(deducted)||deducted>elapsed)throw Error('Distraction cannot exceed elapsed time. No changes saved.');
+  return {distractionMinutes:minutes,workDurationMs:Math.max(0,elapsed-deducted)};
+ }
+ function learningDuration(r){
+  if(!r||r.excludedFromLearning)return null;
+  const elapsed=Number(r.durationMs);
+  if(!Number.isFinite(elapsed)||elapsed<=0)return null;
+  if(r.kind==='valid')return elapsed;
+  if(r.kind!=='distracted'||typeof r.distractionMinutes!=='number'||!Number.isFinite(r.distractionMinutes)||r.distractionMinutes<0)return null;
+  const deducted=Math.round(r.distractionMinutes*60000);
+  if(!Number.isFinite(deducted)||deducted>elapsed)return null;
+  const worked=elapsed-deducted;
+  return worked>0?worked:null;
+ }
+ function valid(r){return learningDuration(r)!==null&&Number.isFinite(Date.parse(r.at||''));}
  function average(records,id,owner){
   const rows=(Array.isArray(records)?records:[]).filter(r=>r.taskId===id&&r.owner===owner&&valid(r)).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at)).slice(0,RECENT_LIMIT);
   if(!rows.length)return null;
-  let weighted=0,weights=0;rows.forEach((r,i)=>{const w=DECAY**i;weighted+=r.durationMs*w;weights+=w;});
+  let weighted=0,weights=0;rows.forEach((r,i)=>{const w=DECAY**i;weighted+=learningDuration(r)*w;weights+=w;});
   return Math.max(1,Math.round(weighted/weights/60000*10)/10);
  }
  function ownerOf(board){const f=board?.features||{};return String(f.browserSync?.account||'local')+'|member:'+String(f.displayName||'Me');}
@@ -17,5 +39,5 @@
   return {phase:remaining>0?'countdown':'overtime',shownMs:Math.abs(remaining),overdue:remaining<=0,alarmDue:remaining<=0&&!alarmDismissed&&elapsed>=threshold};
  }
  function format(ms){const seconds=Math.floor(Math.max(0,ms)/1000);return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;}
- return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,status,format,valid});
+ return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,status,format,valid,distraction,learningDuration});
 });
