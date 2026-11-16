@@ -167,7 +167,7 @@ function handle(el){if(!api||!el?.dataset?.action?.startsWith('quest-'))return f
  case 'quest-return-complete':if(session.phase==='active'){api.completeReturn?.(id);api.render();}break;
  case 'quest-remove-focus':if(session.phase==='active')set({startedIds:session.startedIds.filter(x=>x!==id)});break;
  case 'quest-move-focus':if(session.phase==='active')moveFocus(id,Number(el.dataset.direction)||0);break;
- case 'quest-add-more':set({phase:'pick',addMethod:'manual',questIds:[],replaceStarted:false,limitMinutes:null,limitCount:null});break;
+ case 'quest-add-more':{const selected=session.startedIds.filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return canUseTask(board,t)&&!t.done&&!t.archived;});set({phase:'pick',addMethod:'manual',questIds:selected,replaceStarted:selected.length>0,limitMinutes:null,limitCount:null});break;}
  case 'quest-pick-method':{const method=['amount','time','manual'].includes(id)?id:'manual';set({phase:'pick',addMethod:method,questIds:session.replaceStarted?session.questIds:[],limitCount:method==='amount'?session.limitCount:null,limitMinutes:method==='time'?(session.limitMinutes||15):null});break;}
  case 'quest-cancel-change':if(session.phase==='pick'&&session.replaceStarted)set({phase:'active',questIds:[],replaceStarted:false});break;
  case 'quest-tab':questTab=id==='side'?'side':'main';set({questTab});break;
