@@ -173,7 +173,7 @@ function addSuggestion(board,id,M){
  if(matching)return {id:matching.id,added:false};
  const today=M.date(),seasonal=choice.seasonMonth&&globalThis.TidyOccasional?.seasonNext?globalThis.TidyOccasional.seasonNext(choice.seasonMonth,new Date(today+'T12:00:00'),choice.seasonDay):'';
  const nextDue=seasonal|| (choice.repeatMonths?M.months(today,choice.repeatMonths):choice.repeatDays?M.plus(today,choice.repeatDays):'');
- const occasional=choice.repeatMonths>=2||choice.seasonMonth>0,idForTask=occasional&&choice.sourceId?'tidy-occasional:'+choice.sourceId:M.uid();
+ const occasional=['Occasional','Seasonal'].includes(choice.section)&&(choice.repeatMonths>=2||choice.seasonMonth>0),idForTask=occasional&&choice.sourceId?'tidy-occasional:'+choice.sourceId:M.uid();
  const created=M.task({id:idForTask,room:choice.room,title:choice.title,priority:choice.priority,messImpact:choice.messImpact,taskType:choice.taskType,tags:[...choice.tags],estimate:choice.estimate,repeatDays:choice.repeatDays,repeatMonths:choice.repeatMonths,seasonMonth:choice.seasonMonth,seasonDay:choice.seasonDay,nextDue,occasionKind:occasional?'occasional':'',calendarEnabled:occasional,occasionSourceId:occasional?choice.sourceId:'',checkDays:choice.checkDays,conditionMode:choice.conditionMode,tools:choice.tools,notes:choice.notes,section:choice.section,source:'optional-library',children:[]});
  created.children=choice.subtasks.map(x=>M.child({title:typeof x==='string'?x:x.title||'',followupTitle:typeof x==='string'?'':x.followupTitle||'',parentId:created.id}));
  M.add(board,created);return {id:created.id,added:true};

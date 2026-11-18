@@ -1,5 +1,5 @@
 /* Step 11: default long-interval jobs from the owner's Base Schedule, no weekly wizard. */
-(function(root,factory){const api=factory(root.TidyBase95);if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.TidyOccasional=api;})(typeof globalThis!=='undefined'?globalThis:this,function(base){'use strict';
+(function(root,factory){const api=factory(typeof module==='object'&&module.exports?require('./base-schedule-95.js'):root.TidyBase95);if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.TidyOccasional=api;})(typeof globalThis!=='undefined'?globalThis:this,function(base){'use strict';
 function effectiveMonths(row){
  const text=String(row?.sourceFrequency||'').trim().toLowerCase();
  // The owner's source has a handful of mistyped 6-monthly/2-monthly labels
@@ -9,7 +9,21 @@ function effectiveMonths(row){
  if(match&&Number(match[1])>=2&&Number(match[1])<=120)return Number(match[1]);
  return Number(row?.repeatMonths)||0;
 }
-const OWNER_ROWS=(Array.isArray(base)?base:[]).map(row=>({...row,repeatMonths:effectiveMonths(row)})).filter(x=>Number(x.repeatMonths)>=2||Number(x.seasonMonth)>=1);
+const BASE_ROWS=Array.isArray(base)?base:[],baseById=new Map(BASE_ROWS.map(row=>[row.id,row]));
+const occasionalSection=row=>['Occasional','Seasonal'].includes(row?.section);
+const OWNER_ROWS=BASE_ROWS.filter(occasionalSection).map(row=>({...row,repeatMonths:effectiveMonths(row)})).filter(x=>Number(x.repeatMonths)>=2||Number(x.seasonMonth)>=1);
+// Existing misclassified imports remain untouched in the all-jobs manager.
+// Their stable provenance, not a title or recurrence guess, determines display eligibility.
+function isOccasional(t){
+ if(t?.occasionKind!=='occasional')return false;
+ const source=baseById.get(t.occasionSourceId)||baseById.get(String(t.id||'').replace(/^tidy-occasional:/,''));
+ return !source||occasionalSection(source);
+}
+function validDay(day){if(typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;const d=new Date(day+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day;}
+function dueTasks(board,now=new Date()){
+ if(!Number.isFinite(now.getTime()))throw Error('Invalid check date.');
+ const today=dayKey(now);return (board.tasks||[]).filter(t=>isOccasional(t)&&!t.archived&&!t.side&&!(t.paused&&(!t.pauseUntil||t.pauseUntil>today))&&validDay(t.nextDue)&&t.nextDue<=today).sort((a,b)=>a.nextDue.localeCompare(b.nextDue)||a.title.localeCompare(b.title));
+}
 const CATEGORY_ROOM={"Downstairs Entrance":'entrance',"Cat tray landing (upstairs landing)":'cats',"Penny's Bedroom":'penny',"Master Bedroom":'master',"Bathroom":'bathroom',"Living Room":'living',"Kitchen":'kitchen',"Cat Tray Area":'cats',"Craft & Storage Room":'storage'};
 const dayKey=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 function seasonNext(month,from=new Date(),seasonDay=15){
@@ -68,10 +82,12 @@ function validate(input){const months=Number(input.repeatMonths),season=Number(i
 function staleChecks(board,now=new Date()){
  const today=dayKey(now);if(!Number.isFinite(now.getTime()))throw Error('Invalid check date.');
  const elapsed=at=>{if(typeof at!=='string'||!at.trim())return null;const d=new Date(at);if(!Number.isFinite(d.getTime())||d>now)return null;return Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);};
- return (board.tasks||[]).filter(t=>!t.occasionKind&&!t.archived&&!t.side&&!t.littleOften&&!t.dailyGrind&&!t.careTask&&!t.scheduleMakerManaged&&!t.tidyScheduleV3&&!t.oneOff&&t.showInSuggestions!==false&&!['care','laundry','little-often','pet','plant'].includes(t.taskType)&&!(t.paused&&(!t.pauseUntil||t.pauseUntil>today))&&Number(t.checkDays)>0).map(t=>{
-  const wins=(board.features?.wins||[]).filter(w=>w.taskId===t.id&&Date.parse(w.at)<=now.getTime());const candidates=[t.completedAt,...wins.map(w=>w.at)].filter(a=>elapsed(a)!==null).sort((a,b)=>Date.parse(b)-Date.parse(a));
+ return (board.tasks||[]).filter(t=>!t.occasionKind&&!t.archived&&!t.side&&!t.littleOften&&!t.dailyGrind&&!t.careTask&&!t.scheduleMakerManaged&&!t.tidyScheduleV3&&!t.oneOff&&t.showInSuggestions!==false&&!['care','laundry','little-often','pet','plant'].includes(t.taskType)&&!(t.paused&&(!t.pauseUntil||t.pauseUntil>today))&&Number.isFinite(Number(t.checkDays))&&Number(t.checkDays)>0).map(t=>{
+  // A root win or the explicit whole-task completedAt is evidence of completion.
+  // Child-only history after a reset cannot establish a full completion.
+  const wins=(board.features?.wins||[]).filter(w=>w.taskId===t.id&&(!w.rootId||w.rootId===t.id));const candidates=[t.completedAt,...wins.map(w=>w.at)].filter(a=>elapsed(a)!==null).sort((a,b)=>Date.parse(b)-Date.parse(a));
   const lastDone=candidates[0],days=lastDone?elapsed(lastDone):null;return {task:t,days,lastDone};
  }).filter(x=>x.days!==null&&x.days>=Number(x.task.checkDays)).sort((a,b)=>b.days-a.days||a.task.title.localeCompare(b.task.title));
 }
-return Object.freeze({staleChecks,OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey});
+return Object.freeze({dueTasks,staleChecks,OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey});
 });
