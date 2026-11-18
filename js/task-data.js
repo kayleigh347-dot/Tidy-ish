@@ -95,7 +95,7 @@
     const isChild=!!task&&task.id!==id;
     const family=isChild?descendants(task,id):new Set(task?[task.id,...task.children.map(c=>c.id)]:[id]);
     const wins=(board.features?.wins||[]).filter(w=>family.has(w.taskId)||(!isChild&&w.rootId===rootId)).sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
-    // Each timer estimate belongs to the exact Quest ID, never a sibling subtask.
+    // Each timer estimate belongs to the exact Task ID, never a sibling subtask.
     const attempts=(board.features?.questTimings||[]).filter(r=>r.taskId===id).sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
     const archives=(board.features?.taskDataArchives||[]).filter(a=>family.has(a.taskId)||(!isChild&&a.rootId===rootId));
     const completionArchives=archives.filter(a=>a.kind==='completion');
@@ -133,7 +133,7 @@
   function planArchive(board,id,beforeDate){
     const date=String(beforeDate||'');if(!validDay(date))throw Error('Choose a valid date before removing history.');
     const [y,m,d]=date.split('-').map(Number),cutoff=new Date(y,m-1,d).getTime();if(!Number.isFinite(cutoff))throw Error('Choose a valid date before removing history.');
-    const task=(board.tasks||[]).find(t=>t.id===id||t.children?.some(c=>c.id===id));if(!task)throw Error('Quest not found. No history was changed.');
+    const task=(board.tasks||[]).find(t=>t.id===id||t.children?.some(c=>c.id===id));if(!task)throw Error('Task not found. No history was changed.');
     const isChild=task.id!==id;
     const family=new Set(task.id===id?[task.id,...task.children.map(c=>c.id)]:descendants(task,id));
     const wins=(board.features?.wins||[]),attempts=(board.features?.questTimings||[]);

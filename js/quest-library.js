@@ -178,5 +178,64 @@ function addSuggestion(board,id,M){
  created.children=choice.subtasks.map(x=>M.child({title:typeof x==='string'?x:x.title||'',followupTitle:typeof x==='string'?'':x.followupTitle||'',parentId:created.id}));
  M.add(board,created);return {id:created.id,added:true};
 }
-return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,autocompleteSavedTasks,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,SUGGESTIONS});
+// Custom-library visibility is a projection, never a task deletion or history mutation.
+const CUSTOM_VISIBLE_MS=30*24*60*60*1000;
+function isCustomTask(t){
+ if(!t||typeof t.id!=='string'||!String(t.title||'').trim())return false;
+ if(t.archived||t.generatedFrom||t.templateId||t.scheduleMakerManaged||t.tidyScheduleV3||t.littleOften||t.dailyGrind||t.careTask||t.occasionKind||t.occasionSourceId||t.baseScheduleKey)return false;
+ if(t.source&& !['custom','manual','user'].includes(t.source))return false;
+ return kindAllowed({...t,side:false});
+}
+function linkedTemplate(board,t){return (board.features?.templates||[]).find(x=>x.sourceTaskId===t.id)||null;}
+function matchesLibrary(t,opts){return (opts.room==='all'||t.room===opts.room)&&(opts.priority==='all'||Number(t.priority)===Number(opts.priority))&&(!opts.tag||tags(t).some(tag=>fold(tag)===fold(opts.tag)))&&scoring(t,opts.query)>0;}
+function libraryRows(board,options={}){
+ const opts={room:'all',priority:'all',tag:'',query:'',...options},now=new Date(opts.now??Date.now()).getTime();if(!Number.isFinite(now))throw Error('Invalid library reference date.');
+ const hidden=new Set(board.features?.hiddenCustomLibraryIds||[]),hiddenTemplates=new Set(board.features?.hiddenTemplates||[]),names=new Map((board.rooms||[]).map(r=>[r.id,r.name]));
+ const decorate=(t,kind)=>({...t,kind,roomName:names.get(t.room)||'General',tags:tags(t),hidden:kind==='template'&&hiddenTemplates.has(t.id)});
+ const sort=(a,b)=>scoring(b,opts.query)-scoring(a,opts.query)||a.title.localeCompare(b.title)||a.id.localeCompare(b.id);
+ const custom=(board.tasks||[]).filter(t=>isCustomTask(t)&&!linkedTemplate(board,t)&&!hidden.has(t.id)).filter(t=>{const created=Date.parse(t.createdAt);return t.libraryCreationUnknown===true||!Number.isFinite(created)||created>now||now-created<CUSTOM_VISIBLE_MS;}).map(t=>decorate(t,'custom')).filter(t=>matchesLibrary(t,opts)).sort(sort);
+ const saved=(board.features?.templates||[]).map(t=>decorate(t,'template')).filter(t=>matchesLibrary(t,opts)).sort(sort);
+ return {custom,saved};
+}
+function hideCustom(board,id,now=Date.now()){
+ if(!libraryRows(board,{now}).custom.some(t=>t.id===id))throw Error('This custom library entry is no longer available.');
+ board.features.hiddenCustomLibraryIds=[...new Set([...(board.features.hiddenCustomLibraryIds||[]),id])];
+}
+function saveCustom(board,id,M,now=Date.now()){
+ if(!libraryRows(board,{now}).custom.some(t=>t.id===id))throw Error('This custom library entry is no longer available.');
+ return saveFromTask(board,id,M);
+}
+function saveFromTask(board,id,M){
+ const original=(board.tasks||[]).find(t=>t.id===id);if(!original)throw Error('Task not found.');
+ if(linkedTemplate(board,original)||(board.features.templates||[]).some(t=>t.id===original.templateId))throw Error('This task already has a saved reusable template.');
+ // Explicit template saving preserves definitions; autocomplete remains a smaller, non-scheduling draft.
+ // Allowlist rather than cloning a live occurrence (which can contain history, timers or shared IDs).
+ const fields={...draftFromSavedTask(original),room:original.room,side:!!original.side,sideKind:original.sideKind||'organisation',checkDays:Number(original.checkDays)||0,conditionMode:original.conditionMode||'as-needed',showInSuggestions:original.showInSuggestions!==false};
+ const definitionKeys=['attention','area','image','followupTitle','rankPriorityWeight','rankRecencyWeight','rankMessWeight','repeatDays','repeatMonths','repeatWeekdays','repeatRestDays','seasonMonth','seasonDay','oneOff','warningEnabled','warningFirstDue','warningRepeatDays','warningAmberDays','warningRedDays','warningFlashingDays'];
+ for(const key of definitionKeys)if(original[key]!==undefined)fields[key]=M.clone(original[key]);
+ // Ordinary tasks may have an explicitly chosen calendar definition. Never copy a managed/generated
+ // occurrence's calendar placement, schedule ownership, current due dates or per-occurrence overrides.
+ if(!original.occasionKind&&!original.occasionSourceId&&!original.scheduleMakerManaged&&!original.tidyScheduleV3&&!original.scheduleSpec&&!original.generatedFrom&&!original.baseScheduleKey){
+  if(typeof original.calendarEnabled==='boolean')fields.calendarEnabled=original.calendarEnabled;
+  const calendar=original.calendarSchedule;
+  if(calendar&&['once','days','months'].includes(calendar.unit))fields.calendarSchedule={firstDue:calendar.firstDue||'',unit:calendar.unit,every:calendar.every};
+ }
+ const ids=new Map((original.children||[]).map(c=>[c.id,M.uid()]));
+ const saved=M.task({...fields,sourceTaskId:original.id,children:(original.children||[]).map(c=>M.child({id:ids.get(c.id),parentId:ids.get(c.parentId)||'',title:c.title,tools:c.tools||'',notes:c.notes||'',estimate:Number(c.estimate)||0,followupTitle:c.followupTitle||'',oneOff:!!c.oneOff}))});
+ board.features.templates.unshift(saved);return saved;
+}
+function removeSaved(board,id){
+ if(!(board.features.templates||[]).some(t=>t.id===id))throw Error('Saved task not found.');
+ board.features.templates=board.features.templates.filter(t=>t.id!==id);board.features.hiddenTemplates=(board.features.hiddenTemplates||[]).filter(key=>key!==id);
+}
+function activateSaved(board,id,selectedRooms,doing,M){
+ const t=(board.features.templates||[]).find(x=>x.id===id);if(!t||(board.features.hiddenTemplates||[]).includes(id))throw Error('Saved task not available.');
+ for(const room of [...new Set(selectedRooms)]){
+  if(!board.rooms.some(r=>r.id===room&&!r.archived))throw Error('Choose an available room.');
+  const active=board.tasks.find(x=>x.room===room&&!x.archived&&!!x.side===!!t.side&&(x.templateId===id||x.id===t.sourceTaskId));
+  if(active){if(active.done){if(active.side)throw Error('This completed side task is kept in history. Add the reusable task to another room or edit the template.');M.reactivate(board,active.id);}if(doing)M.select(board,active.id,true);}
+  else {const duplicate=findDuplicateTask(board,t.title,room,!!t.side);if(duplicate)throw Error('A task with this title already exists in this room. Choose or edit that task instead.');M.add(board,M.templateCopy(t,room,doing));}
+ }
+}
+return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,autocompleteSavedTasks,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,isCustomTask,linkedTemplate,libraryRows,hideCustom,saveCustom,saveFromTask,removeSaved,activateSaved,SUGGESTIONS});
 });
