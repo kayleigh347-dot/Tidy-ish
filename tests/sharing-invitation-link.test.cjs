@@ -161,11 +161,11 @@ test('failed join preserves invitation for retry; does not discard or import rec
 
 test('layout release advances app version and preserves the invitation-safe sharing and history asset versions',()=>{
  assert.match(html,/js\/sharing\.js\?v=20261115-invite-link-qa1/);
- assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1"'));
+ assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1"'));
  assert.ok(html.includes('css/task-data-completed-rows.css?v=20261115-local-prototype1"'),'Protected asset: css/task-data-completed-rows.css');
  assert.ok(html.includes('css/task-data-daily-view.css?v=20261115-daily-view1"'),'Protected asset: css/task-data-daily-view.css');
  assert.ok(html.includes('addons/tidyish-daily-log/addon.css?v=20261112-connected1"'),'Protected asset: addons/tidyish-daily-log/addon.css');
- assert.ok(html.includes('js/task-data.js?v=20261104-timer-task-title1"'),'Protected asset: js/task-data.js');
+ assert.ok(html.includes('js/task-data.js?v=20261104-timer-task-title1-management1"'),'Protected asset: js/task-data.js');
  assert.ok(html.includes('js/daily-log-host.js?v=20261114-stage2"'),'Protected asset: js/daily-log-host.js');
  assert.ok(html.includes('js/sharing-model.js?v=20261112-connected1"'),'Protected asset: js/sharing-model.js');
  assert.ok(html.includes('js/sharing.js?v=20261115-invite-link-qa1"'),'Protected asset: js/sharing.js');

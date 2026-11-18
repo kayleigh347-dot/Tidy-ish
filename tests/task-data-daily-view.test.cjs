@@ -23,7 +23,7 @@ function boardWithHistory(){
 
 test('Task Data initially opens the dedicated daily screen, retaining other views',()=>{
  assert.match(app, /dataVisible=12,dataView='day',dataDay=M\.date\(\)/);
- for(const marker of ["['overview','Overview']","['day','Day']","['rooms','Rooms']","['quests','Quests']","['focus','Focus & timers']","['daybook','Daily Log']"])
+ for(const marker of ["['overview','Overview']","['day','Day']","['rooms','Rooms']","['quests','Tasks']","['focus','Focus & timers']","['daybook','Daily Log']"])
   assert.ok(app.includes(marker),marker);
  assert.match(app, /<h2>Daily view<\/h2>/);
  assert.match(app, /task-data-daily-view/);

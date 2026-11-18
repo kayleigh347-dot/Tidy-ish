@@ -13,7 +13,7 @@ test('bottom navigation has the six requested destinations and supplied artwork'
  assert.match(app,/function focusHubPage\(\)[\s\S]*?focus-hub-doing[\s\S]*?focus-hub-room/);
  assert.match(app,/focus-hub':'Focus'/);
  assert.match(app,/route==='focus-hub'\?focusHubPage\(\)/);
- assert.match(app,/\['side','Side Quests'\]/);
+ assert.match(app,/\['side','Side Tasks'\]/);
 });
 
 test('saved Room and Doing Now Focus sessions offer Resume or Start new',()=>{
