@@ -58,7 +58,7 @@ test('automatically seeded defaults are on the calendar and cannot be duplicated
 });
 test('UI does not show Speak a Sidequest nor Daily Grind heading on Home',()=>{
  const tiles=app.match(/function dailyGrindTiles\(\)\{return `([\s\S]*?)`;\}/);assert.ok(tiles);
- assert.doesNotMatch(tiles[1],/Speak a Sidequest/);
+ assert.doesNotMatch(tiles[1],/Speak a (?:Sidequest|side task)/i);
  assert.doesNotMatch(tiles[1],/<h2>Daily Grind<\/h2>/);
  assert.doesNotMatch(app,/button\('🎙','voice-capture'/);
 });

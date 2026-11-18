@@ -167,8 +167,13 @@ test('Add Saved Task still reactivates its completed matching Quest', () => {
   const end = source.indexOf("'pause-task':", start);
   assert.ok(start >= 0 && end > start);
   const handler = source.slice(start, end);
-  assert.match(handler, /if\(active\.done\)M\.reactivate\(b,active\.id\)/);
-  assert.match(handler, /else M\.add\(b,M\.templateCopy\(t,id,fd\.has\('doing'\)\)\)/);
+  assert.match(handler, /L\.activateSaved\(b,t\.id,rs,fd\.has\('doing'\),M\)/);
+  const L=require('../js/quest-library.js'),b=M.board();
+  const t=M.task({title:'Dust',room:'kitchen'});b.features.templates.push(t);
+  const existing=M.templateCopy(t,'kitchen');M.add(b,existing);M.finish(b,existing.id,true);
+  const history=JSON.stringify(b.features.wins);L.activateSaved(b,t.id,['kitchen'],true,M);
+  assert.equal(b.tasks.length,1);assert.equal(b.tasks[0].id,existing.id);assert.equal(b.tasks[0].done,false);assert.equal(b.tasks[0].doing,true);assert.equal(JSON.stringify(b.features.wins),history);
+  L.activateSaved(b,t.id,['living'],false,M);assert.equal(b.tasks.length,2);assert.equal(b.tasks[0].templateId,t.id);assert.equal(b.tasks[0].room,'living');
 });
 
 test('selecting saved task copies time and mess impact without opening More options', () => {

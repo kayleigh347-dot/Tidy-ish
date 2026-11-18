@@ -72,7 +72,7 @@
     : (cleanPercent(mess)===100?'✨Spotless✨':cleanPercent(mess)===0?'only way is up':'Messy-ish');
   function features() {
     return {
-      items:[],wins:[],completionSummaries:[],templates:[],hiddenTemplates:[],
+      items:[],wins:[],completionSummaries:[],templates:[],hiddenTemplates:[],hiddenCustomLibraryIds:[],
       laundry:[{slot:1,route:'',step:0,selected:false}],laundryCycleVersion:1,
       wash:'Put a load on',railTransfer:'Put out washing',dryerTransfer:'Put in dryer',
       railFinish:'Move dry clothes from rail',dryerFinish:'Empty dryer',
@@ -148,7 +148,7 @@
         if(typeof c.title!=='string'||(c.parentId&&c.parentId!==t.id&&!known.has(c.parentId)))throw Error('Invalid subtask parent/name; original saved data preserved.');
         let at=c,visited=new Set();while(at.parentId){if(visited.has(at.id))throw Error('Circular subtask nesting; original saved data preserved.');visited.add(at.id);at=t.children.find(x=>x.id===at.parentId);if(!at)break;}
       }
-      return task({...t,children:t.children.map(c=>child(c))});
+      return task({...t,...(!Object.hasOwn(t,'createdAt')?{libraryCreationUnknown:true}:{}),children:t.children.map(c=>child(c))});
     });
     let f=b.features;
     if(typeof f==='string') {try{f=JSON.parse(f);}catch{throw Error('Invalid saved feature data. Original saved data preserved.');}}
@@ -165,7 +165,7 @@
       b.features.laundryCycleVersion=1;
     }
     if(b.features.railFinish==='Put away clothes on rail')b.features.railFinish='Move dry clothes from rail';
-    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','laundry','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes','gifts','giftPeople'])
+    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','hiddenCustomLibraryIds','laundry','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes','gifts','giftPeople'])
       if(!Array.isArray(b.features[name]))throw Error(`Invalid saved ${name}; original saved data preserved.`);
     const giftIds=new Set();for(const gift of b.features.gifts){if(!isObject(gift)||typeof gift.id!=='string'||!gift.id||giftIds.has(gift.id)||!['christmas','birthday'].includes(gift.occasion)||typeof gift.recipient!=='string'||typeof gift.title!=='string'||gift.recipientId!==undefined&&typeof gift.recipientId!=='string'||!Number.isFinite(Number(gift.budget))||Number(gift.budget)<0||!Number.isFinite(Number(gift.spent))||Number(gift.spent)<0||!['idea','bought','wrapped'].includes(gift.status))throw Error('Invalid saved gift record; original saved data preserved.');giftIds.add(gift.id);}
     const personIds=new Set();for(const person of b.features.giftPeople){if(!isObject(person)||typeof person.id!=='string'||!person.id||personIds.has(person.id)||typeof person.name!=='string'||!person.name.trim()||person.name.length>100||person.tracker!==undefined&&typeof person.tracker!=='boolean'||person.checkoffs!==undefined&&(!isObject(person.checkoffs)||Object.values(person.checkoffs).some(value=>typeof value!=='boolean'))||person.ideas!==undefined&&(!Array.isArray(person.ideas)||person.ideas.length>100||person.ideas.some(idea=>typeof idea!=='string'||idea.length>160)))throw Error('Invalid saved gift person; original saved data preserved.');personIds.add(person.id);}
@@ -300,7 +300,7 @@
       b.doingOrder=b.doingOrder.filter(x=>b.tasks.some(t=>t.id===x));
     }
   }
-  // Restart a repeatable / as-needed Quest without pretending the previous win never happened.
+  // Restart a repeatable / as-needed Task without pretending the previous win never happened.
   // Undo still applies only to the latest completion, not to archived completion records.
   function reopenWarningCycle(t){
     if(!t?.done)return t;
@@ -312,8 +312,8 @@
   }
   function reactivate(b,id){
     const t=b.tasks.find(x=>x.id===id);
-    if(!t)throw Error('Quest not found. Nothing changed.');
-    if(t.side||t.scheduleMakerManaged||t.tidyScheduleV3)throw Error('This Quest is managed by another system. Nothing changed.');
+    if(!t)throw Error('Task not found. Nothing changed.');
+    if(t.side||t.scheduleMakerManaged||t.tidyScheduleV3)throw Error('This Task is managed by another system. Nothing changed.');
     return reopenWarningCycle(t);
   }
   function completeChild(b,id,childId,done){

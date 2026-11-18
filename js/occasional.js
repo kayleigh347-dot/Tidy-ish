@@ -65,5 +65,13 @@ function complete(board,id,Model,now=new Date()){
 }
 function undo(board,id){const t=board.tasks.find(x=>x.id===id&&x.occasionKind==='occasional');if(!t?._occasionalUndo)return false;const {winId,nextDue}=t._occasionalUndo;if(!board.features.wins.some(w=>w.id===winId))throw Error('Previous completion missing; history unchanged.');board.features.wins=board.features.wins.filter(w=>w.id!==winId);t.nextDue=nextDue;if(t.calendarSchedule&&t._occasionalUndo.calendarFirstDue!==null&&t._occasionalUndo.calendarFirstDue!==undefined)t.calendarSchedule.firstDue=t._occasionalUndo.calendarFirstDue;const previous=board.features.wins.filter(w=>w.taskId===id).sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];t.completedAt=previous?.at||'';delete t._occasionalUndo;return true;}
 function validate(input){const months=Number(input.repeatMonths),season=Number(input.seasonMonth)||0;if(!Number.isInteger(months)||months<1||months>120)throw Error('Occasional tasks repeat every 1 to 120 months.');if(!Number.isInteger(season)||season<0||season>12)throw Error('Seasonal month must be January–December, or none.');if(!input.title?.trim())throw Error('Enter a task name.');if(input.nextDue&&!/^\d{4}-\d{2}-\d{2}$/.test(input.nextDue))throw Error('Choose a valid date.');return {months,season};}
-return Object.freeze({OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey});
+function staleChecks(board,now=new Date()){
+ const today=dayKey(now);if(!Number.isFinite(now.getTime()))throw Error('Invalid check date.');
+ const elapsed=at=>{if(typeof at!=='string'||!at.trim())return null;const d=new Date(at);if(!Number.isFinite(d.getTime())||d>now)return null;return Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()))/86400000);};
+ return (board.tasks||[]).filter(t=>!t.occasionKind&&!t.archived&&!t.side&&!t.littleOften&&!t.dailyGrind&&!t.careTask&&!t.scheduleMakerManaged&&!t.tidyScheduleV3&&!t.oneOff&&t.showInSuggestions!==false&&!['care','laundry','little-often','pet','plant'].includes(t.taskType)&&!(t.paused&&(!t.pauseUntil||t.pauseUntil>today))&&Number(t.checkDays)>0).map(t=>{
+  const wins=(board.features?.wins||[]).filter(w=>w.taskId===t.id&&Date.parse(w.at)<=now.getTime());const candidates=[t.completedAt,...wins.map(w=>w.at)].filter(a=>elapsed(a)!==null).sort((a,b)=>Date.parse(b)-Date.parse(a));
+  const lastDone=candidates[0],days=lastDone?elapsed(lastDone):null;return {task:t,days,lastDone};
+ }).filter(x=>x.days!==null&&x.days>=Number(x.task.checkDays)).sort((a,b)=>b.days-a.days||a.task.title.localeCompare(b.task.title));
+}
+return Object.freeze({staleChecks,OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey});
 });
