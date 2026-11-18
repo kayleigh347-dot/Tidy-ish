@@ -73,7 +73,7 @@
   function features() {
     return {
       items:[],wins:[],completionSummaries:[],templates:[],hiddenTemplates:[],hiddenCustomLibraryIds:[],
-      laundry:[{slot:1,route:'',step:0,selected:false}],laundryCycleVersion:1,
+      laundry:[{slot:1,route:'',step:0,selected:false}],laundryCycleVersion:1,customLaundryCycles:[],customLaundryLoads:[],careDefinitions:[],
       wash:'Put a load on',railTransfer:'Put out washing',dryerTransfer:'Put in dryer',
       railFinish:'Move dry clothes from rail',dryerFinish:'Empty dryer',
       uniformSteps:[...STANDARD_UNIFORM],uniformIndex:-1,uniformWeek:'',uniformPaused:false,
@@ -165,8 +165,9 @@
       b.features.laundryCycleVersion=1;
     }
     if(b.features.railFinish==='Put away clothes on rail')b.features.railFinish='Move dry clothes from rail';
-    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','hiddenCustomLibraryIds','laundry','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes','gifts','giftPeople'])
+    for(const name of ['items','wins','completionSummaries','templates','hiddenTemplates','hiddenCustomLibraryIds','laundry','customLaundryCycles','customLaundryLoads','careDefinitions','routines','tools','focusSessions','sideTabs','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','uniformSteps','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes','gifts','giftPeople'])
       if(!Array.isArray(b.features[name]))throw Error(`Invalid saved ${name}; original saved data preserved.`);
+    validateRoutineDefinitions(b.features);
     const giftIds=new Set();for(const gift of b.features.gifts){if(!isObject(gift)||typeof gift.id!=='string'||!gift.id||giftIds.has(gift.id)||!['christmas','birthday'].includes(gift.occasion)||typeof gift.recipient!=='string'||typeof gift.title!=='string'||gift.recipientId!==undefined&&typeof gift.recipientId!=='string'||!Number.isFinite(Number(gift.budget))||Number(gift.budget)<0||!Number.isFinite(Number(gift.spent))||Number(gift.spent)<0||!['idea','bought','wrapped'].includes(gift.status))throw Error('Invalid saved gift record; original saved data preserved.');giftIds.add(gift.id);}
     const personIds=new Set();for(const person of b.features.giftPeople){if(!isObject(person)||typeof person.id!=='string'||!person.id||personIds.has(person.id)||typeof person.name!=='string'||!person.name.trim()||person.name.length>100||person.tracker!==undefined&&typeof person.tracker!=='boolean'||person.checkoffs!==undefined&&(!isObject(person.checkoffs)||Object.values(person.checkoffs).some(value=>typeof value!=='boolean'))||person.ideas!==undefined&&(!Array.isArray(person.ideas)||person.ideas.length>100||person.ideas.some(idea=>typeof idea!=='string'||idea.length>160)))throw Error('Invalid saved gift person; original saved data preserved.');personIds.add(person.id);}
     // Merge the former Cat Tray Area and Upstairs Landing into one room. Keep the
@@ -390,6 +391,33 @@
       while(day<=end&&limit++<4000){if(day>=start&&!t.skippedDates?.includes(day)){const shown=t.calendarMoves?.[day]||day;if(shown>=start&&shown<=end)out.push({task:t,original:day,date:shown});}if(t.occasionKind==='occasional')break;const updated=next(t,day);if(updated<=day)break;day=updated;}
     }return out.sort((a,b)=>a.date.localeCompare(b.date));
   }
+  // New custom cycles are intentionally browser-local until a mixed-client live sync
+  // path is verified. The legacy three-step standard load schema stays untouched.
+  function cycleSteps(values){
+    if(!Array.isArray(values)||values.length<1||values.length>20||values.some(x=>typeof x!=='string'||!x.trim()||x.trim().length>140))throw Error('Enter 1–20 steps, each 1–140 characters.');
+    return values.map(x=>x.trim());
+  }
+  function cycleName(value){const name=String(value??'').trim();if(!name||name.length>80)throw Error('Enter a cycle name of 1–80 characters.');return name;}
+  function validateRoutineDefinitions(f){
+    const unique=(rows,validate)=>{const ids=new Set();for(const row of rows){if(!isObject(row)||typeof row.id!=='string'||!row.id||ids.has(row.id))throw Error('Invalid saved routine identity; original saved data preserved.');validate(row);ids.add(row.id);}};
+    unique(f.customLaundryCycles,x=>{cycleName(x.name);cycleSteps(x.steps);if(typeof x.reminderAfterFirst!=='boolean')throw Error('Invalid saved custom cycle reminder.');});
+    unique(f.customLaundryLoads,x=>{cycleName(x.name);cycleSteps(x.steps);if(typeof x.cycleId!=='string'||!x.cycleId||!Number.isInteger(x.step)||x.step<0||x.step>x.steps.length||typeof x.reminderAfterFirst!=='boolean'||!Number.isFinite(x.startedAt)||x.startedAt<0||!Number.isFinite(x.lastReminderAt)||x.lastReminderAt<0)throw Error('Invalid saved custom laundry progress.');if(x.undo&&(!isObject(x.undo)||typeof x.undo.winId!=='string'||!x.undo.winId||x.undo.step!==x.step-1||!Number.isFinite(x.undo.startedAt)||x.undo.startedAt<0||!Number.isFinite(x.undo.lastReminderAt)||x.undo.lastReminderAt<0))throw Error('Invalid saved custom laundry undo.');});
+    unique(f.careDefinitions,x=>{if(typeof x.title!=='string'||!x.title.trim()||x.title.length>140||typeof x.warning!=='string'||x.warning.length>200||!['cat','aquatic','custom'].includes(x.group)||!['daily','weekly','every-two','monthly','plants','interval'].includes(x.type)||x.type==='interval'&&(!Number.isInteger(x.intervalDays)||x.intervalDays<1||x.intervalDays>365))throw Error('Invalid saved care definition.');});
+  }
+  function saveCustomCycle(b,id,values){const f=b.features,prior=id?f.customLaundryCycles.find(x=>x.id===id):null;if(id&&!prior)throw Error('Cycle no longer exists.');const def={id:prior?.id||'custom-cycle:'+uid(),name:cycleName(values.name),steps:cycleSteps(values.steps),reminderAfterFirst:values.reminderAfterFirst===true};if(prior)Object.assign(prior,def);else f.customLaundryCycles.push(def);return def;}
+  function removeCustomCycle(b,id){b.features.customLaundryCycles=b.features.customLaundryCycles.filter(x=>x.id!==id);}
+  function startCustomLoad(b,cycleId){const f=b.features,definition=f.customLaundryCycles.find(x=>x.id===cycleId);if(!definition)throw Error('Cycle no longer exists.');const load={id:'custom-load:'+uid(),cycleId:definition.id,name:cycleName(definition.name),steps:cycleSteps(definition.steps),reminderAfterFirst:definition.reminderAfterFirst,step:0,startedAt:0,lastReminderAt:0};f.customLaundryLoads.push(load);return load;}
+  function customLaundryNeedsAttention(l,now=Date.now()){return l?.reminderAfterFirst===true&&l.step===1&&l.step<l.steps.length&&l.startedAt>0&&now-l.startedAt>=7200000;}
+  function customLaundryReminderDue(l,now=Date.now()){return customLaundryNeedsAttention(l,now)&&now-l.lastReminderAt>=1800000;}
+  function completeCustomStep(b,id,now=Date.now()){
+    const f=b.features,l=f.customLaundryLoads.find(x=>x.id===id);if(!l||l.step>=l.steps.length)throw Error('No pending custom laundry step.');
+    if(!Number.isFinite(now)||now<=0)throw Error('Invalid completion time.');
+    const win={id:uid(),taskId:'laundry-custom:'+l.id+':'+l.step,rootId:'',title:l.steps[l.step],room:'laundry',at:new Date(now).toISOString(),minutes:0,measured:false,points:1,person:f.displayName||'Me',_kind:'laundry',_laundry:true};
+    l.undo={step:l.step,startedAt:l.startedAt,lastReminderAt:l.lastReminderAt,winId:win.id};f.wins.push(win);l.step++;
+    if(l.step===1&&l.step<l.steps.length&&l.reminderAfterFirst){l.startedAt=now;l.lastReminderAt=0;}else{l.startedAt=0;l.lastReminderAt=0;}
+    return win;
+  }
+  function undoCustomStep(b,id,winId){const f=b.features,l=f.customLaundryLoads.find(x=>x.id===id),u=l?.undo;if(!u||u.winId!==winId||l.step!==u.step+1||!f.wins.some(w=>w.id===winId&&w.taskId==='laundry-custom:'+l.id+':'+u.step))throw Error('That completion is no longer available. No other completion was removed.');f.wins=f.wins.filter(w=>w.id!==winId);l.step=u.step;l.startedAt=u.startedAt;l.lastReminderAt=u.lastReminderAt;delete l.undo;}
   function laundryText(f,l){return l.step===0?f.wash:l.step===1?(l.route==='dryer'?f.dryerTransfer:f.railTransfer):(l.route==='dryer'?f.dryerFinish:f.railFinish);}
   function laundryNeedsAttention(l,now=Date.now()){const started=Number(l?.startedAt);return Number(l?.step)===1&&Number.isFinite(started)&&started>0&&now-started>=7200000;}
   function laundryReminderDue(l,now=Date.now()){return laundryNeedsAttention(l,now)&&now-(Number(l?.lastReminderAt)||0)>=1800000;}
@@ -398,7 +426,7 @@
   function uniform(b){const f=b.features;if(f.uniformIndex<0||f.uniformPaused)return;const snapshot={index:f.uniformIndex,steps:clone(f.uniformSteps),startedAt:f.uniformStartedAt||0};const win=winner(b,{id:`uniform-${uid()}`,title:f.uniformSteps[f.uniformIndex],room:'laundry'},'','laundry');f._uniformUndo={...snapshot,win};f.uniformStartedAt=/^Wash/.test(f.uniformSteps[f.uniformIndex])?Date.now():0;f.uniformIndex++;if(f.uniformIndex>=f.uniformSteps.length-1){const slot=Math.max(0,...f.laundry.map(l=>l.slot))+1;f.laundry.push({slot,step:2,route:'rail',selected:true,uniformWeek:f.uniformWeek,revision:0});f._uniformUndo.handoff=slot;f.uniformIndex=-1;}}
   function undoUniform(b){const f=b.features,u=f._uniformUndo;if(!u)return;if(u.handoff&&f.laundry.find(x=>x.slot===u.handoff)?.revision>0)throw Error('The laundry load has progressed. Undo was not applied.');f.laundry=f.laundry.filter(x=>x.slot!==u.handoff);f.uniformIndex=u.index;f.uniformSteps=u.steps;f.uniformStartedAt=u.startedAt;f.wins=f.wins.filter(w=>w.id!==u.win);delete f._uniformUndo;}
   function templateCopy(source,room,doing=false){const t=clone(source),ids=new Map(t.children.map(c=>[c.id,uid()]));return task({...t,id:uid(),room,templateId:source.id,done:false,doing:!!doing,elapsed:0,startedAt:0,nextDue:'',generatedFrom:'',completedAt:'',_completionIds:[],_finishState:undefined,children:t.children.map(c=>child({...c,id:ids.get(c.id),parentId:ids.get(c.parentId)||'',done:false,elapsed:0,startedAt:0,_winId:undefined}))});}
-  function merge(b,incoming){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}return result;}
+  function merge(b,incoming){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','customLaundryCycles','customLaundryLoads','careDefinitions','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}return result;}
   function focus(b,roomId,routine,steps,selected){
     // Called ONLY after explicit user confirmation in the Focus dialog.
     if(!b.rooms.some(r=>r.id===roomId))throw Error('Choose a room.');
@@ -419,5 +447,6 @@
   return {id:ID,uid,clone,date,plus,months,board,features,task,child,reconcileChildren,normalize,paused,time,repeat,next,
     taskCompletionTime,taskCompletionExpiresAt,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,messBreakdown,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
+    saveCustomCycle,removeCustomCycle,startCustomLoad,completeCustomStep,undoCustomStep,customLaundryNeedsAttention,customLaundryReminderDue,
     laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
 });

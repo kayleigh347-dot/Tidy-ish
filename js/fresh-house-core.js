@@ -26,6 +26,7 @@
    // Reset household-wide cycles and unrelated older aggregate records in a partial transfer.
    const defaults=M.features();
    original.features.laundry=defaults.laundry;
+   for(const key of ['customLaundryCycles','customLaundryLoads','careDefinitions'])original.features[key]=defaults[key];
    for(const key of ['uniformIndex','uniformWeek','uniformPaused','uniformSteps'])original.features[key]=defaults[key];
    original.features.completionSummaries=[];
    original.features.focusSessions=[];

@@ -39,3 +39,18 @@
 .tac-legacy-import{padding:12px;margin:11px 0;border:1px solid rgba(226,199,246,.35);border-radius:12px;background:rgba(255,255,255,.065)}
 .tac-legacy-import p{margin:0 0 8px}
 .fresh-house-selections{max-width:100%;margin:10px 0}.fresh-house-choice-scroll{display:grid;max-height:260px;overflow:auto;gap:6px;padding:10px}.fresh-house-task-choice{display:flex;align-items:center;gap:8px;padding:5px;border-radius:8px;background:rgba(255,255,255,.05)}
+
+/* Daily Routines: compact care and repeatable task grid. */
+.new-grind-page .compact-care-list{gap:6px;padding:6px 0}
+.compact-care-card{gap:4px;padding:8px 10px;border-radius:12px;min-width:0}
+.compact-care-card strong{font-size:.94rem;overflow-wrap:anywhere;flex:1 1 120px}
+.compact-care-card p{margin:0;font-size:.82rem}.compact-care-card .tidy-care-pill{font-size:.72rem;padding:4px 7px}
+.compact-care-card .row{gap:4px}.compact-care-card button{min-height:44px;padding:5px 9px;font-size:.8rem;white-space:normal}
+.little-often-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:8px 0 12px}
+.little-often-cell{display:grid;grid-template-rows:1fr auto;gap:3px;min-width:0;border:1px solid #ffffff28;border-radius:13px;padding:4px;background:#30203f}
+.little-often-cell .little-often-tile{display:grid;align-content:center;gap:4px;width:100%;min-width:0;min-height:68px;padding:8px;white-space:normal;overflow-wrap:anywhere;background:#493362;color:#fff;border:1px solid #a58bc37a;border-radius:10px;text-align:left;box-shadow:none}
+.little-often-tile strong{font-size:.92rem}.little-often-tile small{font-size:.7rem;line-height:1.2}
+.little-often-cell .little-often-tile.recorded{background:#326b47;color:#fff;border-color:#a2dfb0}
+.little-often-options{display:flex;gap:3px}.little-often-options button{flex:1 1 0;min-width:0;min-height:44px;font-size:.72rem;padding:4px;white-space:normal}
+@media(min-width:600px){.little-often-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.custom-laundry-load{padding:8px 0}.custom-cycle-definition{border-bottom:1px solid #ffffff25;padding:4px 0;flex-wrap:wrap}.custom-cycle-definition strong{overflow-wrap:anywhere}.custom-cycle-definition button{min-height:44px}
