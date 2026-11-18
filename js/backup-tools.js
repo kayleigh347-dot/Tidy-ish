@@ -10,8 +10,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const MAX_BYTES = 15 * 1024 * 1024;
-  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes'];
-  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes']);
+  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions'];
+  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions']);
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
   function ids(records, collection) {
@@ -98,7 +98,7 @@
     const original=JSON.stringify(current);
     if(typeof original!=='string')throw Error('The current board is unavailable. Nothing was restored.');
     const source=fromText(text,model);
-    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length}};
+    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length,customLaundryCycles:source.features.customLaundryCycles.length,customLaundryLoads:source.features.customLaundryLoads.length,careDefinitions:source.features.careDefinitions.length}};
   }
 
   function applyRestore(current,prepared,model){
@@ -108,7 +108,7 @@
   }
 
   function describeRestore(summary){
-    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines. Current local board data will be replaced. The restore does not write to a live household.`;
+    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines, ${summary.customLaundryCycles||0} custom laundry cycles, ${summary.customLaundryLoads||0} custom loads and ${summary.careDefinitions||0} care definitions. Current local board data will be replaced. The restore does not write to a live household.`;
   }
 
   function apply(current, prepared, model) {
@@ -127,7 +127,8 @@
     const fragments = [
       ['rooms','rooms'], ['tasks','task families'], ['wins','completion records'],
       ['items','saved items'], ['completionSummaries','completion summaries'],
-      ['templates','reusable definitions'], ['routines','saved routines']
+      ['templates','reusable definitions'], ['routines','saved routines'],
+      ['customLaundryCycles','custom laundry cycles'], ['customLaundryLoads','custom laundry loads'], ['careDefinitions','care definitions']
     ].map(([key,label])=>`${c[key]} new ${label}`);
     return fragments.join(' · ') + '. Existing matching identities, household settings and history stay unchanged. ' + summary.notes.join(' ');
   }

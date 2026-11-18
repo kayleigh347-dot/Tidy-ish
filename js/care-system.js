@@ -8,19 +8,23 @@ const RULES=Object.freeze([
  {id:'isopods',title:'Feed and water isopods',group:'aquatic',warning:'The isopods are hungry.',type:'monthly'},
  {id:'plants',title:'Water plants',group:'aquatic',warning:'',type:'plants'}
 ]);
-const rule=id=>RULES.find(x=>x.id===id);
+// Definitions are browser-local; completion records use the existing shared win format.
+function rules(board){const saved=board?.features?.careDefinitions||[],overrides=new Map(saved.map(r=>[r.id,r]));return RULES.map(r=>({...r,...overrides.get(r.id),id:r.id,group:r.group})).concat(saved.filter(r=>!RULES.some(x=>x.id===r.id)&&r.group==='custom'));}
+const rule=(id,board)=>rules(board).find(x=>x.id===id);
+function saveRule(board,id,values,makeId){const old=id?rule(id,board):null;if(id&&!old)throw Error('Care task no longer exists.');const title=String(values.title??'').trim(),warning=String(values.warning??'').trim(),type=String(values.type),intervalDays=Number(values.intervalDays);if(!title||title.length>140||warning.length>200||!['daily','weekly','every-two','monthly','plants','interval'].includes(type)||type==='interval'&&(!Number.isInteger(intervalDays)||intervalDays<1||intervalDays>365))throw Error('Enter a care task name and valid reminder interval.');const def={id:old?.id||'custom:'+makeId(),group:old?.group||'custom',title,warning,type,...(type==='interval'?{intervalDays}:{})};const saved=board.features.careDefinitions;const existing=saved.findIndex(x=>x.id===def.id);if(existing>=0)saved[existing]=def;else saved.push(def);return def;}
 const CARE_ID=id=>'tidy-care:'+id;
 const colour={green:'Not due',blue:'Due now',orange:'Overdue',red:'Seriously overdue',flashing:'Highest urgency'};
 const midnight=d=>Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());
 function addMonths(date,months){const d=new Date(date.getFullYear(),date.getMonth(),1),last=new Date(d.getFullYear(),d.getMonth()+months+1,0).getDate();return new Date(d.getFullYear(),d.getMonth()+months,Math.min(date.getDate(),last));}
 function wins(board,id){return (board?.features?.wins||[]).filter(w=>w.taskId===CARE_ID(id)).reverse().sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));}
 function status(board,id,now=new Date()){
- const r=rule(id);if(!r)throw Error('Unknown care task');const last=wins(board,id)[0];
+ const r=rule(id,board);if(!r)throw Error('Unknown care task');const last=wins(board,id)[0];
  if(!last)return {state:'blue',label:'Not yet recorded',days:null,last:null,warning:r.warning};
  const d=new Date(last.at),days=Math.max(0,Math.floor((midnight(now)-midnight(d))/86400000));
  let state='green',escalation=0;
  if(r.type==='daily')state=days>=4?'flashing':days>=3?'red':days>=2?'orange':days>=1?'blue':'green';
  else if(r.type==='plants')state=days>=11?'flashing':days>=9?'red':days>=7?'orange':days>=6?'blue':'green';
+ else if(r.type==='interval'){const lag=days-r.intervalDays;if(lag>=3){state='flashing';escalation=3;}else if(lag>=2){state='red';escalation=2;}else if(lag>=1){state='orange';escalation=1;}else if(lag>=0)state='blue';}
  else if(r.type==='weekly'){
   if(days>=10){state='flashing';escalation=3;}else if(days>=9){state='red';escalation=2;}else if(days>=8){state='orange';escalation=1;}else if(days>=7)state='blue';
  }
@@ -32,14 +36,15 @@ function status(board,id,now=new Date()){
  return {state,label,days,last:last.at,warning:r.warning,escalation};
 }
 function complete(board,id,makeId,now=new Date()){
- const r=rule(id);if(!r||!Array.isArray(board?.features?.wins))throw Error('Care record unavailable.');const record={id:makeId(),taskId:CARE_ID(id),rootId:'',title:r.title,room:id==='cat'?'cats':'',at:now.toISOString(),minutes:0,measured:false,points:1,person:board.features.displayName||'Me',_kind:'care'};
+ const r=rule(id,board);if(!r||!Array.isArray(board?.features?.wins))throw Error('Care record unavailable.');const record={id:makeId(),taskId:CARE_ID(id),rootId:'',title:r.title,room:id==='cat'?'cats':'',at:now.toISOString(),minutes:0,measured:false,points:1,person:board.features.displayName||'Me',_kind:'care'};
  board.features.wins.push(record);return record;
 }
-function undo(board,id){const last=wins(board,id)[0];if(!last)return false;board.features.wins=board.features.wins.filter(w=>w.id!==last.id);return true;}
+function undo(board,id,completionId){const records=wins(board,id),target=completionId===undefined?records[0]:records.find(w=>w.id===completionId);if(!target)return false;board.features.wins=board.features.wins.filter(w=>w.id!==target.id);return true;}
 function littleOften(board,id,makeId,now=new Date()){
- const t=board.tasks.find(t=>t.id===id&&t.littleOften&&!t.side);if(!t)throw Error('Quick task not found.');
- board.features.wins.push({id:makeId(),taskId:t.id,rootId:t.id,title:t.title,room:t.room||'',at:now.toISOString(),minutes:0,measured:false,points:1,person:board.features.displayName||'Me',_kind:'little-often'});
+ const t=board.tasks.find(t=>t.id===id&&t.littleOften&&!t.side&&!t.archived);if(!t)throw Error('Quick task not found.');
+ const record={id:makeId(),taskId:t.id,rootId:t.id,title:t.title,room:t.room||'',at:now.toISOString(),minutes:0,measured:false,points:1,person:board.features.displayName||'Me',_kind:'little-often'};board.features.wins.push(record);return record;
 }
-function littleUndo(board,id){const last=(board.features.wins||[]).filter(w=>w.taskId===id).reverse().sort((a,b)=>Date.parse(b.at)-Date.parse(a.at))[0];if(!last)return false;board.features.wins=board.features.wins.filter(w=>w.id!==last.id);return true;}
-return Object.freeze({RULES,rule,wins,status,complete,undo,littleOften,littleUndo,colour,addMonths});
+function littleWins(board,id){return (board.features.wins||[]).filter(w=>w.taskId===id&&w._kind==='little-often').reverse().sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));}
+function littleUndo(board,id,completionId){const records=littleWins(board,id),target=completionId===undefined?records[0]:records.find(w=>w.id===completionId);if(!target)return false;board.features.wins=board.features.wins.filter(w=>w.id!==target.id);return true;}
+return Object.freeze({RULES,rules,rule,saveRule,wins,status,complete,undo,littleOften,littleWins,littleUndo,colour,addMonths});
 });
