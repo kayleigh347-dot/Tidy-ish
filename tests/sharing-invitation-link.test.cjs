@@ -15,7 +15,7 @@ function fixture({href='https://kayleigh347-dot.github.io/Tidy-ish/index.html?qa
  if(storedInvite)storage.set('tidyish-v023-pending-invite'+(address.searchParams.get('qa')==='1'?'-qa':''),storedInvite);
  const memoryStore=m=>({getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)});
  const u={
-  getBoard:()=>board,onSyncStatus(){},navigate:page=>navigation.push(page),notice:message=>notices.push(message),
+  getBoard:()=>board,onSyncStatus(){},navigate:(page,id,view)=>navigation.push({page,id,view}),notice:message=>notices.push(message),
   button:(label,action)=>`<button data-action="${action}">${label}</button>`,
   field:(label,name,value='')=>`<label>${label}<input name="${name}" value="${String(value).replaceAll('&','&amp;').replaceAll('"','&quot;')}"></label>`,
   card:x=>x,detail:(name,body,open=false)=>`<details ${open?'open':''}>${name}${body}</details>`,
@@ -55,7 +55,7 @@ function fixture({href='https://kayleigh347-dot.github.io/Tidy-ish/index.html?qa
 
 test('recipient link opens Settings, invites sign-in and never imports automatically',()=>{
  const t=fixture({href:'https://kayleigh347-dot.github.io/Tidy-ish/index.html?invite=TEST%2B123&qa=1'});
- assert.deepEqual(t.navigation,['settings']);
+ assert.deepEqual(t.navigation,[{page:'settings',id:undefined,view:'household'}]);
  assert.match(t.api.panel(),/Household invitation received/);
  assert.equal(t.storage.get('tidyish-v023-pending-invite-qa'),'TEST+123');
  assert.equal(t.storage.has('tidyish-v023-pending-invite'),false);
@@ -161,19 +161,19 @@ test('failed join preserves invitation for retry; does not discard or import rec
 
 test('layout release advances app version and preserves the invitation-safe sharing and history asset versions',()=>{
  assert.match(html,/js\/sharing\.js\?v=20261115-invite-link-qa1/);
- assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1"'));
+ assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1-interface1"'));
  assert.ok(html.includes('css/task-data-completed-rows.css?v=20261115-local-prototype1"'),'Protected asset: css/task-data-completed-rows.css');
  assert.ok(html.includes('css/task-data-daily-view.css?v=20261115-daily-view1"'),'Protected asset: css/task-data-daily-view.css');
  assert.ok(html.includes('addons/tidyish-daily-log/addon.css?v=20261112-connected1"'),'Protected asset: addons/tidyish-daily-log/addon.css');
  assert.ok(html.includes('js/task-data.js?v=20261104-timer-task-title1-management1"'),'Protected asset: js/task-data.js');
  assert.ok(html.includes('js/daily-log-host.js?v=20261114-stage2"'),'Protected asset: js/daily-log-host.js');
- assert.ok(html.includes('js/sharing-model.js?v=20261112-connected1"'),'Protected asset: js/sharing-model.js');
- assert.ok(html.includes('js/sharing.js?v=20261115-invite-link-qa1"'),'Protected asset: js/sharing.js');
+ assert.ok(html.includes('js/sharing-model.js?v=20261112-connected1-interface1"'),'Protected asset: js/sharing-model.js');
+ assert.ok(html.includes('js/sharing.js?v=20261115-invite-link-qa1-interface1"'),'Protected asset: js/sharing.js');
 });
 
 test('invite survives an email redirect reload in the same browser tab',()=>{
  const t=fixture({href:'https://kayleigh347-dot.github.io/Tidy-ish/index.html#access_token=synthetic',storedInvite:'RESTORED-INVITE'});
- assert.deepEqual(t.navigation,['settings']);
+ assert.deepEqual(t.navigation,[{page:'settings',id:undefined,view:'household'}]);
  t.signIn();assert.match(t.api.panel(),/name="code" value="RESTORED-INVITE"/);
 });
 
