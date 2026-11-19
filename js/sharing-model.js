@@ -33,7 +33,7 @@ function importRaw(raw){validateRaw(raw);const b=M.board(),defaults=b.rooms;b.ro
  const definitions=settings.find(r=>r.id==='tidy-html-quest-definitions-v1')?.data;
  if(definitions){
   for(const key of ['templates','hiddenTemplates','tools','routines']){
-   if(!Array.isArray(definitions[key]))throw Error('Invalid shared Quest definitions: '+key);
+   if(!Array.isArray(definitions[key]))throw Error('Invalid shared Task definitions: '+key);
    b.features[key]=C(definitions[key]);
   }
   b.features.occasionalDefaultsInitialised=definitions.occasionalDefaultsInitialised===true;
