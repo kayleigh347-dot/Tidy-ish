@@ -639,3 +639,24 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 .settings-page .settings-tabs>button.active{background:linear-gradient(125deg,#498496,#3a6a6b);color:#fff;box-shadow:inset 0 -3px var(--gold)}
 .settings-page .settings-tabs>button:focus-visible,.settings-page .settings-panel:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .settings-page .settings-panel input[type="file"]{min-width:0;max-width:100%;width:100%}
+
+/* Visible independent timer on expanded subtasks; keep narrow rows usable. */
+#app .child button.subtask-timer{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;flex:0 0 44px;width:44px;min-width:44px;min-height:44px;padding:5px;margin:0;border:1px solid #c284ae;border-radius:9px;color:var(--gold);background:linear-gradient(145deg,#5a3c62,#384466)}
+#app .child button.subtask-timer:focus-visible{outline:2px solid #f8c662;outline-offset:-2px}
+#app .child button.subtask-timer .stopwatch{width:22px;height:22px;pointer-events:none}
+#app .doing-board .doing-child{flex-wrap:wrap}
+#app .doing-child > .doing-child-title,#app .room-child > .row > .grow{flex:1 1 74px;min-width:min(74px,100%);overflow-wrap:anywhere}
+
+/* Task Timer only: prevent a wide title or phone settings from scrolling the
+   dialog horizontally off-screen at the narrow-phone breakpoint. */
+@media (max-width:360px){
+ #editor:has(.quest-time-panel){position:fixed;inset-inline:10px;margin-inline:0;width:calc(100% - 20px);min-width:0;max-width:calc(100% - 20px);overflow-x:auto}
+ #editor:has(.quest-time-panel) :is(#modal-form,.dialog-body,.quest-time-panel,.phone-timer-panel){box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+ #editor:has(.quest-time-panel) #dialog-title{min-width:0;white-space:normal;overflow-wrap:anywhere}
+ #editor:has(.quest-time-panel) :is(.quest-time-panel,.phone-timer-panel){overflow-wrap:anywhere}
+ #editor:has(.quest-time-panel) :is(.row,.phone-timer-config-actions){min-width:0;max-width:100%;flex-wrap:wrap}
+ #editor:has(.quest-time-panel) :is(button,input,select,textarea,details,summary,.field){min-width:0;max-width:100%}
+ #editor:has(.quest-time-panel) button{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+ #editor:has(.quest-time-panel) .phone-timer-presets{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #editor:has(.quest-time-panel) .phone-timer-settings .field{grid-template-columns:minmax(0,1fr)}
+}
