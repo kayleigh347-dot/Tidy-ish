@@ -1,0 +1,39 @@
+/* Subtask colour separation, attempt 2.
+   Theme-derived muted tones only. No changes to geometry, actions or state. */
+#app .task .child {
+  --subtask-row: #293b50;
+  --subtask-edge: #89b7c2;
+  background: linear-gradient(110deg, var(--subtask-row), color-mix(in srgb, var(--subtask-row), #2c263f 25%));
+  box-shadow: inset 3px 0 var(--subtask-edge);
+}
+#app .task .child:nth-of-type(4n + 1) {
+  --subtask-row: #24483e;
+  --subtask-edge: #8bcba0;
+}
+#app .task .child:nth-of-type(4n + 2) {
+  --subtask-row: #493047;
+  --subtask-edge: #e397b7;
+}
+#app .task .child:nth-of-type(4n + 3) {
+  --subtask-row: #293b50;
+  --subtask-edge: #89b7c2;
+}
+#app .task .child:nth-of-type(4n) {
+  --subtask-row: #39234f;
+  --subtask-edge: #c1a4e5;
+}
+/* Preserve the existing high-visibility target state during drag and drop. */
+#app .task .child.drag-over {
+  background: #89b7c24a;
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+
+/* Keep the coloured left accent alongside the existing directional gold cues.
+   Specificity intentionally outranks the generic drag-over colour rule. */
+#app .task .child.drag-over.child-drop-before {
+  box-shadow: inset 3px 0 var(--subtask-edge), inset 0 3px 0 var(--gold);
+}
+#app .task .child.drag-over.child-drop-after {
+  box-shadow: inset 3px 0 var(--subtask-edge), inset 0 -3px 0 var(--gold);
+}
