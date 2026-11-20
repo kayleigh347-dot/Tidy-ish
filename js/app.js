@@ -163,7 +163,7 @@ function navigate(next,id,view){
  if(route===next&&(!id||id===roomId)&&(nextSettings?nextSettings===settingsTab:!view||view===libraryTab))return;
  const depth=rememberBackState();
  if(nextSettings)settingsTab=nextSettings;
- if(next==='library'&&['saved','custom','occasional'].includes(view))libraryTab=view;
+ if(next==='library'&&['saved','custom','occasional','seasonal'].includes(view))libraryTab=view;
  route=next;if(id)roomId=id;search='';tab='tasks';openTasks.clear();
  try{window.history.pushState({tidyishBack:backState(depth+1)},'',window.location.href);}catch{}
  render();window.scrollTo(0,0);
@@ -184,7 +184,7 @@ window.addEventListener('popstate',event=>{
  }
  route=['manage','backup'].includes(previous.route)?'settings':previous.route;roomId=previous.roomId||roomId;
  settingsTab=previous.route==='backup'?'backup':validSettingsTab(previous.settingsTab)?previous.settingsTab:'backup';
- tab=previous.tab||'tasks';doingTab=previous.doingTab||'doing';sideTab=previous.sideTab||'all';grindSection=previous.grindSection||'cat';if(['saved','custom','occasional'].includes(previous.libraryTab))libraryTab=previous.libraryTab;
+ tab=previous.tab||'tasks';doingTab=previous.doingTab||'doing';sideTab=previous.sideTab||'all';grindSection=previous.grindSection||'cat';if(['saved','custom','occasional','seasonal'].includes(previous.libraryTab))libraryTab=previous.libraryTab;
  if(typeof dataView==='string'&&['overview','day','rooms','quests','focus','occasional','daybook'].includes(previous.dataView))dataView=previous.dataView;
  search='';openTasks.clear();render();window.scrollTo(0,0);
 });
@@ -192,7 +192,7 @@ const savedBack=window.history.state?.tidyishBack;
 if(savedBack&&backRouteNames.has(savedBack.route)){
  route=['manage','backup'].includes(savedBack.route)?'settings':savedBack.route;roomId=savedBack.roomId||roomId;
  settingsTab=savedBack.route==='backup'?'backup':validSettingsTab(savedBack.settingsTab)?savedBack.settingsTab:'backup';
- tab=savedBack.tab||tab;doingTab=savedBack.doingTab||doingTab;sideTab=savedBack.sideTab||sideTab;grindSection=savedBack.grindSection||'cat';if(['saved','custom','occasional'].includes(savedBack.libraryTab))libraryTab=savedBack.libraryTab;
+ tab=savedBack.tab||tab;doingTab=savedBack.doingTab||doingTab;sideTab=savedBack.sideTab||sideTab;grindSection=savedBack.grindSection||'cat';if(['saved','custom','occasional','seasonal'].includes(savedBack.libraryTab))libraryTab=savedBack.libraryTab;
  if(typeof dataView==='string'&&['overview','day','rooms','quests','focus','occasional','daybook'].includes(savedBack.dataView))dataView=savedBack.dataView;
 }
 rememberBackState();
@@ -692,8 +692,9 @@ function morePage(){return [['side','Side Tasks'],['locations','Where Does This 
 function focusHubPage(){return `<section class="focus-hub" aria-label="Choose Focus area"><div class="focus-hub-grid">${button('Doing Now','focus-hub-doing','','wide focus-hub-doing')}${rooms().map(r=>button(esc(r.name),'focus-hub-room',r.id,'wide')).join('')}</div></section>`;}
 function questLibraryPage(){
  if(!L)return card('Task Library cannot load. Existing tasks and history have not changed.');
- const libraryTabs=tabs([['saved','Saved Reusable Tasks'],['custom','Custom Tasks'],['occasional','Occasional Essentials']],libraryTab,'library-tab','library-tabs');
+ const libraryTabs=tabs([['saved','Saved Reusable Tasks'],['custom','Custom Tasks'],['occasional','Occasional Essentials'],['seasonal','Seasonal']],libraryTab,'library-tab','library-tabs');
  if(libraryTab==='occasional')return `<section class="quest-library management-page occasional-library">${card(libraryTabs)}${occasionalLibraryContent()}</section>`;
+ if(libraryTab==='seasonal')return `<section class="quest-library management-page seasonal-library">${card(libraryTabs)}${seasonalLibraryContent()}</section>`;
  const opts={query:libraryQuery,room:libraryRoom,priority:libraryPriority,tag:libraryTag};
  const rows=L.libraryRows(board,opts),tags=L.availableTags(board),selected=rows[libraryTab],custom=libraryTab==='custom';
  const display=t=>`<article class="management-row"><div class="management-copy"><strong>${esc(t.title)}</strong><div class="small">Priority ${Number(t.priority)||3}${t.checkDays?` · Review after ${Number(t.checkDays)} days`:''}${t.done?' · Completed':''}${t.hidden?' · Hidden':''}</div>${t.tags?.length?`<p class="quest-lib-tags">${t.tags.map(tag=>`<span>${esc(tag)}</span>`).join('')}</p>`:''}</div><div class="management-actions">${custom?(t.done&&!t.side?button('Do again','library-reactivate',t.id,'ghost'):'')+button('Edit','library-edit-task',t.id,'ghost')+button('Add to library','library-save-custom',t.id,'primary')+button('Remove','library-hide-custom',t.id,'ghost'):(t.hidden?button('Restore','restore-template',t.id,'ghost'):button('Use','activate-template',t.id,'primary')+button('Edit','edit-template',t.id,'ghost')+button('Hide','hide-template',t.id,'ghost'))+button('Remove','library-remove-saved',t.id,'ghost')}</div></article>`;
@@ -709,13 +710,24 @@ function occasionalLibraryContent(){
  return `<section class="occasional-library-section" aria-label="Occasional Essentials"><h2>Occasional Essentials (${rows.length})</h2><p class="small">Only saved jobs due today or earlier. Manage all jobs to edit dates, add jobs or undo a completion.</p><div class="occasional-manage">${button('Manage all jobs / Undo','navigate','schedule','ghost')}</div>${managementRoomGroups(rows,renderRow)||'<p class="empty">No occasional jobs due.</p>'}</section><section class="occasional-library-section" aria-label="Recommended checks"><h2>Recommended checks (${checks.length})</h2><p class="small">Other tasks with a saved check interval since their last full completion. These suggestions do not add anything to the calendar.</p>${managementRoomGroups(checks,checkRow,x=>x.task.room)||'<p class="empty">No checks due with a confirmed full completion and check interval.</p>'}</section>`;
 }
 
+function seasonalLibraryContent(){
+ if(!OCC?.seasonalGroups)return card('Seasonal jobs cannot load. Your saved jobs are unchanged.');
+ const today=M.date(),groups=OCC.seasonalGroups(board,new Date());
+ const renderRow=t=>{
+  const date=OCC.seasonalDate(t),status=t.done?'Completed':!date?'Date not set':date<today?'Overdue':date===today?'Due today':'Upcoming',
+   state=`${t.archived?'Archived · ':''}${t.paused?'Paused · ':''}${status}`,occasional=t.occasionKind==='occasional';
+  return `<article class="management-row seasonal-row" data-seasonal-task-id="${esc(t.id)}"><div class="management-copy"><strong>${esc(t.title)}</strong><div class="small">${esc(state)} · ${date?'Date '+esc(date):'No saved date'} · ${esc(room(t.room)?.name||'Whole house')}${occasional?' · '+(t.calendarEnabled===true?'On calendar':'Not on calendar'):''}</div></div><div class="management-actions">${occasional?button('I did a thing!','occasional-done',t.id,'complete')+(t._occasionalUndo?button('Undo last','occasional-undo',t.id,'ghost'):'')+button('Edit','occasional-edit',t.id,'ghost'):button(t.done?'Undo':'I did a thing!','complete',t.id,t.done?'ghost':'complete')+button('Edit','edit-task',t.id,'ghost')}</div></article>`;
+ };
+ return `<section class="seasonal-library-section" aria-label="Seasonal saved jobs"><h2>Seasonal tasks</h2><p class="small">All saved seasonal jobs, including upcoming ones. Dates and existing calendar settings are unchanged.</p><div class="occasional-manage">${button('Manage all jobs / Undo','navigate','schedule','ghost')}</div>${groups.map(g=>`<section class="seasonal-event-group" aria-label="${esc(g.label)}"><h3>${esc(g.label)} (${g.tasks.length})</h3><div class="seasonal-event-rows">${g.tasks.map(renderRow).join('')}</div></section>`).join('')||'<p class="empty">No saved seasonal tasks yet.</p>'}</section>`;
+}
+
 function libraryFindExisting(){dialog('Find an existing task',`<p class="small">Search your actual tasks, including older ones no longer shown in the custom library. Their completion history is kept.</p>${field('Task name or keyword','lookup',libraryQuery,'search','required')}`,fd=>{const query=String(fd.get('lookup')||'').trim();if(!query)throw Error('Enter a word to find a task.');const matches=L.catalogue(board,{query,room:libraryRoom,kind:'task'});dialog('Matching existing tasks',managementRoomGroups(matches,t=>`<article class="management-row"><div class="management-copy"><strong>${esc(t.title)}</strong>${t.done?'<small>Completed</small>':''}</div><div class="management-actions">${t.done?button('Do again','library-reactivate',t.id,'ghost'):''}${button('Edit','library-edit-task',t.id,'ghost')}${button('Save reusable','save-template',t.id,'ghost')}</div></article>`)||'<p>No matching tasks.</p>');},{saveLabel:'Find tasks'});}
 
 const headerBounds={'Tidy-ish.png':[126,425],'cat-trays-header.png':[44,505],'entrance-header.png':[126,448],'living-header(1).png':[29,598],'bathroom-header.png':[109,437],'storage-header.png':[26,609],'bedroom-cat-header.png':[63,529],'bedroom-bigfoot-header.png':[7,641],'3d-printer-header.png':[75,507],'kitchen-header.png':[88,480]};
 function compactHeader(path,label){const key=path.split('/').at(-1),[top,height]=headerBounds[key]||[0,656];return `<svg class="brand-logo" viewBox="0 ${top} 1280 ${height}" role="img" aria-label="${esc(label)}" style="width:${1280/height*44}px"><image href="${asset(path)}${key==='bedroom-bigfoot-header.png'?'?v=20261120-masterportrait2':''}" width="1280" height="656"/></svg>`;}
 // Keep the library's create action in the page header, with its tab-specific behaviour.
 function pageHeading(title){
- const library=route==='library'&&!!L,custom=libraryTab==='custom',showAdd=library&&libraryTab!=='occasional';
+ const library=route==='library'&&!!L,custom=libraryTab==='custom',showAdd=library&&!['occasional','seasonal'].includes(libraryTab);
  return `<div class="top-page-line${library?' library-page-line':''}">${button('‹ Back','nav-back','','page-back', 'aria-label="Go back"')}${title?`<h1>${title}</h1>`:''}${showAdd?button(custom?'＋ Make new task':'＋ Add reusable task',custom?'add-task':'new-template','','primary library-header-add'):''}</div>`;
 }
 function render(){const y=window.scrollY;unmountDailyLogViews();window.TidyActivityHost?.unmount();document.body.classList.toggle('reduce-motion',F().reduceMotion);const title={gifts:'Gift tracker',doing:'Doing Now',side:'Side tasks',laundry:'Laundry','laundry-settings':'Laundry setup & editing',manage:'Settings',schedule:'Manage occasional jobs','focus-hub':'Focus',focus:'Room Focus',clearway:'Clear the Way','doing-focus':'Doing Now Focus',library:'Task Library',locations:'Where Does This Live?',data:'Data',calendar:'Calendar',settings:'Settings',help:'Help',backup:'Backup & custom tasks',more:'More'}[route]||'';const r=['room','focus','clearway'].includes(route)?room(roomId):null;const header=r?.header?`headers/${r.header}`:'headers/Tidy-ish.png';let content=route==='gifts'?giftTrackerPage():route==='home'?home():route==='room'?roomPage():route==='doing'?doingPage():route==='side'?sidePage():route==='calendar'?calendarPage():route==='data'?dataPage():route==='schedule'?schedulePage():route==='grind'?dailyGrindPage():route==='focus-hub'?focusHubPage():route==='focus'||route==='clearway'||route==='doing-focus'?(Q?Q.content(board):'<p>Task Focus unavailable</p>'):route==='laundry'?laundryPage():route==='laundry-settings'?laundryPage(true):route==='locations'?locationBookPage():route==='library'?questLibraryPage():route==='settings'?settingsPage():route==='help'?helpPage():route==='more'?morePage():morePage();app.innerHTML=`${route==='home'?globals(true):`<header class="top${r?.id==='master'?' master-bedroom-header':''}"><div class="brand">${compactHeader(header,r?'Tidy-ish · '+r.name:'Tidy-ish')}${globals()}</div>${pageHeading(title)}</header>`}<main class="${route==='home'?'home-main':''}">${storageError?`<p class="error">Saved data could not be opened. It has been preserved: ${esc(storageError)}</p>`:''}${content}</main>${footer()}`;// If the optional picture is unavailable, keep six visible, usable text tabs.
@@ -822,7 +834,7 @@ function useTaskTitleSuggestion(el){
 }
 function dismissTaskTitleSuggestion(){hideTaskTitleSuggestions({dismiss:true});focusTaskTitleInput();}
 function taskEditor(original=null,template=false,mode='task'){
- const creating=!original&&!template;
+ const creating=!original&&!template,newReusable=template&&!original;
  const suggestSavedTasks=creating&&mode==='task';
  const t=M.clone(original||M.task({room:['room','focus','clearway','doing-focus'].includes(route)?roomId:rooms()[0]?.id||'',doing:route==='doing',side:route==='side'||route==='room'&&tab==='side',sideKind:sideTab==='all'?'organisation':sideTab}));
  const heading=template?(t.title?'Edit reusable task':'Add reusable task'):(t.title?'Edit task':'Add task');
@@ -834,7 +846,8 @@ function taskEditor(original=null,template=false,mode='task'){
   return;
  }
  const selectedTools=t.tools.split('\n').map(x=>x.trim()).filter(Boolean);
- const scheduleFields=creating&&mode==='scheduled'?`<div class="schedule-entry"><div class="columns">${field('Repeat every','repeatValue',1,'number','required min="1" max="3650" step="1"')}${select('Unit','repeatUnit',[['days','Days'],['weeks','Weeks'],['months','Months']],'weeks')}</div>${field('First due date (optional)','firstDue','','date')}<p class="small">Without a first due date, the calendar preview starts after the first interval.</p></div>`:'';
+ const scheduled=creating&&mode==='scheduled';
+ const scheduleFields=scheduled||newReusable?`<div class="schedule-entry"><div class="columns">${field(newReusable?'Repeat every (optional)':'Repeat every','repeatValue',newReusable?'':1,'number',`${scheduled?'required ':''}min="1" max="3650" step="1"`)}${select('Unit','repeatUnit',[['days','Days'],['weeks','Weeks'],['months','Months']],'weeks')}</div>${scheduled?field('First due date (optional)','firstDue','','date')+'<p class="small">Without a first due date, the calendar preview starts after the first interval.</p>':'<p class="small">Leave the interval blank for no repeat. Saving creates a reusable template only; using it adds the task.</p>'}</div>`:'';
  const titleField=field('Task name','title',t.title,'text',suggestSavedTasks?'required maxlength="500" autocomplete="off" aria-expanded="false" aria-controls="task-title-autocomplete-list"':'required maxlength="500"');
  const core=tabBar+(suggestSavedTasks?`<div class="task-title-autocomplete">${titleField}<div id="task-title-autocomplete-list" data-task-title-suggestion></div></div>`:titleField)+select('Room','room',[['','No room (Homeless)'],...rooms().map(r=>[r.id,r.name])],t.room)+`<div class="add-task-options" role="group" aria-label="Task location and priority">${check('Add to Doing Now','doing',t.doing)}${check('Needs attention','attention',t.attention)}${check('Side task','side',t.side)}</div>`+detail('Add subtask',area('Subtasks — one per line','children',t.children.map(c=>c.title).join('\n')))+scheduleFields;
  const commonTools=F().tools.map(tool=>check(tool,'tool',selectedTools.includes(tool),`value="${esc(tool)}"`)).join('');
@@ -858,10 +871,10 @@ function taskEditor(original=null,template=false,mode='task'){
   saved.warningEnabled=warningEnabled;saved.warningFirstDue=warningFirstDue;saved.warningRepeatDays=warningRepeatDays;saved.warningAmberDays=warningAmberDays;saved.warningRedDays=warningRedDays;saved.warningFlashingDays=warningFlashingDays;
   if(warningFirstDue!==String(t.warningFirstDue||'')){saved.warningLastCompletedAt='';saved.warningNextDue='';}
   else if(Number(t.warningRepeatDays)!==warningRepeatDays&&t.warningLastCompletedAt){saved.warningNextDue=warningRepeatDays?CW.addDays(String(t.warningLastCompletedAt).slice(0,10),warningRepeatDays):'';}
-  if(creating&&mode==='scheduled'){
+  if(scheduled||(newReusable&&String(fd.get('repeatValue')||'').trim()!=='')){
    const raw=String(fd.get('repeatValue')||''),value=Number(raw),unit=String(fd.get('repeatUnit')||'');
    if(!/^\d+$/.test(raw)||!Number.isInteger(value)||value<1||value>3650||!['days','weeks','months'].includes(unit))throw Error('Choose a valid repeat interval.');
-   const firstDue=String(fd.get('firstDue')||'');
+   const firstDue=scheduled?String(fd.get('firstDue')||''):'';
    if(firstDue&&(!/^\d{4}-\d{2}-\d{2}$/.test(firstDue)||!Number.isFinite(Date.parse(firstDue+'T12:00:00Z'))||new Date(firstDue+'T12:00:00Z').toISOString().slice(0,10)!==firstDue))throw Error('Enter a valid first due date.');
    saved.repeatDays=unit==='months'?0:value*(unit==='weeks'?7:1);
    saved.repeatMonths=unit==='months'?value:0;
@@ -1125,7 +1138,7 @@ const actions={
  'room-first':el=>change(b=>{const r=b.rooms.find(r=>r.id===el.dataset.id);b.rooms=[r,...b.rooms.filter(x=>x.id!==r.id)]}),
  areas:el=>{const id=el.dataset.id;dialog('Areas · '+room(id).name,area('Area names — one per line','areas',(F().areas[id]||[]).join('\n')),fd=>{const names=[...new Set(String(fd.get('areas')).split('\n').map(x=>x.trim()).filter(Boolean))];if(change(b=>b.features.areas[id]=names))closeDialog(true)})},
  'library-room':el=>{libraryRoom=el.dataset.id||'all';libraryQuery='';libraryKind='all';libraryPriority='all';libraryTag='';navigate('library',null,'saved');},
- 'library-tab':el=>{if(['saved','custom','occasional'].includes(el.dataset.id)){libraryTab=el.dataset.id;rememberBackState();render();}},
+ 'library-tab':el=>{if(['saved','custom','occasional','seasonal'].includes(el.dataset.id)){libraryTab=el.dataset.id;rememberBackState();render();}},
  'library-occasional':()=>navigate('library',null,'occasional'),
  'library-ideas':libraryIdeas,
  'library-find-existing':libraryFindExisting,

@@ -213,6 +213,12 @@ function saveFromTask(board,id,M){
  const fields={...draftFromSavedTask(original),room:original.room,side:!!original.side,sideKind:original.sideKind||'organisation',checkDays:Number(original.checkDays)||0,conditionMode:original.conditionMode||'as-needed',showInSuggestions:original.showInSuggestions!==false};
  const definitionKeys=['attention','area','image','followupTitle','rankPriorityWeight','rankRecencyWeight','rankMessWeight','repeatDays','repeatMonths','repeatWeekdays','repeatRestDays','seasonMonth','seasonDay','oneOff','warningEnabled','warningFirstDue','warningRepeatDays','warningAmberDays','warningRedDays','warningFlashingDays'];
  for(const key of definitionKeys)if(original[key]!==undefined)fields[key]=M.clone(original[key]);
+ // Completed shared occurrences have their live interval cleared when the next occurrence is created.
+ // Recover only the stored repeat definition, not the occurrence, next due date or undo state.
+ const priorRepeat=original.done&&original._cycle?.next&&original._cycle.original;
+ if(priorRepeat&&!Number(original.repeatDays)&&!Number(original.repeatMonths)&&M.repeat(priorRepeat)){
+  for(const key of ['repeatDays','repeatMonths','repeatWeekdays','repeatRestDays'])if(priorRepeat[key]!==undefined)fields[key]=M.clone(priorRepeat[key]);
+ }
  // Ordinary tasks may have an explicitly chosen calendar definition. Never copy a managed/generated
  // occurrence's calendar placement, schedule ownership, current due dates or per-occurrence overrides.
  if(!original.occasionKind&&!original.occasionSourceId&&!original.scheduleMakerManaged&&!original.tidyScheduleV3&&!original.scheduleSpec&&!original.generatedFrom&&!original.baseScheduleKey){

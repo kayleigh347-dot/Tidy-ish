@@ -19,6 +19,35 @@ function isOccasional(t){
  const source=baseById.get(t.occasionSourceId)||baseById.get(String(t.id||'').replace(/^tidy-occasional:/,''));
  return !source||occasionalSection(source);
 }
+// Seasonal is a read-only projection of saved tasks, never a new schedule or migration.
+// Explicit Base Schedule provenance takes precedence over names and intervals.
+function seasonalSource(t){return baseById.get(t?.occasionSourceId)||baseById.get(String(t?.id||'').replace(/^tidy-occasional:/,''))||null;}
+function isSeasonal(t){
+ if(!t||typeof t.id!=='string')return false;
+ const source=seasonalSource(t);
+ if(source)return source.section==='Seasonal';
+ return t.section==='Seasonal'||t.occasionKind==='occasional'&&Number.isInteger(Number(t.seasonMonth))&&Number(t.seasonMonth)>=1&&Number(t.seasonMonth)<=12;
+}
+function seasonalDate(t){return [t?.nextDue,t?.calendarSchedule?.firstDue,t?.dueDate].find(validDay)||'';}
+const SEASONAL_GROUPS=Object.freeze([
+ {id:'christmas',label:'🎄 Christmas',titles:['Christmas is coming','Pack away Christmas decorations','Christmas present planning']},
+ {id:'halloween',label:'🎃 Halloween',titles:['Halloween planning']},
+ {id:'valentines',label:'💝 Valentine’s Day',titles:["Valentine's Day planning"]},
+ {id:'birthdays',label:'🎂 Birthdays',titles:['Birthday planning (set a date for each person)']},
+ {id:'seasonal',label:'🌿 Other seasonal',titles:[]}
+]);
+function seasonalGroups(board,now=new Date()){
+ if(!Number.isFinite(now.getTime()))throw Error('Invalid seasonal reference date.');
+ const groups=new Map(SEASONAL_GROUPS.map(g=>[g.id,[]]));
+ for(const task of board?.tasks||[]){
+  if(!isSeasonal(task))continue;
+  const label=seasonalSource(task)?.title||task.title;
+  const event=SEASONAL_GROUPS.find(g=>g.id!=='seasonal'&&g.titles.includes(label)&& (g.id!=='birthdays'||!!seasonalDate(task)));
+  groups.get(event?.id||'seasonal').push(task);
+ }
+ for(const rows of groups.values())rows.sort((a,b)=>{const da=seasonalDate(a)||'9999-12-31',db=seasonalDate(b)||'9999-12-31';return da.localeCompare(db)||String(a.title||'').localeCompare(String(b.title||''))||a.id.localeCompare(b.id);});
+ return SEASONAL_GROUPS.filter(g=>groups.get(g.id).length).map(g=>({id:g.id,label:g.label,tasks:groups.get(g.id)}));
+}
 function validDay(day){if(typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;const d=new Date(day+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===day;}
 function dueTasks(board,now=new Date()){
  if(!Number.isFinite(now.getTime()))throw Error('Invalid check date.');
@@ -89,5 +118,5 @@ function staleChecks(board,now=new Date()){
   const lastDone=candidates[0],days=lastDone?elapsed(lastDone):null;return {task:t,days,lastDone};
  }).filter(x=>x.days!==null&&x.days>=Number(x.task.checkDays)).sort((a,b)=>b.days-a.days||a.task.title.localeCompare(b.task.title));
 }
-return Object.freeze({dueTasks,staleChecks,OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey});
+return Object.freeze({dueTasks,staleChecks,OWNER_ROWS,seed,addSelected,previewSelected,tasks,complete,undo,validate,seasonNext,dayKey,isSeasonal,seasonalDate,seasonalGroups});
 });
