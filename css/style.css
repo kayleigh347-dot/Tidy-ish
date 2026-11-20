@@ -64,6 +64,7 @@
 .doing-child .child-undo{color:#e5edf0;background:#384466;border-color:#89b7c288}
 .doing-child.child-finished{opacity:.82}
 .doing-child.child-finished .doing-child-title{text-decoration:line-through}
+#app .room-child > .row > .grow.muted{text-decoration:line-through}
 .doing-finished{margin:19px 0 10px;border-radius:14px;border:1px solid #89b7c255;overflow:hidden;background:linear-gradient(135deg,#384466,#2c263f)}
 .doing-finished h2{font-family:inherit;font-size:1.15rem;margin:0;padding:10px 12px;background:linear-gradient(115deg,#5a3c62,#384466);color:#eff0f4}
 .doing-finished-row{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:7px 11px;border-top:1px solid #89b7c226;min-height:45px;font-size:.95rem;color:#cedfe5}

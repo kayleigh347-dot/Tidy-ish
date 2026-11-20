@@ -27,7 +27,7 @@
 .quest-library .card button.primary{color:#fff}
 
 /* 20261118 task management: shared compact, room-grouped library/check rows. */
-.management-page{min-width:0;max-width:100%}.management-room-group{margin:8px 0;overflow:hidden}.management-room-group>summary{min-height:44px;padding:4px 8px;cursor:pointer}.management-room-heading{display:inline-flex;align-items:center;gap:7px;max-width:90%;vertical-align:middle}.management-room-heading strong{overflow-wrap:anywhere}.management-room-heading small{margin-left:auto}.management-room-rows{display:grid;gap:4px;padding:4px 6px}.management-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px 7px;background:#3b314c;border:1px solid #ffffff26;border-radius:10px;min-width:0}.management-copy{flex:1 1 130px;min-width:0;overflow-wrap:anywhere}.management-copy>strong{display:block;line-height:1.2}.management-copy .small{font-size:.78rem;margin-top:2px}.management-actions{display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-width:0;max-width:100%}.management-actions button{min-height:44px;padding:3px 7px;font-size:.75rem;max-width:100%;white-space:normal}.management-actions .complete{min-width:44px}.management-page .library-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.management-page .library-tabs button{min-height:44px;min-width:0;padding:5px 2px;font-size:.78rem;line-height:1.2;white-space:normal;overflow-wrap:anywhere}.management-page .quest-lib-tags{margin:3px 0 0}@media(max-width:430px){.management-actions{flex:1 1 100%;justify-content:flex-start}.management-room-heading{max-width:94%}}
+.management-page{min-width:0;max-width:100%}.management-room-group{margin:8px 0;overflow:hidden}.management-room-group>summary{min-height:44px;padding:4px 8px;cursor:pointer}.management-room-heading{display:inline-flex;align-items:center;gap:7px;max-width:90%;vertical-align:middle}.management-room-heading strong{overflow-wrap:anywhere}.management-room-heading small{margin-left:auto}.management-room-rows{display:grid;gap:4px;padding:4px 6px}.management-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:5px 7px;background:#3b314c;border:1px solid #ffffff26;border-radius:10px;min-width:0}.management-copy{flex:1 1 130px;min-width:0;overflow-wrap:anywhere}.management-copy>strong{display:block;line-height:1.2}.management-copy .small{font-size:.78rem;margin-top:2px}.management-actions{display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-width:0;max-width:100%}.management-actions button{min-height:44px;padding:3px 7px;font-size:.75rem;max-width:100%;white-space:normal}.management-actions .complete{min-width:44px}.management-page .library-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.management-page .library-tabs button{min-height:44px;min-width:0;padding:5px 2px;font-size:.78rem;line-height:1.2;white-space:normal;overflow-wrap:anywhere}.management-page .quest-lib-tags{margin:3px 0 0}@media(max-width:430px){.management-actions{flex:1 1 100%;justify-content:flex-start}.management-room-heading{max-width:94%}}
 
 /* Task Library only: the existing create action sits beside the page title. */
 .top .library-page-line>h1{overflow-wrap:normal}
@@ -36,3 +36,15 @@
 
 /* Due-only library view. The separate Calendar manager retains all saved jobs. */
 .occasional-library-section{min-width:0;margin:10px 0 16px}.occasional-library-section h2{font-size:1.1rem;margin:6px 0;color:var(--gold)}.occasional-library-section p{margin:4px 0 8px}.occasional-manage button{min-height:44px;white-space:normal;max-width:100%}.occasional-library .management-actions button{min-height:44px}
+
+/* Seasonal library: four accessible tabs, two columns on phones, read-only event groups. */
+@media(max-width:600px){.management-page .library-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.seasonal-library-section{min-width:0;margin:10px 0 16px}
+.seasonal-library-section h2{font-size:1.1rem;color:var(--gold);margin:6px 0}
+.seasonal-library-section p{margin:5px 0 10px}
+.seasonal-event-group{min-width:0;margin:12px 0;border:1px solid #89b7c263;border-radius:11px;padding:8px;background:#30283f}
+.seasonal-event-group h3{font-size:1rem;margin:0 0 8px;color:#f4dff4;overflow-wrap:anywhere}
+.seasonal-event-rows{display:grid;gap:5px;min-width:0}
+.seasonal-row{min-width:0}
+.seasonal-row .management-copy{overflow-wrap:anywhere}
+.seasonal-row .management-actions button{min-height:44px}
