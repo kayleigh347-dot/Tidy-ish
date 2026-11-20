@@ -1,0 +1,37 @@
+/* 20 Nov 2026 | Release #59 | Focus / child Timer mobile layout, Attempt 1.
+   Only these two dialog types. No timer, task or sync behaviour changes. */
+@media (max-width:430px){
+  #editor:has(.quest-time-panel){
+    box-sizing:border-box;width:calc(100% - 20px);min-width:0;max-width:calc(100% - 20px);
+  }
+  #editor:has(.quest-time-panel) :is(#modal-form,header,.dialog-body,.quest-time-panel,.phone-timer-panel){
+    box-sizing:border-box;min-width:0;max-width:100%;
+  }
+  #editor:has(.quest-time-panel) #dialog-title{
+    min-width:0;white-space:normal;overflow-wrap:anywhere;
+  }
+  #editor:has(.quest-time-panel) .phone-timer-panel{
+    min-width:0;max-width:100%;overflow-wrap:anywhere;
+  }
+  #editor:has(.quest-time-panel) .phone-timer-settings > summary{
+    box-sizing:border-box;min-height:44px;padding-block:8px;
+  }
+}
+@media (max-width:360px){
+  #editor:has(.doing-menu-grid > button[data-action="focus-child-first"]){
+    box-sizing:border-box;width:calc(100% - 20px);min-width:0;max-width:calc(100% - 20px);
+  }
+  #editor:has(.doing-menu-grid > button[data-action="focus-child-first"]) :is(#modal-form,header,.dialog-body,.doing-menu-grid){
+    box-sizing:border-box;min-width:0;max-width:100%;
+  }
+  #editor:has(.doing-menu-grid > button[data-action="focus-child-first"]) #dialog-title{
+    min-width:0;white-space:normal;overflow-wrap:anywhere;
+  }
+  #editor:has(.doing-menu-grid > button[data-action="focus-child-first"]) .doing-menu-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));min-width:0;max-width:100%;
+  }
+  #editor:has(.doing-menu-grid > button[data-action="focus-child-first"]) .doing-menu-grid > button{
+    box-sizing:border-box;min-width:0;max-width:100%;min-height:44px;
+    padding:6px 4px;white-space:normal;overflow-wrap:anywhere;
+  }
+}
