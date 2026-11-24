@@ -10,8 +10,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const MAX_BYTES = 15 * 1024 * 1024;
-  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions', 'occasionTemplates', 'occasionOccurrences'];
-  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions', 'occasionTemplates', 'occasionOccurrences']);
+  const COLLECTIONS = ['rooms', 'tasks', 'items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions', 'occasionTemplates', 'occasionOccurrences', 'gifts', 'giftPeople'];
+  const FEATURE_KEYS = new Set(['items', 'wins', 'completionSummaries', 'templates', 'routines', 'dailyLogRecords', 'dailyLogRewashes', 'customLaundryCycles', 'customLaundryLoads', 'careDefinitions', 'occasionTemplates', 'occasionOccurrences', 'gifts', 'giftPeople']);
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
   function ids(records, collection) {
@@ -76,16 +76,15 @@
     if (typeof original !== 'string') throw Error('The current board is unavailable. Nothing was imported.');
     const base = model.normalize(current);
     const incoming = fromText(text, model);
-    const merged = model.merge(base, incoming); // PURE: does not mutate the current board
+    const merged = model.merge(base, incoming, {backupGifts:true}); // PURE: does not mutate the current board
     const changes = {}, skipped = {};
     for (const name of COLLECTIONS) {
       const now = collection(base, name), incomingRows = collection(incoming, name);
       const result = collection(merged, name), currentIds = ids(now, name);
       changes[name] = result.filter(record => !currentIds.has(record.id)).length;
       skipped[name] = incomingRows.filter(record => currentIds.has(record.id)).length;
-      if (name === 'occasionTemplates' || name === 'occasionOccurrences') {
-        // Logical duplicates and incompatible template references are also
-        // skipped by the conservative Seasonal merge, not only matching IDs.
+      if (['occasionTemplates','occasionOccurrences','gifts','giftPeople'].includes(name)) {
+        // Also count logical duplicates and conflicting references skipped by merge.
         skipped[name] = incomingRows.length - changes[name];
       }
     }
@@ -95,6 +94,8 @@
     if (skipped.tasks) notes.push(`${skipped.tasks} matching task ID(s) will stay as they are.`);
     if (skipped.rooms) notes.push('Rooms with matching IDs keep their current settings and artwork.');
     if (skipped.occasionTemplates || skipped.occasionOccurrences) notes.push(`Seasonal merge keeps current records: ${skipped.occasionTemplates} template(s) and ${skipped.occasionOccurrences} occurrence(s) not added because of matching IDs, logical duplicates or conflicting templates. Full restore is a separate replacement option.`);
+    if (skipped.gifts || skipped.giftPeople) notes.push(`Gift merge keeps current records: ${skipped.gifts} gift(s) and ${skipped.giftPeople} person record(s) not added because of matching IDs, conflicting recipients or duplicate names. Full restore is a separate replacement option.`);
+    if (changes.gifts || changes.giftPeople) notes.push('Merge adds missing gift/person identities from this backup, including records previously removed locally. Review these counts before confirming.');
     if (!Object.values(changes).some(Boolean)) notes.push('This backup contains no new supported records.');
     const summary = {changes, skipped, existingTasks:base.tasks.length, importedTasks:incoming.tasks.length, notes};
     return {summary, source:incoming, original};
@@ -104,7 +105,7 @@
     const original=JSON.stringify(current);
     if(typeof original!=='string')throw Error('The current board is unavailable. Nothing was restored.');
     const source=fromText(text,model);
-    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length,customLaundryCycles:source.features.customLaundryCycles.length,customLaundryLoads:source.features.customLaundryLoads.length,careDefinitions:source.features.careDefinitions.length,occasionTemplates:source.features.occasionTemplates.length,occasionOccurrences:source.features.occasionOccurrences.length}};
+    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length,customLaundryCycles:source.features.customLaundryCycles.length,customLaundryLoads:source.features.customLaundryLoads.length,careDefinitions:source.features.careDefinitions.length,occasionTemplates:source.features.occasionTemplates.length,occasionOccurrences:source.features.occasionOccurrences.length,gifts:source.features.gifts.length,giftPeople:source.features.giftPeople.length}};
   }
 
   function applyRestore(current,prepared,model){
@@ -114,7 +115,7 @@
   }
 
   function describeRestore(summary){
-    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines, ${summary.customLaundryCycles||0} custom laundry cycles, ${summary.customLaundryLoads||0} custom loads and ${summary.careDefinitions||0} care definitions, ${summary.occasionTemplates||0} Seasonal templates and ${summary.occasionOccurrences||0} Seasonal occurrences. Current local board data will be replaced. The restore does not write to a live household.`;
+    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines, ${summary.customLaundryCycles||0} custom laundry cycles, ${summary.customLaundryLoads||0} custom loads and ${summary.careDefinitions||0} care definitions, ${summary.occasionTemplates||0} Seasonal templates and ${summary.occasionOccurrences||0} Seasonal occurrences, plus ${summary.gifts||0} gifts and ${summary.giftPeople||0} gift recipients. Current local board data will be replaced. The restore does not write to a live household.`;
   }
 
   function apply(current, prepared, model) {
@@ -125,7 +126,7 @@
       throw Error('The board changed since the preview. Choose the file again before importing. No data changed.');
     }
     const source = validate(prepared.source, model);
-    return model.merge(current, source); // Returns a new board. Caller makes the confirmed save.
+    return model.merge(current, source, {backupGifts:true}); // Returns a new board. Caller makes the confirmed save.
   }
 
   function describe(summary) {
@@ -134,7 +135,7 @@
       ['rooms','rooms'], ['tasks','task families'], ['wins','completion records'],
       ['items','saved items'], ['completionSummaries','completion summaries'],
       ['templates','reusable definitions'], ['routines','saved routines'],
-      ['customLaundryCycles','custom laundry cycles'], ['customLaundryLoads','custom laundry loads'], ['careDefinitions','care definitions'], ['occasionTemplates','Seasonal templates'], ['occasionOccurrences','Seasonal occurrences']
+      ['customLaundryCycles','custom laundry cycles'], ['customLaundryLoads','custom laundry loads'], ['careDefinitions','care definitions'], ['occasionTemplates','Seasonal templates'], ['occasionOccurrences','Seasonal occurrences'], ['gifts','gifts'], ['giftPeople','gift recipients']
     ].map(([key,label])=>`${c[key]} new ${label}`);
     return fragments.join(' · ') + '. Existing matching identities, household settings and history stay unchanged. ' + summary.notes.join(' ');
   }

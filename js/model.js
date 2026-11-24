@@ -169,6 +169,38 @@
     }
     validateOccasions(current);
   }
+  // Backup-only gift merge. Existing IDs win, and an imported gift must not
+  // acquire a different recipient through a conflicting or previously missing ID.
+  // Household connection continues to use the existing merge behavior.
+  function mergeBackupGifts(current,incoming){
+    const nameKey=value=>String(value||'').trim().toLocaleLowerCase();
+    const people=new Map(current.giftPeople.map(p=>[p.id,p]));
+    const sourcePeople=new Map(incoming.giftPeople.map(p=>[p.id,p]));
+    const names=new Set(current.giftPeople.map(p=>nameKey(p.name)));
+    for(const p of incoming.giftPeople){
+      if(people.has(p.id)||names.has(nameKey(p.name)))continue;
+      if(current.gifts.some(g=>g.recipientId===p.id&&nameKey(g.recipient)!==nameKey(p.name)))continue;
+      current.giftPeople.push(p);people.set(p.id,p);names.add(nameKey(p.name));
+    }
+    const ids=new Set(current.gifts.map(g=>g.id));
+    for(const g of incoming.gifts){
+      if(ids.has(g.id))continue;
+      if(g.recipientId){
+        const source=sourcePeople.get(g.recipientId),target=people.get(g.recipientId);
+        if(source&&(!target||nameKey(source.name)!==nameKey(target.name)))continue;
+        if(!source&&target)continue;
+        // The tracker creates virtual legacy people from nonempty trimmed gift
+        // labels, even when no explicit person with that name exists. Require
+        // an ID-linked gift's label to agree with the target's actual name
+        // (case-insensitive, as giftForPerson matches it). Also reject whitespace
+        // ambiguity rather than rewriting existing labels or recipient IDs.
+        if(target&&(g.recipient.toLocaleLowerCase()!==target.name.toLocaleLowerCase()||
+          nameKey(g.recipient)!==target.name.toLocaleLowerCase()))continue;
+        if(target&&current.giftPeople.some(p=>p.id!==target.id&&nameKey(p.name)===nameKey(g.recipient)))continue;
+      }
+      current.gifts.push(g);ids.add(g.id);
+    }
+  }
   function normalize(raw) {
     if (!isObject(raw)||raw.version!==1||!Array.isArray(raw.rooms)||!Array.isArray(raw.tasks)||!Array.isArray(raw.doingOrder))
       throw Error('Unrecognised Tidyish board format. Original saved data was not changed.');
@@ -469,7 +501,7 @@
   function uniform(b){const f=b.features;if(f.uniformIndex<0||f.uniformPaused)return;const snapshot={index:f.uniformIndex,steps:clone(f.uniformSteps),startedAt:f.uniformStartedAt||0};const win=winner(b,{id:`uniform-${uid()}`,title:f.uniformSteps[f.uniformIndex],room:'laundry'},'','laundry');f._uniformUndo={...snapshot,win};f.uniformStartedAt=/^Wash/.test(f.uniformSteps[f.uniformIndex])?Date.now():0;f.uniformIndex++;if(f.uniformIndex>=f.uniformSteps.length-1){const slot=Math.max(0,...f.laundry.map(l=>l.slot))+1;f.laundry.push({slot,step:2,route:'rail',selected:true,uniformWeek:f.uniformWeek,revision:0});f._uniformUndo.handoff=slot;f.uniformIndex=-1;}}
   function undoUniform(b){const f=b.features,u=f._uniformUndo;if(!u)return;if(u.handoff&&f.laundry.find(x=>x.slot===u.handoff)?.revision>0)throw Error('The laundry load has progressed. Undo was not applied.');f.laundry=f.laundry.filter(x=>x.slot!==u.handoff);f.uniformIndex=u.index;f.uniformSteps=u.steps;f.uniformStartedAt=u.startedAt;f.wins=f.wins.filter(w=>w.id!==u.win);delete f._uniformUndo;}
   function templateCopy(source,room,doing=false){const t=clone(source),ids=new Map(t.children.map(c=>[c.id,uid()]));return task({...t,id:uid(),room,templateId:source.id,done:false,doing:!!doing,elapsed:0,startedAt:0,nextDue:'',generatedFrom:'',completedAt:'',_completionIds:[],_finishState:undefined,children:t.children.map(c=>child({...c,id:ids.get(c.id),parentId:ids.get(c.parentId)||'',done:false,elapsed:0,startedAt:0,_winId:undefined}))});}
-  function merge(b,incoming){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','customLaundryCycles','customLaundryLoads','careDefinitions','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}mergeOccasions(result.features,n.features);return result;}
+  function merge(b,incoming,options={}){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','customLaundryCycles','customLaundryLoads','careDefinitions','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}mergeOccasions(result.features,n.features);if(options.backupGifts===true)mergeBackupGifts(result.features,n.features);return result;}
   function focus(b,roomId,routine,steps,selected){
     // Called ONLY after explicit user confirmation in the Focus dialog.
     if(!b.rooms.some(r=>r.id===roomId))throw Error('Choose a room.');
