@@ -255,7 +255,8 @@
     return [...active,...completed];
   }
   function orderChildList(b,t,parentId='',now=Date.now()){
-    return (t?.children||[]).filter(c=>(c.parentId||'')===parentId&&(!c.done||isTaskCompletionVisible(b,c,now)))
+    const activeTopLevel=!t?.done;
+    return (t?.children||[]).filter(c=>(c.parentId||'')===parentId&&(!c.done||activeTopLevel||isTaskCompletionVisible(b,c,now)))
       .sort((a,z)=>Number(a.done)-Number(z.done)||(a.done?taskCompletionTime(b,z)-taskCompletionTime(b,a):0));
   }
   function nextTaskCompletionExpiry(b,now=Date.now()){

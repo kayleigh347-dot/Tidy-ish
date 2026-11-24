@@ -24,10 +24,27 @@ test('completed tasks stay visible through the completion day and disappear at 3
  assert.match(app,/nextCompletionExpiry=M\.nextTaskCompletionExpiry\(board,now\);if\(expiryPassed\)\{render\(\);return;\}/);
 });
 
-test('subtask completion uses its own completion record and recent completions sort first',()=>{
- const board=M.board(),older=M.child({id:'child-old',title:'Older subtask',done:true}),newer=M.child({id:'child-new',title:'Newer subtask',done:true}),parent=M.task({id:'parent',title:'Parent',children:[older,newer]});
- board.tasks.push(parent);board.features.wins.push({id:'child-old-win',taskId:older.id,rootId:parent.id,at:local(2026,10,2,11).toISOString()},{id:'child-new-win',taskId:newer.id,rootId:parent.id,at:local(2026,10,3,1).toISOString()});
- const now=local(2026,10,3,4).getTime();
- assert.deepEqual(M.orderChildList(board,parent,'',now).map(c=>c.id),[newer.id]);
+test('an active top-level task retains completed descendants at every depth past 3am; parent completion restores normal expiry',()=>{
+ const board=M.board(),older=M.child({id:'child-old',title:'Wipe counters',done:true}),newer=M.child({id:'child-new',title:'Polish tap',done:true}),active=M.child({id:'child-active',title:'Rinse cloth'}),nested=M.child({id:'child-nested-old',parentId:older.id,title:'Clean behind toaster',done:true}),deep=M.child({id:'child-deep-old',parentId:nested.id,title:'Wipe crumbs',done:true}),parent=M.task({id:'parent',title:'Kitchen reset',children:[older,newer,active,nested,deep]});
+ board.tasks.push(parent);board.features.wins.push(
+  {id:'child-old-win',taskId:older.id,rootId:parent.id,at:local(2026,10,2,11).toISOString(),points:1},
+  {id:'child-new-win',taskId:newer.id,rootId:parent.id,at:local(2026,10,3,1).toISOString(),points:1},
+  {id:'child-nested-win',taskId:nested.id,rootId:parent.id,at:local(2026,10,1,10).toISOString(),points:1},
+  {id:'child-deep-win',taskId:deep.id,rootId:parent.id,at:local(2026,9,31,10).toISOString(),points:1}
+ );
+ const now=local(2026,10,3,4).getTime(),before=JSON.stringify(board);
+ assert.equal(M.isTaskCompletionVisible(board,older,now),false,'the direct completion is past its own expiry');
+ assert.equal(M.isTaskCompletionVisible(board,nested,now),false,'the nested completion is past its own expiry');
+ assert.deepEqual(M.orderChildList(board,parent,'',now).map(c=>c.id),[active.id,newer.id,older.id],'active siblings stay first and stale completed children remain visible while the root is active');
+ assert.deepEqual(M.orderChildList(board,parent,older.id,now).map(c=>c.id),[nested.id],'a stale grandchild remains under its completed intermediate parent');
+ assert.deepEqual(M.orderChildList(board,parent,nested.id,now).map(c=>c.id),[deep.id],'retention applies recursively beyond one nested level');
+ assert.equal(JSON.stringify(board),before,'display ordering must not rewrite task or win history');
+
+ parent.done=true;parent.completedAt=local(2026,10,3,2).toISOString();
+ const afterParentCompletion=JSON.stringify(board);
+ assert.deepEqual(M.orderChildList(board,parent,'',now).map(c=>c.id),[active.id,newer.id],'after root completion, expired children hide and a recent child follows normal retention');
+ assert.deepEqual(M.orderChildList(board,parent,older.id,now).map(c=>c.id),[],'expired nested children also follow normal retention after root completion');
+ assert.deepEqual(M.orderChildList(board,parent,nested.id,now).map(c=>c.id),[],'expired descendants at deeper levels follow normal retention after root completion');
+ assert.equal(JSON.stringify(board),afterParentCompletion,'retention changes visibility only, not task or completion data');
  assert.equal(M.isTaskCompletionVisible(board,M.child({id:'legacy-done',done:true}),now),false,'undated completed cards are treated as old and hidden without deleting their data');
 });
