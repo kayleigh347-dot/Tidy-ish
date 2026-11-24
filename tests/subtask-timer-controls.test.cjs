@@ -23,5 +23,5 @@ test('narrow task timer dialog is viewport-contained with shrinkable title, phon
  assert.match(narrow,/\.phone-timer-presets\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
  assert.match(narrow,/\.phone-timer-settings \.field\{grid-template-columns:minmax\(0,1fr\)\}/);
  for(const l of narrow.split('\n').filter(l=>l.trim().startsWith('#editor')))assert.ok(l.trim().startsWith(prefix));
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.ok(html.includes('css/style.css?v=20261104-laundry-single-load1-interface2-subtasktimer2-masterportrait2-roomchildstrike2"'));
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.ok(html.includes('css/style.css?v=20261104-laundry-single-load1-interface2-subtasktimer2-masterportrait2-roomchildstrike2-kayleighwriting1"'));
 });

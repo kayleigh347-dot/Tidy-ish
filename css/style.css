@@ -663,3 +663,29 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
  #editor:has(.quest-time-panel) .phone-timer-presets{grid-template-columns:repeat(2,minmax(0,1fr))}
  #editor:has(.quest-time-panel) .phone-timer-settings .field{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* Kayleigh's supplied Compact font. Settings keeps the existing font cascade. */
+@font-face {
+  font-family: "Kayleigh Writing Compact";
+  src: url("../assets/fonts/Kayleighs-writing_Compact_Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Kayleigh Writing Compact";
+  src: url("../assets/fonts/Kayleighs-writing_Compact_Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+body.kayleigh-writing-active,
+body.kayleigh-writing-active * {
+  font-family: "Kayleigh Writing Compact", "Tidy Josefin Sans", "Trebuchet MS", system-ui, sans-serif;
+}
+body.kayleigh-writing-active .tac h1,
+body.kayleigh-writing-active .tac h2,
+body.kayleigh-writing-active .tac h3 {
+  font-family: "Kayleigh Writing Compact", "Tidy Josefin Sans", "Trebuchet MS", system-ui, sans-serif;
+}
