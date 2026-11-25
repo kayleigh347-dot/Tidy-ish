@@ -71,6 +71,13 @@
 
   function collection(board, name) { return FEATURE_KEYS.has(name) ? board.features[name] : board[name]; }
 
+  function unresolvedSeasonalLinks(board,model){
+    return board.features.occasionOccurrences.reduce((count,o)=>{
+      const s=model.occasionLinkStatus(board,o);
+      return count+[...s.tasks,...s.gifts,...s.recipients].filter(l=>l.status!=='linked').length;
+    },0);
+  }
+
   function prepare(current, text, model) {
     const original = JSON.stringify(current);
     if (typeof original !== 'string') throw Error('The current board is unavailable. Nothing was imported.');
@@ -93,8 +100,20 @@
     try { if (Object.prototype.hasOwnProperty.call(JSON.parse(text), 'sharedSnapshot')) notes.push('The saved household sync snapshot is ignored; only the backup board data is considered.'); } catch {}
     if (skipped.tasks) notes.push(`${skipped.tasks} matching task ID(s) will stay as they are.`);
     if (skipped.rooms) notes.push('Rooms with matching IDs keep their current settings and artwork.');
-    if (skipped.occasionTemplates || skipped.occasionOccurrences) notes.push(`Seasonal merge keeps current records: ${skipped.occasionTemplates} template(s) and ${skipped.occasionOccurrences} occurrence(s) not added because of matching IDs, logical duplicates or conflicting templates. Full restore is a separate replacement option.`);
+    if (skipped.occasionTemplates || skipped.occasionOccurrences) notes.push(`Seasonal merge keeps current records: ${skipped.occasionTemplates} template(s) and ${skipped.occasionOccurrences} occurrence(s) not added because of matching IDs, logical duplicates, conflicting templates or missing/conflicting linked records. Full restore is a separate replacement option.`);
     if (skipped.gifts || skipped.giftPeople) notes.push(`Gift merge keeps current records: ${skipped.gifts} gift(s) and ${skipped.giftPeople} person record(s) not added because of matching IDs, conflicting recipients or duplicate names. Full restore is a separate replacement option.`);
+    // A confirmed backup may restore a previously absent identity. Surface
+    // links that become usable again; no implicit activation or completion.
+    let restoredLinks=0;
+    for(const o of base.features.occasionOccurrences){
+      const next=merged.features.occasionOccurrences.find(row=>row.id===o.id);
+      if(!next)continue;
+      const before=model.occasionLinkStatus(base,o),after=model.occasionLinkStatus(merged,next);
+      for(const k of ['tasks','gifts','recipients'])restoredLinks+=after[k].filter((l,i)=>l.status==='linked'&&before[k][i]?.status!=='linked').length;
+    }
+    const unresolved=unresolvedSeasonalLinks(merged,model);
+    if(unresolved)notes.push(`${unresolved} Seasonal link(s) remain unresolved; their identities are retained, not reassigned.`);
+    if(restoredLinks)notes.push(`${restoredLinks} existing Seasonal link(s) become available again because missing records will be restored by this confirmed merge. Review before confirming.`);
     if (changes.gifts || changes.giftPeople) notes.push('Merge adds missing gift/person identities from this backup, including records previously removed locally. Review these counts before confirming.');
     if (!Object.values(changes).some(Boolean)) notes.push('This backup contains no new supported records.');
     const summary = {changes, skipped, existingTasks:base.tasks.length, importedTasks:incoming.tasks.length, notes};
@@ -105,7 +124,7 @@
     const original=JSON.stringify(current);
     if(typeof original!=='string')throw Error('The current board is unavailable. Nothing was restored.');
     const source=fromText(text,model);
-    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length,customLaundryCycles:source.features.customLaundryCycles.length,customLaundryLoads:source.features.customLaundryLoads.length,careDefinitions:source.features.careDefinitions.length,occasionTemplates:source.features.occasionTemplates.length,occasionOccurrences:source.features.occasionOccurrences.length,gifts:source.features.gifts.length,giftPeople:source.features.giftPeople.length}};
+    return {original,source,summary:{rooms:source.rooms.length,tasks:source.tasks.length,wins:source.features.wins.length,items:source.features.items.length,templates:source.features.templates.length,routines:source.features.routines.length,customLaundryCycles:source.features.customLaundryCycles.length,customLaundryLoads:source.features.customLaundryLoads.length,careDefinitions:source.features.careDefinitions.length,occasionTemplates:source.features.occasionTemplates.length,occasionOccurrences:source.features.occasionOccurrences.length,gifts:source.features.gifts.length,giftPeople:source.features.giftPeople.length,unresolvedSeasonalLinks:unresolvedSeasonalLinks(source,model)}};
   }
 
   function applyRestore(current,prepared,model){
@@ -115,7 +134,7 @@
   }
 
   function describeRestore(summary){
-    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines, ${summary.customLaundryCycles||0} custom laundry cycles, ${summary.customLaundryLoads||0} custom loads and ${summary.careDefinitions||0} care definitions, ${summary.occasionTemplates||0} Seasonal templates and ${summary.occasionOccurrences||0} Seasonal occurrences, plus ${summary.gifts||0} gifts and ${summary.giftPeople||0} gift recipients. Current local board data will be replaced. The restore does not write to a live household.`;
+    return `Replace this browser’s entire local board with ${summary.rooms} rooms, ${summary.tasks} task families, ${summary.wins} completion records, ${summary.items} saved items, ${summary.templates} reusable definitions and ${summary.routines} routines, ${summary.customLaundryCycles||0} custom laundry cycles, ${summary.customLaundryLoads||0} custom loads and ${summary.careDefinitions||0} care definitions, ${summary.occasionTemplates||0} Seasonal templates and ${summary.occasionOccurrences||0} Seasonal occurrences, plus ${summary.gifts||0} gifts and ${summary.giftPeople||0} gift recipients. Current local board data will be replaced. The restore does not write to a live household.${summary.unresolvedSeasonalLinks?` ${summary.unresolvedSeasonalLinks} Seasonal link(s) will remain unresolved; their identities are retained, not reassigned.`:''}`;
   }
 
   function apply(current, prepared, model) {

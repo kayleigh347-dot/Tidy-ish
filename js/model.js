@@ -128,22 +128,32 @@
       used.add(r.id);
     }
   }
-  // Stage 1B: local-only storage for unlinked Seasonal records. No presets,
-  // task/gift references, lifecycle actions, or implicit calendar policies.
+  // Stage 1C2: local-only explicit links. Missing targets remain recorded,
+  // never guessed by name, and never prevent an existing board from loading.
   const seasonalKeys = ['occasionTemplates','occasionOccurrences'];
   function validateOccasions(f) {
     const fail=label=>{throw Error('Invalid saved Seasonal '+label+'; original saved data preserved.');};
     const validId=v=>typeof v==='string'&&v.trim()===v&&v.length>0;
     const fields=(row,keys)=>isObject(row)&&Object.keys(row).every(k=>keys.includes(k));
+    const uniqueIds=rows=>Array.isArray(rows)&&rows.every(validId)&&new Set(rows).size===rows.length;
     const templates=new Map(), occurrences=new Set(), keys=new Set();
     for(const name of seasonalKeys)if(!Array.isArray(f[name]))fail(name);
     for(const t of f.occasionTemplates){
-      if(!fields(t,['id','name','recurrence'])||!validId(t.id)||templates.has(t.id)||typeof t.name!=='string'||!t.name.trim()||!['annual','one-off'].includes(t.recurrence))fail('template');
+      if(!fields(t,['id','name','recurrence','taskDefinitions'])||!validId(t.id)||templates.has(t.id)||typeof t.name!=='string'||!t.name.trim()||!['annual','one-off'].includes(t.recurrence))fail('template');
+      if(t.taskDefinitions!==undefined&&(!Array.isArray(t.taskDefinitions)||
+        !t.taskDefinitions.every(d=>fields(d,['id','title'])&&validId(d.id)&&typeof d.title==='string'&&d.title.trim())||
+        !uniqueIds(t.taskDefinitions.map(d=>d.id))))fail('task definitions');
       templates.set(t.id,t);
     }
     for(const o of f.occasionOccurrences){
-      if(!fields(o,['id','templateId','occurrenceKey','eventDate','preparationStartDate','endDate'])||!validId(o.id)||occurrences.has(o.id)||!validId(o.templateId)||!templates.has(o.templateId)||!parseDay(o.eventDate)||!parseDay(o.preparationStartDate)||!parseDay(o.endDate)||o.preparationStartDate>o.eventDate||o.endDate<o.eventDate)fail('occurrence');
+      if(!fields(o,['id','templateId','occurrenceKey','eventDate','preparationStartDate','endDate','taskLinks','giftIds','recipientIds'])||!validId(o.id)||occurrences.has(o.id)||!validId(o.templateId)||!templates.has(o.templateId)||!parseDay(o.eventDate)||!parseDay(o.preparationStartDate)||!parseDay(o.endDate)||o.preparationStartDate>o.eventDate||o.endDate<o.eventDate)fail('occurrence');
       const t=templates.get(o.templateId);
+      if(o.taskLinks!==undefined){
+        const defs=new Set((t.taskDefinitions||[]).map(d=>d.id));
+        if(!Array.isArray(o.taskLinks)||!o.taskLinks.every(l=>fields(l,['definitionId','taskId'])&&defs.has(l.definitionId)&&validId(l.taskId))||
+          !uniqueIds(o.taskLinks.map(l=>l.definitionId))||!uniqueIds(o.taskLinks.map(l=>l.taskId)))fail('task links');
+      }
+      for(const k of ['giftIds','recipientIds'])if(o[k]!==undefined&&!uniqueIds(o[k]))fail(k);
       // Same opaque identity tuple as seasonal-core.js. The event year, never
       // the preparation year, identifies an annual occurrence in this slice.
       const expected=JSON.stringify([t.id,t.recurrence,t.recurrence==='annual'?Number(o.eventDate.slice(0,4)):o.id]);
@@ -151,12 +161,66 @@
       occurrences.add(o.id);keys.add(expected);
     }
   }
-  function mergeOccasions(current,incoming){
+  // Read-only resolution: distinguish missing and ambiguous gift targets;
+  // never fabricate people, copy task data, or award completion points.
+  function occasionLinkStatus(board,occurrence){
+    const f=board.features;
+    const target=(rows,id)=>rows.find(row=>row.id===id);
+    const status=(rows,id)=>target(rows,id)?'linked':'missing';
+    const gifts=(occurrence.giftIds||[]).map(id=>{
+      const g=target(f.gifts,id);
+      if(!g)return {id,status:'missing'};
+      // Explicit recipient IDs must agree with the actual tracker label.
+      // Legacy name-only gifts remain gift links, not inferred person links.
+      if(g.recipientId){
+        const p=target(f.giftPeople,g.recipientId);
+        if(!p)return {id,status:'unresolved-recipient'};
+        const label=g.recipient.toLocaleLowerCase(),name=p.name.toLocaleLowerCase();
+        if(label!==name||label.trim()!==name||f.giftPeople.some(other=>other.id!==p.id&&other.name.trim().toLocaleLowerCase()===label.trim()))return {id,status:'recipient-conflict'};
+      }
+      return {id,status:'linked'};
+    });
+    return {tasks:(occurrence.taskLinks||[]).map(l=>({...l,status:status(board.tasks,l.taskId)})),gifts,recipients:(occurrence.recipientIds||[]).map(id=>({id,status:status(f.giftPeople,id)}))};
+  }
+  function setOccasionLinks(board,occurrenceId,links){
+    if(!isObject(links)||!Object.keys(links).length||Object.keys(links).some(k=>!['taskLinks','giftIds','recipientIds'].includes(k)))throw Error('Invalid Seasonal link selection. No data changed.');
+    const out=normalize(board),o=out.features.occasionOccurrences.find(row=>row.id===occurrenceId);
+    if(!o)throw Error('Seasonal occurrence not found. No data changed.');
+    // Omitted collections are untouched. Supplied collections are explicit
+    // replacements, so an unresolved historic link can be removed deliberately.
+    for(const k of Object.keys(links)){
+      if(!Array.isArray(links[k]))throw Error('Invalid Seasonal link selection. No data changed.');
+      o[k]=clone(links[k]);
+    }
+    validateOccasions(out.features);
+    const resolved=occasionLinkStatus(out,o);
+    for(const [k,group] of [['taskLinks','tasks'],['giftIds','gifts'],['recipientIds','recipients']]){
+      if(Object.prototype.hasOwnProperty.call(links,k)&&resolved[group].some(l=>l.status!=='linked'))throw Error('Seasonal link target missing or conflicting. No data changed.');
+    }
+    return out;
+  }
+  // Comparison ignores object key ordering but not record content or array order.
+  const stableSeasonal=value=>Array.isArray(value)?value.map(stableSeasonal):isObject(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,stableSeasonal(value[k])])):value;
+  const sameSeasonal=(a,b)=>JSON.stringify(stableSeasonal(a))===JSON.stringify(stableSeasonal(b));
+  function compatibleOccasionLinks(result,incoming,o){
+    const refs=occasionLinkStatus(result,o),source=occasionLinkStatus(incoming,o);
+    if([...refs.tasks,...refs.gifts,...refs.recipients,...source.tasks,...source.gifts,...source.recipients].some(l=>l.status!=='linked'))return false;
+    const same=(a,b,id)=>{const x=a.find(r=>r.id===id),y=b.find(r=>r.id===id);return !!x&&!!y&&sameSeasonal(x,y);};
+    return (o.taskLinks||[]).every(l=>same(result.tasks,incoming.tasks,l.taskId))&&
+      (o.recipientIds||[]).every(id=>same(result.features.giftPeople,incoming.features.giftPeople,id))&&
+      (o.giftIds||[]).every(id=>{
+        if(!same(result.features.gifts,incoming.features.gifts,id))return false;
+        const g=incoming.features.gifts.find(r=>r.id===id);
+        return !g.recipientId||same(result.features.giftPeople,incoming.features.giftPeople,g.recipientId);
+      });
+  }
+  function mergeOccasions(result,source,backup){
+    const current=result.features,incoming=source.features;
     const templates=new Map(current.occasionTemplates.map(t=>[t.id,t]));
     const incompatible=new Set();
     for(const t of incoming.occasionTemplates){
       const prior=templates.get(t.id);
-      if(prior){if(prior.name!==t.name||prior.recurrence!==t.recurrence)incompatible.add(t.id);}
+      if(prior){if(!sameSeasonal(prior,t))incompatible.add(t.id);}
       else {current.occasionTemplates.push(t);templates.set(t.id,t);}
     }
     const ids=new Set(current.occasionOccurrences.map(o=>o.id));
@@ -165,6 +229,8 @@
       // Current records win; never silently attach an imported occurrence to
       // a conflicting template, or duplicate its logical occurrence identity.
       if(incompatible.has(o.templateId)||ids.has(o.id)||keys.has(o.occurrenceKey))continue;
+      const linked=(o.taskLinks||[]).length||(o.giftIds||[]).length||(o.recipientIds||[]).length;
+      if(linked&&(!backup||!compatibleOccasionLinks(result,source,o)))continue;
       current.occasionOccurrences.push(o);ids.add(o.id);keys.add(o.occurrenceKey);
     }
     validateOccasions(current);
@@ -501,7 +567,7 @@
   function uniform(b){const f=b.features;if(f.uniformIndex<0||f.uniformPaused)return;const snapshot={index:f.uniformIndex,steps:clone(f.uniformSteps),startedAt:f.uniformStartedAt||0};const win=winner(b,{id:`uniform-${uid()}`,title:f.uniformSteps[f.uniformIndex],room:'laundry'},'','laundry');f._uniformUndo={...snapshot,win};f.uniformStartedAt=/^Wash/.test(f.uniformSteps[f.uniformIndex])?Date.now():0;f.uniformIndex++;if(f.uniformIndex>=f.uniformSteps.length-1){const slot=Math.max(0,...f.laundry.map(l=>l.slot))+1;f.laundry.push({slot,step:2,route:'rail',selected:true,uniformWeek:f.uniformWeek,revision:0});f._uniformUndo.handoff=slot;f.uniformIndex=-1;}}
   function undoUniform(b){const f=b.features,u=f._uniformUndo;if(!u)return;if(u.handoff&&f.laundry.find(x=>x.slot===u.handoff)?.revision>0)throw Error('The laundry load has progressed. Undo was not applied.');f.laundry=f.laundry.filter(x=>x.slot!==u.handoff);f.uniformIndex=u.index;f.uniformSteps=u.steps;f.uniformStartedAt=u.startedAt;f.wins=f.wins.filter(w=>w.id!==u.win);delete f._uniformUndo;}
   function templateCopy(source,room,doing=false){const t=clone(source),ids=new Map(t.children.map(c=>[c.id,uid()]));return task({...t,id:uid(),room,templateId:source.id,done:false,doing:!!doing,elapsed:0,startedAt:0,nextDue:'',generatedFrom:'',completedAt:'',_completionIds:[],_finishState:undefined,children:t.children.map(c=>child({...c,id:ids.get(c.id),parentId:ids.get(c.parentId)||'',done:false,elapsed:0,startedAt:0,_winId:undefined}))});}
-  function merge(b,incoming,options={}){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','customLaundryCycles','customLaundryLoads','careDefinitions','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}mergeOccasions(result.features,n.features);if(options.backupGifts===true)mergeBackupGifts(result.features,n.features);return result;}
+  function merge(b,incoming,options={}){const n=normalize(incoming),result=normalize(b);const roomIds=new Set(result.rooms.map(r=>r.id)),taskIds=new Set(result.tasks.map(t=>t.id));for(const r of n.rooms)if(!roomIds.has(r.id)){result.rooms.push(r);roomIds.add(r.id);}for(const t of n.tasks)if(!taskIds.has(t.id)){result.tasks.push(t);taskIds.add(t.id);}for(const id of n.doingOrder)if(taskIds.has(id)&&!result.doingOrder.includes(id))result.doingOrder.push(id);for(const key of ['items','wins','completionSummaries','templates','routines','customLaundryCycles','customLaundryLoads','careDefinitions','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','questTimings','taskDataArchives','dailyLogRecords','dailyLogRewashes']){const have=new Set(result.features[key].map(x=>x.id));for(const item of n.features[key])if(!have.has(item.id)){result.features[key].push(item);have.add(item.id);}}if(options.backupGifts===true)mergeBackupGifts(result.features,n.features);mergeOccasions(result,n,options.backupGifts===true);return result;}
   function focus(b,roomId,routine,steps,selected){
     // Called ONLY after explicit user confirmation in the Focus dialog.
     if(!b.rooms.some(r=>r.id===roomId))throw Error('Choose a room.');
@@ -523,5 +589,5 @@
     taskCompletionTime,taskCompletionExpiresAt,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,messBreakdown,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
     saveCustomCycle,removeCustomCycle,startCustomLoad,completeCustomStep,undoCustomStep,customLaundryNeedsAttention,customLaundryReminderDue,
-    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
+    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
 });
