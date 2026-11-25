@@ -30,3 +30,8 @@
 .gift-tracker .gift-row .row{grid-column:1/-1}
 .gift-tracker textarea[name="ideas"]{min-height:8rem}
 @media(max-width:390px){.gift-person-checkoff{align-items:flex-start;flex-direction:column}.gift-person-checkoff>.row{justify-content:flex-start}}
+.christmas-gifts .gift-row{grid-template-columns:minmax(0,1fr) auto}
+.christmas-gifts .gift-row>.small{grid-column:1/-1}
+.christmas-gifts .gift-row strong{min-width:0;overflow-wrap:anywhere}
+.christmas-gifts .gift-row button,.christmas-gifts>.row button,.christmas-gifts .gift-person-checkoff button{min-height:44px;max-width:100%;white-space:normal}
+.christmas-gifts>.row{flex-wrap:wrap}

@@ -111,7 +111,55 @@ function recurring(b,t,today,warnings){
  }
 }
 function active(b,today=M.date()){return pairs(b).filter(({o})=>o.workflow&&!o.workflow.closed&&phase(o,today)==='active').sort((a,z)=>a.o.eventDate.localeCompare(z.o.eventDate));}
-function eligible(b,o,row,today){if(!o.workflow.settings.tasksEnabled||!row.selected||!row.taskId||row.role==='wrap')return false;const start=validItemWindow(o,row);if(!start||today<start)return false;
+// Christmas gift records remain the sole source of receipt/wrapping state.
+// Legacy bought gifts already appeared in Needs wrapped: preserve that meaning.
+function received(g){return g.status==='wrapped'||g.status==='bought'&&g.receiptStatus!=='ordered';}
+function needsWrap(g){return received(g)&&g.status!=='wrapped'&&g.noWrapping!==true;}
+function christmasContext(b,oid,today=M.date()){
+ const o=b.features.occasionOccurrences.find(x=>x.id===oid),t=o&&b.features.occasionTemplates.find(x=>x.id===o.templateId),plan=t&&(t.workflow||b.features.occasionPlans?.templates.find(x=>x.id===t.id)?.plan),w=o&&(o.workflow||b.features.occasionPlans?.occurrences.find(x=>x.id===o.id)?.plan);
+ if(!o||plan?.preset!=='christmas'||!w)return null;
+ const linked=b.features.gifts.filter(g=>g.occasion==='christmas'&&(o.giftIds||[]).includes(g.id)),gifts=linked.filter(g=>b.features.occasionOccurrences.filter(x=>(x.giftIds||[]).includes(g.id)).length===1);
+ const available=b.features.gifts.filter(g=>g.occasion==='christmas'&&g.eventDate===o.eventDate&&!b.features.occasionOccurrences.some(x=>(x.giftIds||[]).includes(g.id)));
+ return {o,w,gifts,available,conflicts:linked.length-gifts.length,readOnly:w.closed||phase(o,today)==='ended',active:phase(o,today)==='active'};
+}
+function christmasGiftChange(input,oid,action,data,today=M.date()){
+ const b=copy(input),ctx=christmasContext(b,oid,today);if(!ctx||ctx.readOnly)fail('Christmas occasion is missing or ended.');
+ const {o}=ctx,prior=new Set(ctx.gifts.filter(needsWrap).map(g=>g.id)),g=ctx.gifts.find(x=>x.id===data.id);
+ const now=new Date().toISOString();
+ if(action==='link'){
+  const target=ctx.available.find(x=>x.id===data.id);if(!target)fail('Gift is already linked or does not match this Christmas date.');
+  o.giftIds=[...(o.giftIds||[]),target.id];if(target.recipientId&&b.features.giftPeople.some(p=>p.id===target.recipientId))o.recipientIds=[...new Set([...(o.recipientIds||[]),target.recipientId])];
+ }else if(action==='save'){
+  if(data.id&&!g)fail('Gift no longer belongs to this occasion.');
+  const person=b.features.giftPeople.find(p=>p.id===data.recipientId&&p.tracker!==false),title=String(data.title||'').trim(),price=Number(data.price);
+  if(!person||!title||title.length>160||data.price===''||!Number.isFinite(price)||price<0||!['ordered','received'].includes(data.receiptStatus)||typeof data.noWrapping!=='boolean')fail('Enter a recipient, gift name, price and receipt status.');
+  if(g?.status==='wrapped'&&data.receiptStatus==='ordered')fail('Unwrap the gift before changing its receipt status.');
+  const row={...g,id:g?.id||id(),occasion:'christmas',recipientId:person.id,recipient:person.name,title,price,budget:price,spent:price,eventDate:g?.eventDate||o.eventDate,status:g?.status==='wrapped'?'wrapped':'bought',receiptStatus:data.receiptStatus,noWrapping:data.noWrapping,createdAt:g?.createdAt||now,updatedAt:now};
+  if(data.receiptStatus==='ordered')row.orderedAt=g?.receiptStatus==='ordered'&&g.orderedAt?g.orderedAt:today;
+  else delete row.orderedAt;
+  if(g)b.features.gifts[b.features.gifts.indexOf(g)]=row;else{b.features.gifts.push(row);o.giftIds=[...(o.giftIds||[]),row.id];}
+  o.recipientIds=[...new Set([...(o.recipientIds||[]),person.id])];
+ }else if(action==='delete'){
+  if(!g)fail('Gift no longer belongs to this occasion.');b.features.gifts=b.features.gifts.filter(x=>x.id!==g.id);o.giftIds=(o.giftIds||[]).filter(x=>x!==g.id);
+ }else if(action==='receive'){
+  if(!g||g.status!=='bought'||g.receiptStatus!=='ordered')fail('Only ordered gifts can be marked received.');g.receiptStatus='received';delete g.orderedAt;g.updatedAt=now;
+ }else if(action==='wrap'){
+  if(!g||!(needsWrap(g)||g.status==='wrapped'&&g.noWrapping!==true))fail('This gift is not eligible for wrapping.');g.status=g.status==='wrapped'?'bought':'wrapped';g.receiptStatus='received';delete g.orderedAt;g.updatedAt=now;
+ }else fail('Unknown gift action.');
+ // Existing household sync excludes occurrence links. Do not mutate shared task
+ // state based on a private/local occurrence until that contract is integrated.
+ const next=reconcile(b,today).board,after=christmasContext(next,oid,today);
+ if(!next.features.browserSync&&after?.active&&after.w.settings.tasksEnabled&&after.gifts.some(g=>needsWrap(g)&&!prior.has(g.id))){
+  for(const r of after.w.items.filter(r=>r.selected&&r.role==='wrap')){
+   const a=after.w.activated.find(x=>x.definitionId===r.definitionId&&!x.suspended),task=next.tasks.find(t=>t.id===r.taskId&&!t.archived);
+   // A real completed wrapping cycle can be reopened, never an unrelated task
+   // or previous year's completion. Undo of the next completion preserves wins.
+   if(a&&task?.done&&next.features.wins.some(w=>(w.rootId===task.id||w.taskId===task.id)&&!a.priorWinIds.includes(w.id))){M.reactivate(next,task.id);M.select(next,task.id,true);}
+  }
+ }
+ return next;
+}
+function eligible(b,o,row,today){if(!o.workflow.settings.tasksEnabled||!row.selected||!row.taskId)return false;if(row.role==='wrap'){const ctx=christmasContext(b,o.id,today);return !!ctx&&(ctx.gifts.some(needsWrap)||o.workflow.activated.some(a=>a.definitionId===row.definitionId));}const start=validItemWindow(o,row);if(!start||today<start)return false;
  if(row.role==='teardown'){const y=Number(o.eventDate.slice(0,4))-1;if(!pairs(b).some(({o:other,t})=>t.workflow?.preset==='christmas'&&Number(other.eventDate.slice(0,4))===y&&other.workflow?.settings.celebrated))return false;}
  return true;}
 function snapshot(b,a){const t=b.tasks.find(x=>x.id===a.taskId);return {definitionId:a.definitionId,taskId:a.taskId,done:!!t?.done,completedAt:t?.completedAt||'',children:(t?.children||[]).map(c=>({id:c.id,done:!!c.done})),winIds:b.features.wins.filter(w=>(w.rootId===a.taskId||w.taskId===a.taskId)&&!(a.priorWinIds||[]).includes(w.id)).map(w=>w.id)};}
@@ -143,6 +191,11 @@ function reconcile(input,today=M.date()){
    if(previous&&row.repeat){const prior=previous.workflow.history.find(h=>h.definitionId===row.definitionId),activation=previous.workflow.activated.find(a=>a.definitionId===row.definitionId),known=new Set([...(prior?.winIds||[]),...(activation?.priorWinIds||[])]);if(b.features.wins.some(w=>(w.rootId===task.id||w.taskId===task.id)&&!known.has(w.id))){warnings.push(`${w.name}: ${row.title} has newer completion history; review it before resetting.`);continue;}if(task.startedAt||task.children.some(c=>c.startedAt)){warnings.push(`${w.name}: stop the existing timer before resetting ${row.title}.`);continue;}
     if(task.done)M.reactivate(b,task.id);else if(task.children.some(c=>c.done)){task._canUndoFamily=false;delete task._finishState;delete task._completionIds;task.undoChildren=[];for(const c of task.children){c.done=false;c.elapsed=0;delete c._winId;}task.elapsed=0;}
    }
+   // A first eligible Christmas wrapping activation may encounter a task
+   // already completed before any gift arrived. Start a fresh cycle without
+   // undoing old wins; subsequent reconciles skip the existing activation.
+   // Keep the annual-history and overlapping-owner guards above in force.
+   if(row.role==='wrap'&&task.done){if(task.startedAt||task.children.some(c=>c.startedAt)){warnings.push(`${w.name}: stop the existing timer before reopening ${row.title}.`);continue;}M.reactivate(b,task.id);}
    const wasDoing=!!task.doing;M.select(b,task.id,true);w.activated.push({definitionId:row.definitionId,taskId:task.id,wasDoing,priorWinIds:b.features.wins.filter(w=>w.rootId===task.id||w.taskId===task.id).map(w=>w.id)});held.add(task.id);
   }
  }
@@ -156,5 +209,5 @@ function giftRole(input,taskId,today=M.date()){if(!hasPlans(input))return null;c
 function dueReminders(input,today=M.date()){const b=hydrate(input,true),out=[],seen=new Set();if(b.features.browserSync)return out;for(const {o} of active(b,today)){const w=o.workflow;if(!w.settings.tasksEnabled)continue;for(const row of w.items){if(!row.selected||!row.taskId||row.role==='wrap'||row.role==='teardown'||row.reminderOffset===null||(w.reminded||[]).includes(row.definitionId)||seen.has(row.taskId))continue;const due=validItemWindow(o,{offset:row.reminderOffset??row.offset}),task=b.tasks.find(t=>t.id===row.taskId&&!t.archived&&!t.done);if(due&&due<=today&&task){out.push({occurrenceId:o.id,definitionId:row.definitionId,taskId:row.taskId,title:task.title,name:w.name});seen.add(row.taskId);}}}return out;}
 function markReminders(input,rows,today=M.date()){const b=hydrate(input),due=dueReminders(input,today);for(const r of rows){if(!due.some(x=>x.occurrenceId===r.occurrenceId&&x.definitionId===r.definitionId))continue;const {o}=get(b,r.occurrenceId);o.workflow.reminded||=[];if(!o.workflow.reminded.includes(r.definitionId))o.workflow.reminded.push(r.definitionId);}return dehydrate(b);}
 function editable(b,oid){return editableHydrated(hydrate(b,true),oid);}
-return Object.freeze({PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders});
+return Object.freeze({PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders,christmasContext,christmasGiftChange,received,needsWrap});
 });
