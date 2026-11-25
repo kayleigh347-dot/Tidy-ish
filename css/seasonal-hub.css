@@ -18,3 +18,8 @@
 
 /* Stage 2C1: editing uses the existing mobile-safe form. */
 .seasonal-hub .seasonal-edit{min-height:44px;white-space:normal;margin-top:.5rem;}
+.seasonal-home,.seasonal-home-event,.seasonal-doing-section,.seasonal-plan-row{min-width:0;overflow-wrap:anywhere;}
+.seasonal-home-event{padding-block:.5rem;}
+.seasonal-home-event button,.seasonal-doing-section .room-heading button{min-height:44px;white-space:normal;}
+.seasonal-create-form .seasonal-plan-row .field{display:grid;gap:.25rem;align-items:start;}
+.seasonal-create-form .seasonal-plan-row select,.seasonal-create-form .seasonal-plan-row input:not([type=checkbox]){width:100%;max-width:100%;min-width:0;}

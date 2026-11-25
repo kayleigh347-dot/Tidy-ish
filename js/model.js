@@ -137,12 +137,25 @@
     const fields=(row,keys)=>isObject(row)&&Object.keys(row).every(k=>keys.includes(k));
     const uniqueIds=rows=>Array.isArray(rows)&&rows.every(validId)&&new Set(rows).size===rows.length;
     const templates=new Map(), occurrences=new Set(), keys=new Set();
+    // Workload A adds optional plans to the existing schema. Old #69 records
+    // remain byte-for-byte compatible; malformed new plans never overwrite a board.
+    const validWindow=w=>fields(w,['eventDate','preparationStartDate','endDate'])&&['eventDate','preparationStartDate','endDate'].every(k=>parseDay(w[k]))&&w.preparationStartDate<=w.eventDate&&w.endDate>=w.eventDate;
+    const validSettings=w=>fields(w,['tasksEnabled','decorationsEnabled','countdown','celebrated'])&&['tasksEnabled','decorationsEnabled','countdown','celebrated'].every(k=>typeof w[k]==='boolean');
+    const validItems=(rows,defs,window)=>Array.isArray(rows)&&rows.length<=400&&rows.every(r=>fields(r,['definitionId','taskId','title','selected','offset','reminderOffset','repeat','role','children'])&&defs.has(r.definitionId)&&(r.taskId===''||validId(r.taskId))&&typeof r.title==='string'&&!!r.title.trim()&&r.title.length<=160&&typeof r.selected==='boolean'&&(!r.selected||!!r.taskId)&&Number.isSafeInteger(r.offset)&&Math.abs(r.offset)<=3652425&&(!r.selected||(r.offset>=Math.round((parseDay(window.preparationStartDate)-parseDay(window.eventDate))/86400000)&&r.offset<=Math.round((parseDay(window.endDate)-parseDay(window.eventDate))/86400000)))&&(r.reminderOffset===undefined||r.reminderOffset===null||Number.isSafeInteger(r.reminderOffset)&&Math.abs(r.reminderOffset)<=3652425&&(!r.selected||(r.reminderOffset>=Math.round((parseDay(window.preparationStartDate)-parseDay(window.eventDate))/86400000)&&r.reminderOffset<=Math.round((parseDay(window.endDate)-parseDay(window.eventDate))/86400000))))&&typeof r.repeat==='boolean'&&['normal','buy','wrap','teardown'].includes(r.role)&&Array.isArray(r.children)&&r.children.every(c=>typeof c==='string'&&!!c.trim()&&c.length<=160))&&uniqueIds(rows.map(r=>r.definitionId))&&uniqueIds(rows.map(r=>r.taskId).filter(Boolean));
+    const validActivation=(a,defs)=>fields(a,['definitionId','taskId','wasDoing','suspended','priorWinIds'])&&defs.has(a.definitionId)&&validId(a.taskId)&&typeof a.wasDoing==='boolean'&&(a.suspended===undefined||typeof a.suspended==='boolean')&&(a.priorWinIds===undefined||uniqueIds(a.priorWinIds));
+    const validHistory=(h,defs)=>fields(h,['definitionId','taskId','done','completedAt','children','winIds'])&&defs.has(h.definitionId)&&validId(h.taskId)&&typeof h.done==='boolean'&&typeof h.completedAt==='string'&&Array.isArray(h.children)&&h.children.every(c=>fields(c,['id','done'])&&validId(c.id)&&typeof c.done==='boolean')&&uniqueIds(h.winIds);
+    // Keep plan metadata in a separate feature so #69 can still open an
+    // upgraded board on a rollback. Do not change the legacy record shapes.
+    const store=f.occasionPlans;
+    if(store!==undefined&&(!fields(store,['templates','occurrences'])||!['templates','occurrences'].every(k=>Array.isArray(store[k])&&store[k].every(x=>fields(x,['id','plan'])&&validId(x.id)&&isObject(x.plan))&&uniqueIds(store[k].map(x=>x.id)))))fail('plan storage');
+    const templatePlans=new Map((store?.templates||[]).map(x=>[x.id,x.plan])),occurrencePlans=new Map((store?.occurrences||[]).map(x=>[x.id,x.plan]));
     for(const name of seasonalKeys)if(!Array.isArray(f[name]))fail(name);
     for(const t of f.occasionTemplates){
       if(!fields(t,['id','name','recurrence','taskDefinitions'])||!validId(t.id)||templates.has(t.id)||typeof t.name!=='string'||!t.name.trim()||!['annual','one-off'].includes(t.recurrence))fail('template');
       if(t.taskDefinitions!==undefined&&(!Array.isArray(t.taskDefinitions)||
         !t.taskDefinitions.every(d=>fields(d,['id','title'])&&validId(d.id)&&typeof d.title==='string'&&d.title.trim())||
         !uniqueIds(t.taskDefinitions.map(d=>d.id))))fail('task definitions');
+      if(templatePlans.has(t.id)){const w=templatePlans.get(t.id),defs=new Set((t.taskDefinitions||[]).map(d=>d.id));if(!fields(w,['reference','preset','dateRule','leapPolicy','annualEnabled','settings','items'])||!validWindow(w.reference)||!['custom','christmas','birthday','halloween','valentines','easter','newyear','mothers','fathers','anniversary'].includes(w.preset)||!['fixed','easter','uk-mothers-day','uk-fathers-day'].includes(w.dateRule)||!['reject','feb28','mar1'].includes(w.leapPolicy)||typeof w.annualEnabled!=='boolean'||!validSettings(w.settings)||!validItems(w.items,defs,w.reference))fail('recurring plan');}
       templates.set(t.id,t);
     }
     for(const o of f.occasionOccurrences){
@@ -153,6 +166,7 @@
         if(!Array.isArray(o.taskLinks)||!o.taskLinks.every(l=>fields(l,['definitionId','taskId'])&&defs.has(l.definitionId)&&validId(l.taskId))||
           !uniqueIds(o.taskLinks.map(l=>l.definitionId))||!uniqueIds(o.taskLinks.map(l=>l.taskId)))fail('task links');
       }
+      if(occurrencePlans.has(o.id)){const w=occurrencePlans.get(o.id),defs=new Set((t.taskDefinitions||[]).map(d=>d.id));if(!fields(w,['name','settings','items','activated','history','closed','override','reminded'])||typeof w.name!=='string'||!w.name.trim()||w.name.length>100||!validSettings(w.settings)||!validItems(w.items,defs,o)||!Array.isArray(w.activated)||!w.activated.every(a=>validActivation(a,defs))||!uniqueIds(w.activated.map(a=>a.definitionId))||!uniqueIds(w.activated.map(a=>a.taskId))||!Array.isArray(w.history)||!w.history.every(h=>validHistory(h,defs))||typeof w.closed!=='boolean'||w.override!==undefined&&typeof w.override!=='boolean'||w.reminded!==undefined&&(!uniqueIds(w.reminded)||w.reminded.some(id=>!defs.has(id))))fail('occurrence plan');const selected=w.items.filter(r=>r.selected).map(r=>JSON.stringify([r.definitionId,r.taskId])).sort(),links=(o.taskLinks||[]).map(r=>JSON.stringify([r.definitionId,r.taskId])).sort();if(JSON.stringify(selected)!==JSON.stringify(links))fail('occurrence plan links');}
       for(const k of ['giftIds','recipientIds'])if(o[k]!==undefined&&!uniqueIds(o[k]))fail(k);
       // Same opaque identity tuple as seasonal-core.js. The event year, never
       // the preparation year, identifies an annual occurrence in this slice.
@@ -160,6 +174,7 @@
       if(o.occurrenceKey!==expected||keys.has(expected))fail('occurrence identity');
       occurrences.add(o.id);keys.add(expected);
     }
+    if([...templatePlans.keys()].some(id=>!templates.has(id))||[...occurrencePlans.keys()].some(id=>!occurrences.has(id)))fail('plan identity');
   }
   // Read-only resolution: distinguish missing and ambiguous gift targets;
   // never fabricate people, copy task data, or award completion points.
@@ -238,6 +253,7 @@
     if(!o)fail('Seasonal occurrence not found.');
     const t=f.occasionTemplates.find(x=>x.id===o.templateId);
     if(!t)fail('Seasonal template not found.');
+    if(f.occasionPlans?.templates.some(x=>x.id===t.id)||f.occasionPlans?.occurrences.some(x=>x.id===o.id))fail('Use the Seasonal workflow editor for this occasion.');
     const templateEdit=Object.keys(draft).some(k=>!dates.includes(k));
     if(templateEdit){
       if(f.occasionOccurrences.some(x=>x.id!==o.id&&x.templateId===t.id))fail('This template has other occurrences. Edit dates only for now.');
@@ -295,10 +311,12 @@
     const current=result.features,incoming=source.features;
     const templates=new Map(current.occasionTemplates.map(t=>[t.id,t]));
     const incompatible=new Set();
+    const plan=(features,kind,id)=>features.occasionPlans?.[kind]?.find(x=>x.id===id)?.plan;
+    const addPlan=(kind,id)=>{const p=plan(incoming,kind,id);if(p!==undefined){current.occasionPlans||={templates:[],occurrences:[]};current.occasionPlans[kind].push({id,plan:clone(p)});}};
     for(const t of incoming.occasionTemplates){
       const prior=templates.get(t.id);
-      if(prior){if(!sameSeasonal(prior,t))incompatible.add(t.id);}
-      else {current.occasionTemplates.push(t);templates.set(t.id,t);}
+      if(prior){if(!sameSeasonal(prior,t)||!sameSeasonal(plan(current,'templates',t.id),plan(incoming,'templates',t.id)))incompatible.add(t.id);}
+      else {current.occasionTemplates.push(t);templates.set(t.id,t);addPlan('templates',t.id);}
     }
     const ids=new Set(current.occasionOccurrences.map(o=>o.id));
     const keys=new Set(current.occasionOccurrences.map(o=>o.occurrenceKey));
@@ -308,7 +326,7 @@
       if(incompatible.has(o.templateId)||ids.has(o.id)||keys.has(o.occurrenceKey))continue;
       const linked=(o.taskLinks||[]).length||(o.giftIds||[]).length||(o.recipientIds||[]).length;
       if(linked&&(!backup||!compatibleOccasionLinks(result,source,o)))continue;
-      current.occasionOccurrences.push(o);ids.add(o.id);keys.add(o.occurrenceKey);
+      current.occasionOccurrences.push(o);ids.add(o.id);keys.add(o.occurrenceKey);addPlan('occurrences',o.id);
     }
     validateOccasions(current);
   }

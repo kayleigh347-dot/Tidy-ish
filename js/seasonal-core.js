@@ -104,5 +104,39 @@
     return (policy.startInclusive ? date >= start : date > start) &&
       (policy.endInclusive ? date <= end : date < end);
   }
-  return Object.freeze({ fixedDate, shiftDays, occurrenceKey, resolveOccurrence, isActive });
+  // Date-only lifecycle building blocks. The caller supplies the calendar
+  // policy, and a recurring reference window (not an arbitrary year override).
+  function daysBetween(from, to) {
+    return Math.round((schedule.parseDay(day(to))-schedule.parseDay(day(from)))/86400000);
+  }
+  function windowOffsets(window) {
+    object(window, 'occasion window');
+    const event=day(window.eventDate), start=day(window.preparationStartDate), end=day(window.endDate);
+    if(start>event||end<event) throw new RangeError('Invalid occasion window');
+    return {preparationOffset:daysBetween(event,start),endOffset:daysBetween(event,end)};
+  }
+  function shiftWindow(window, eventDate) {
+    const offsets=windowOffsets(window);
+    return {eventDate:day(eventDate),preparationStartDate:shiftDays(eventDate,offsets.preparationOffset),endDate:shiftDays(eventDate,offsets.endOffset)};
+  }
+  function annualFromWindow(templateId, reference, targetYear, leapDayPolicy) {
+    const offsets=windowOffsets(reference), event=reference.eventDate;
+    return resolveOccurrence({templateId,recurrence:'annual',year:targetYear,leapDayPolicy,
+      eventRule:{kind:'fixed',month:Number(event.slice(5,7)),day:Number(event.slice(8,10))},
+      preparationRule:{kind:'days',offset:offsets.preparationOffset},endRule:{kind:'days',offset:offsets.endOffset}});
+  }
+  function windowPhase(window, date, policy) {
+    if(isActive(window,date,policy)) return 'active';
+    return date<=window.preparationStartDate?'upcoming':'ended';
+  }
+  function relativeTaskStart(window, offset) {
+    windowOffsets(window);
+    const start=shiftDays(window.eventDate,offset);
+    if(start<window.preparationStartDate||start>window.endDate) throw new RangeError('Task start must be inside the occasion window');
+    return start;
+  }
+  function novemberLastWeek(targetYear) {
+    return {start:fixedDate(targetYear,11,24,'reject'),end:fixedDate(targetYear,11,30,'reject')};
+  }
+  return Object.freeze({ fixedDate, shiftDays, occurrenceKey, resolveOccurrence, isActive, daysBetween, windowOffsets, shiftWindow, annualFromWindow, windowPhase, relativeTaskStart, novemberLastWeek });
 });
