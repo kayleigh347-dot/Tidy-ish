@@ -15,3 +15,6 @@
 .seasonal-create-form .seasonal-task-choice label{display:flex;align-items:center;gap:.6rem;min-height:44px;}
 .seasonal-create-form .seasonal-task-choice input[type=checkbox]{flex:0 0 auto;width:1.25rem;height:1.25rem;}
 .seasonal-create-form .seasonal-task-choice label span{min-width:0;overflow-wrap:anywhere;}
+
+/* Stage 2C1: editing uses the existing mobile-safe form. */
+.seasonal-hub .seasonal-edit{min-height:44px;white-space:normal;margin-top:.5rem;}

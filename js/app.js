@@ -689,6 +689,36 @@ function giftPersonEditor(existing=null){
 }
 function morePage(){return [['side','Side Tasks'],['locations','Where Does This Live?'],['gifts','Gift tracker'],['seasonal','Seasonal'],['library','Task Library'],['occasional','Occasional Essentials'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['care','Pet & plant care'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›',id==='care'?'open-grind':id==='occasional'?'library-occasional':'navigate',id,'wide ghost'))).join('');}
 function focusHubPage(){return `<section class="focus-hub" aria-label="Choose Focus area"><div class="focus-hub-grid">${button('Doing Now','focus-hub-doing','','wide focus-hub-doing')}${rooms().map(r=>button(esc(r.name),'focus-hub-room',r.id,'wide')).join('')}</div></section>`;}
+function seasonalEditEditor(id){
+ const o=board.features.occasionOccurrences.find(x=>x.id===id);
+ if(!o)return notice('That occasion is no longer available.');
+ const t=board.features.occasionTemplates.find(x=>x.id===o.templateId);
+ if(!t)return notice('That occasion template is no longer available.');
+ const shared=board.features.occasionOccurrences.some(x=>x.id!==id&&x.templateId===t.id);
+ const snapshot=JSON.stringify([o,t,shared]),links=o.taskLinks||[],defs=t.taskDefinitions||[];
+ const selected=new Set(links.map(l=>l.taskId)),linkedDefs=new Set(links.map(l=>l.definitionId));
+ const groups=(OCC?.seasonalGroups(board)||[]).map(g=>({label:g.label,tasks:g.tasks.filter(task=>!task.archived)})).filter(g=>g.tasks.length);
+ const available=new Set(groups.flatMap(g=>g.tasks.map(task=>task.id)));
+ const unavailable=links.filter(l=>!available.has(l.taskId)).map(l=>({id:l.taskId,title:(defs.find(d=>d.id===l.definitionId)?.title||'Saved task')+' (unavailable)'}));
+ if(unavailable.length)groups.push({label:'Existing unavailable links',tasks:unavailable});
+ const taskChoices=groups.map(g=>`<fieldset class="seasonal-task-choice"><legend>${esc(g.label)}</legend>${g.tasks.map(task=>`<label><input type="checkbox" name="taskIds" value="${esc(task.id)}"${selected.has(task.id)?' checked':''}><span>${esc(task.title)}</span></label>`).join('')}</fieldset>`).join('');
+ const dates=field('Event date','eventDate',o.eventDate,'date','required')+field('Start preparing','preparationStartDate',o.preparationStartDate,'date','required')+field('End date','endDate',o.endDate,'date','required');
+ const templateFields=field('Occasion name','name',t.name,'text','required maxlength="100"')+select('Repeats','recurrence',[['annual','Every year'],['one-off','One-off']],t.recurrence);
+ const taskFields=`<h3>Choose existing Seasonal tasks</h3><p class="small">Unticking removes the link from this occasion only. It does not delete the original task or its history. Keep unavailable links ticked to preserve them.</p>${taskChoices||'<p class="small">No existing Seasonal tasks available.</p>'}<h3>Optional tasks</h3><p class="small">Ideas only, one name per line. They will not create or activate tasks.</p>${area('Optional task names','optionalTitles',defs.filter(d=>!linkedDefs.has(d.id)).map(d=>d.title).join('\n'))}`;
+ dialog('Edit occasion',`<div class="seasonal-create-form">${shared?'<p class="small">This template has other occurrences. Only these dates can be edited for now.</p>':templateFields}${dates}${shared?'':taskFields}<p class="small">Saved on this device. Existing task dates, completion and points stay unchanged.</p></div>`,fd=>{
+  const current=board.features.occasionOccurrences.find(x=>x.id===id),template=board.features.occasionTemplates.find(x=>x.id===current?.templateId);
+  const nowShared=board.features.occasionOccurrences.some(x=>x.id!==id&&x.templateId===template?.id);
+  if(JSON.stringify([current,template,nowShared])!==snapshot)throw Error('This occasion changed. Close and reopen the form before saving.');
+  const draft={eventDate:fd.get('eventDate'),preparationStartDate:fd.get('preparationStartDate'),endDate:fd.get('endDate')};
+  if(!shared){
+   const allowed=new Set([...(OCC?.seasonalGroups(board)||[]).flatMap(g=>g.tasks.filter(task=>!task.archived).map(task=>task.id)),...selected]);
+   const taskIds=fd.getAll('taskIds');if(taskIds.some(id=>!allowed.has(id)))throw Error('A selected Seasonal task is no longer available.');
+   Object.assign(draft,{name:fd.get('name'),recurrence:fd.get('recurrence'),taskIds,optionalTitles:String(fd.get('optionalTitles')||'').split(/\r?\n/).map(v=>v.trim()).filter(Boolean)});
+  }
+  const next=M.editOccasion(board,id,draft);
+  persist(next);closeDialog(true);render();notice('Occasion updated. No tasks were started.');
+ },{saveLabel:'Save changes'});
+}
 function seasonalOccasionEditor(){
  const groups=OCC?.seasonalGroups(board)||[];
  const options=groups.map(g=>({label:g.label,tasks:g.tasks.filter(t=>!t.archived)})).filter(g=>g.tasks.length);
@@ -714,7 +744,7 @@ function seasonalHubPage(){
   const t=templates.get(o.templateId),refs=M.occasionLinkStatus(board,o),defs=t?.taskDefinitions||[];
   const unresolved=[...refs.tasks,...refs.gifts,...refs.recipients].filter(r=>r.status!=='linked').length;
   const tasks=defs.map(d=>taskRow(d,refs.tasks.find(l=>l.definitionId===d.id))).join('');
-  return `<details class="card seasonal-occasion-preview"><summary><strong>${esc(t?.name||'Saved occasion')}</strong> <span class="small">${dateLabel(o.eventDate)}</span></summary><p class="small">Preparation ${dateLabel(o.preparationStartDate)} · Ends ${dateLabel(o.endDate)}</p><h3>Tasks</h3>${tasks?`<ul class="seasonal-preview-list">${tasks}</ul>`:'<p class="small">No task definitions saved for this occasion.</p>'}<h3>Gift tracker</h3><p class="small">${refs.gifts.filter(l=>l.status==='linked').length} linked gifts · ${refs.recipients.filter(l=>l.status==='linked').length} linked recipients</p>${unresolved?`<p class="small" role="status">${unresolved} missing or conflicting link(s). Existing records are unchanged.</p>`:''}</details>`;
+  return `<details class="card seasonal-occasion-preview"><summary><strong>${esc(t?.name||'Saved occasion')}</strong> <span class="small">${dateLabel(o.eventDate)}</span></summary><p class="small">Preparation ${dateLabel(o.preparationStartDate)} · Ends ${dateLabel(o.endDate)}</p><h3>Tasks</h3>${tasks?`<ul class="seasonal-preview-list">${tasks}</ul>`:'<p class="small">No task definitions saved for this occasion.</p>'}<h3>Gift tracker</h3><p class="small">${refs.gifts.filter(l=>l.status==='linked').length} linked gifts · ${refs.recipients.filter(l=>l.status==='linked').length} linked recipients</p>${unresolved?`<p class="small" role="status">${unresolved} missing or conflicting link(s). Existing records are unchanged.</p>`:''}${button('Edit occasion','seasonal-edit',o.id,'wide ghost seasonal-edit')}</details>`;
  }).join('');
  const legacy=OCC?.seasonalGroups(board)||[];
  const existing=legacy.map(g=>`<details class="card seasonal-occasion-preview"><summary><strong>${esc(g.label)}</strong> <span class="small">${g.tasks.length} saved tasks</span></summary><ul class="seasonal-preview-list">${g.tasks.map(t=>`<li>${esc(t.title)}</li>`).join('')}</ul></details>`).join('');
@@ -1172,6 +1202,7 @@ const actions={
  'library-occasional':()=>navigate('library',null,'occasional'),
  'library-seasonal':()=>navigate('library',null,'seasonal'),
  'seasonal-create':()=>seasonalOccasionEditor(),
+ 'seasonal-edit':el=>seasonalEditEditor(el.dataset.id),
  'library-ideas':libraryIdeas,
  'library-find-existing':libraryFindExisting,
  'library-save-custom':el=>{if(change(b=>L.saveCustom(b,el.dataset.id,M)))notice('Saved to reusable tasks.');},

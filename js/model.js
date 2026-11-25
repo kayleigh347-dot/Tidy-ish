@@ -225,6 +225,57 @@
     validateOccasions(f);
     return out;
   }
+  // Stage 2C1: edit the saved occurrence in place. Shared templates allow
+  // date-only edits until explicit per-year vs all-years overrides are available.
+  function editOccasion(board,occurrenceId,draft){
+    const fail=message=>{throw Error(message+' No data changed.');};
+    if(!isObject(draft))fail('Invalid occasion edit.');
+    const dates=['eventDate','preparationStartDate','endDate'];
+    if(Object.keys(draft).some(k=>![...dates,'name','recurrence','taskIds','optionalTitles'].includes(k)))fail('Invalid occasion edit field.');
+    for(const k of dates)if(!parseDay(draft[k]))fail('Choose all three valid dates.');
+    if(draft.preparationStartDate>draft.eventDate||draft.endDate<draft.eventDate)fail('The preparation and end dates must contain the event date.');
+    const out=clone(board),f=out.features,o=f.occasionOccurrences.find(x=>x.id===occurrenceId);
+    if(!o)fail('Seasonal occurrence not found.');
+    const t=f.occasionTemplates.find(x=>x.id===o.templateId);
+    if(!t)fail('Seasonal template not found.');
+    const templateEdit=Object.keys(draft).some(k=>!dates.includes(k));
+    if(templateEdit){
+      if(f.occasionOccurrences.some(x=>x.id!==o.id&&x.templateId===t.id))fail('This template has other occurrences. Edit dates only for now.');
+      if(typeof draft.name!=='string'||!draft.name.trim()||draft.name.trim().length>100)fail('Enter an occasion name of 1–100 characters.');
+      if(!['annual','one-off'].includes(draft.recurrence))fail('Choose annual or one-off.');
+      const name=draft.name.trim(),fold=v=>v.trim().toLocaleLowerCase();
+      if(f.occasionTemplates.some(x=>x.id!==t.id&&fold(x.name)===fold(name)))fail('An occasion with this name already exists.');
+      if(!Array.isArray(draft.taskIds)||new Set(draft.taskIds).size!==draft.taskIds.length||!Array.isArray(draft.optionalTitles))fail('Invalid task selection.');
+      if(draft.optionalTitles.length>100||draft.optionalTitles.some(v=>typeof v!=='string'||!v.trim()||v.trim().length>160))fail('Use up to 100 optional task names of 1–160 characters.');
+      const optional=draft.optionalTitles.map(v=>v.trim());
+      if(new Set(optional.map(fold)).size!==optional.length)fail('Remove duplicate optional task names.');
+      const oldLinks=o.taskLinks||[],oldDefs=t.taskDefinitions||[],linkedIds=new Set(oldLinks.map(l=>l.definitionId));
+      const definitions=[],taskLinks=[],selectedTitles=[];
+      for(const id of draft.taskIds){
+        const old=oldLinks.find(l=>l.taskId===id),task=out.tasks.find(x=>x.id===id);
+        if(!old&&(!task||task.archived))fail('A selected task is no longer available.');
+        // Retain original link and definition IDs, even if a target was removed.
+        const definition=old?oldDefs.find(d=>d.id===old.definitionId):{id:uid(),title:task.title};
+        if(!definition)fail('A saved task definition is missing.');
+        definitions.push(definition);taskLinks.push({definitionId:definition.id,taskId:id});
+        selectedTitles.push(definition.title);if(task)selectedTitles.push(task.title);
+      }
+      if(optional.some(v=>selectedTitles.some(title=>fold(title)===fold(v))))fail('An optional task duplicates a selected task name.');
+      const used=new Set(definitions.map(d=>d.id));
+      for(const title of optional){
+        // Only an unchanged unlinked idea can reuse its own identity. Never
+        // attach a task to an optional definition by matching names.
+        const old=oldDefs.find(d=>!linkedIds.has(d.id)&&!used.has(d.id)&&fold(d.title)===fold(title));
+        const d={id:old?.id||uid(),title};definitions.push(d);used.add(d.id);
+      }
+      t.name=name;t.recurrence=draft.recurrence;t.taskDefinitions=definitions;o.taskLinks=taskLinks;
+    }
+    for(const k of dates)o[k]=draft[k];
+    o.occurrenceKey=JSON.stringify([t.id,t.recurrence,t.recurrence==='annual'?Number(o.eventDate.slice(0,4)):o.id]);
+    if(f.occasionOccurrences.some(x=>x.id!==o.id&&x.occurrenceKey===o.occurrenceKey))fail('An occurrence for this year already exists.');
+    validateOccasions(f);
+    return out;
+  }
   // Comparison ignores object key ordering but not record content or array order.
   const stableSeasonal=value=>Array.isArray(value)?value.map(stableSeasonal):isObject(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,stableSeasonal(value[k])])):value;
   const sameSeasonal=(a,b)=>JSON.stringify(stableSeasonal(a))===JSON.stringify(stableSeasonal(b));
@@ -615,5 +666,5 @@
     taskCompletionTime,taskCompletionExpiresAt,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,messBreakdown,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
     saveCustomCycle,removeCustomCycle,startCustomLoad,completeCustomStep,undoCustomStep,customLaundryNeedsAttention,customLaundryReminderDue,
-    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,createOccasion,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
+    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,createOccasion,editOccasion,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
 });
