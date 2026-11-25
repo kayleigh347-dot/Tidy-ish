@@ -34,3 +34,45 @@
 .seasonal-create-form .seasonal-task-options[hidden]{display:none!important;}
 .seasonal-create-form .seasonal-task-options label.check{font-weight:400;}
 @media(max-width:350px){.seasonal-create-form .seasonal-task-heading{gap:.25rem}.seasonal-create-form .seasonal-task-edit{min-width:56px;padding:.35rem .4rem;}}
+
+
+/* Christmas Home: distinct seasonal panel and a readable countdown.
+   All ornamentation is decorative and the underlying occasion remains editable. */
+.seasonal-home .seasonal-home-christmas{
+ position:relative;isolation:isolate;overflow:hidden;min-width:0;
+ margin:.65rem 0;padding:1rem clamp(.85rem,3vw,1.35rem) 1.1rem;
+ border-radius:20px;border:2px solid #d6ae60;
+ color:#fff9ee;
+ background:linear-gradient(125deg,#4a173f 0%,#573052 43%,#214f42 100%);
+ box-shadow:inset 0 1px #fff5,0 5px 14px #11041766;
+}
+.seasonal-home .seasonal-home-christmas:not(.is-decorated){border-color:#8d7398;background:linear-gradient(125deg,#45304d 0%,#34253f 55%,#323b52 100%)}
+.seasonal-home .seasonal-home-christmas.is-decorated{
+ padding-top:1.65rem;
+ background:radial-gradient(ellipse at 10% 0%,#cc57583b,transparent 55%),radial-gradient(ellipse at 100% 90%,#4b9e6733,transparent 58%),linear-gradient(125deg,#51163e,#5a2e51 44%,#194d41 100%);
+}
+.seasonal-home .seasonal-home-christmas.is-decorated::before{
+ content:"";position:absolute;inset:0 0 auto;height:15px;pointer-events:none;
+ background:radial-gradient(ellipse 17px 11px at 12px 0,#f6fafb 95%,transparent 100%) 0 0/39px 15px repeat-x,linear-gradient(#f6fafb,#f6fafb) top/100% 5px no-repeat;
+ opacity:.97;
+}
+.seasonal-home .seasonal-christmas-flakes{position:absolute;top:13px;right:10px;color:#f8d991;opacity:.9;letter-spacing:.8rem;font-size:.8rem;pointer-events:none;white-space:nowrap}
+.seasonal-home .seasonal-christmas-header{display:flex;align-items:center;gap:.75rem;min-width:0;position:relative;z-index:1}
+.seasonal-home .seasonal-christmas-icon{font-size:2rem;line-height:1;flex:0 0 auto;filter:drop-shadow(0 2px 1px #0006)}
+.seasonal-home .seasonal-christmas-heading{flex:1;min-width:0}
+.seasonal-home .seasonal-christmas-eyebrow{margin:0 0 .15rem;color:#f5d985;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em}
+.seasonal-home .seasonal-christmas-open{font-size:1.18rem;font-weight:800;text-align:left;color:#fff8ee;background:none;border:0;border-bottom:1px solid #f5d98588;border-radius:0;box-shadow:none;padding:0 0 .1rem;min-height:44px;width:auto;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.seasonal-home .seasonal-christmas-open:hover,.seasonal-home .seasonal-christmas-open:focus-visible{color:#ffe19e;background:#ffffff12;outline-offset:3px}
+.seasonal-home .seasonal-christmas-countdown{display:flex;align-items:baseline;justify-content:center;gap:.65rem;flex-wrap:wrap;margin:.45rem 0 .8rem;color:#ffe6a1;text-align:center;font-variant-numeric:tabular-nums}
+.seasonal-home .seasonal-christmas-number{font-size:clamp(4rem,18vw,6.5rem);line-height:1;letter-spacing:-.045em;font-weight:900;text-shadow:0 3px #291228,0 0 18px #ffdf733b}
+.seasonal-home .seasonal-christmas-unit{font-size:clamp(1.05rem,4vw,1.45rem);font-weight:800;line-height:1.25;color:#fff7e8}
+.seasonal-home .seasonal-christmas-celebration{font-size:clamp(2.2rem,11vw,3.7rem);font-weight:900;line-height:1.1;text-align:center;margin:.9rem 0;color:#ffe6a1}
+.seasonal-home .seasonal-christmas-after{font-size:1.2rem;font-weight:750;margin:.8rem 0;text-align:center;color:#ffefa8}
+.seasonal-home .seasonal-christmas-agenda{border-top:1px solid #ffdfaa65;padding-top:.7rem;min-width:0}
+.seasonal-home .seasonal-christmas-agenda h3{font-size:.95rem;letter-spacing:.03em;color:#ffe29b;margin:0 0 .45rem}
+.seasonal-home .seasonal-christmas-tasks{list-style:none;margin:0;padding:0;display:grid;gap:.35rem}
+.seasonal-home .seasonal-christmas-tasks li{position:relative;padding:.3rem .2rem .3rem 1.1rem;min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.seasonal-home .seasonal-christmas-tasks li::before{content:"✦";position:absolute;left:0;color:#ffe4a5}
+.seasonal-home .seasonal-christmas-empty{margin:.35rem 0;color:#f6f0e8}
+@media(max-width:350px){.seasonal-home .seasonal-home-christmas{padding-inline:.75rem}.seasonal-home .seasonal-christmas-countdown{gap:.3rem}.seasonal-home .seasonal-christmas-number{font-size:clamp(3.5rem,18vw,4.8rem)}.seasonal-home .seasonal-christmas-flakes{letter-spacing:.3rem}}
+@media(prefers-reduced-motion:reduce){.seasonal-home .seasonal-home-christmas,.seasonal-home .seasonal-home-christmas *{animation:none!important;transition:none!important}}
