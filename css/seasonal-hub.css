@@ -1,0 +1,8 @@
+/* Seasonal stage 2A: read-only directory, existing purple theme. */
+.seasonal-hub .seasonal-occasion-preview{min-width:0;overflow-wrap:anywhere;}
+.seasonal-hub .seasonal-occasion-preview>summary{min-height:44px;cursor:pointer;line-height:1.5;}
+.seasonal-hub .seasonal-preview-list{padding-inline-start:1.25rem;overflow-wrap:anywhere;}
+.seasonal-hub .seasonal-preview-list>li{margin-block:.4rem;}
+.seasonal-hub .seasonal-hub-shortcuts{display:grid;gap:.5rem;min-width:0;}
+.seasonal-hub .seasonal-hub-shortcuts>button{min-height:44px;min-width:0;white-space:normal;}
+.seasonal-hub summary:focus-visible{outline:2px solid currentColor;outline-offset:2px;}
