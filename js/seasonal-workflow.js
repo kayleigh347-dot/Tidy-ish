@@ -129,32 +129,62 @@ function christmasContext(b,oid,today=M.date()){
  if(!o||plan?.preset!=='christmas'||!w)return null;
  const linked=b.features.gifts.filter(g=>g.occasion==='christmas'&&(o.giftIds||[]).includes(g.id)),gifts=linked.filter(g=>b.features.occasionOccurrences.filter(x=>(x.giftIds||[]).includes(g.id)).length===1);
  const available=b.features.gifts.filter(g=>g.occasion==='christmas'&&g.eventDate===o.eventDate&&!b.features.occasionOccurrences.some(x=>(x.giftIds||[]).includes(g.id)));
- return {o,w,gifts,available,conflicts:linked.length-gifts.length,readOnly:w.closed||phase(o,today)==='ended',active:phase(o,today)==='active'};
+ return {o,w,gifts,available,stages:b.features.christmasGiftStages?.find(r=>r.templateId===o.templateId)?.stages||[],conflicts:linked.length-gifts.length,readOnly:w.closed||phase(o,today)==='ended',active:phase(o,today)==='active'};
+}
+// Christmas recipient settings are stored on the existing shared person record,
+// keyed by occurrence ID so a new year starts without old ticks or budgets.
+function christmasPersonSettings(person,oid){return person?.christmasSettings?.find(r=>r.occurrenceId===oid)||{occurrenceId:oid,checked:false,budget:null};}
+function christmasOwn(gifts,person){return gifts.filter(g=>g.recipientId?g.recipientId===person.id:g.recipient?.trim().toLocaleLowerCase()===person.name.trim().toLocaleLowerCase());}
+function christmasTotals(gifts,person,oid){const budget=christmasPersonSettings(person,oid).budget,spent=christmasOwn(gifts,person).filter(g=>g.status==='bought'||g.status==='wrapped').reduce((n,g)=>n+Math.round((Number(g.price??g.spent??g.budget)||0)*100),0)/100;return {budget,spent,remaining:budget===null?null:Math.round((budget-spent)*100)/100};}
+function christmasReceiptDue(b,today=M.date()){
+ const result=[];for(const o of b.features.occasionOccurrences){const ctx=christmasContext(b,o.id,today);if(!ctx||ctx.readOnly)continue;for(const g of ctx.gifts)if(g.status==='bought'&&g.receiptStatus==='ordered'&&g.orderedAt&&S.daysBetween(g.orderedAt,today)>=5&&(!g.receiptPromptedAt||g.receiptPromptedAt<today))result.push({occurrenceId:o.id,id:g.id,title:g.title,recipient:g.recipient,orderedAt:g.orderedAt});}return result;
 }
 function christmasGiftChange(input,oid,action,data,today=M.date()){
  const b=copy(input),ctx=christmasContext(b,oid,today);if(!ctx||ctx.readOnly)fail('Christmas occasion is missing or ended.');
  const {o}=ctx,prior=new Set(ctx.gifts.filter(needsWrap).map(g=>g.id)),g=ctx.gifts.find(x=>x.id===data.id);
  const now=new Date().toISOString();
- if(action==='link'){
+ if(action==='person-add'){
+  const name=String(data.name||'').trim();if(!name||name.length>100||typeof data.tracker!=='boolean')fail('Enter a person name.');
+  if(b.features.giftPeople.some(p=>p.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase()))fail('That person is already listed.');
+  const person={id:id(),name,tracker:data.tracker,ideas:[],checkoffs:{},updatedAt:now};b.features.giftPeople.push(person);o.recipientIds=[...new Set([...(o.recipientIds||[]),person.id])];
+ }else if(action==='person-check'||action==='budget'||action==='person-tracker'){
+  const person=b.features.giftPeople.find(p=>p.id===data.recipientId);if(!person)fail('Person no longer exists.');
+  if(action==='person-tracker'){person.tracker=true;}else{
+   const row={...christmasPersonSettings(person,oid)};
+   if(action==='person-check'){if(typeof data.checked!=='boolean')fail('Invalid checklist selection.');row.checked=data.checked;}
+   else {if(person.tracker===false)fail('Enable a tracker before adding a budget.');const value=data.budget;if(value!==null&&(typeof value!=='number'||!Number.isFinite(value)||value<0||!Number.isSafeInteger(Math.round(value*100))))fail('Enter a valid nonnegative budget or leave it blank.');row.budget=value===null?null:Math.round(value*100)/100;}
+   person.christmasSettings=[...(person.christmasSettings||[]).filter(r=>r.occurrenceId!==oid),row];
+  }person.updatedAt=now;o.recipientIds=[...new Set([...(o.recipientIds||[]),person.id])];
+ }else if(action==='stages'){
+  requireShare(b);if(!Array.isArray(data.stages)||data.stages.length>50||data.stages.some(v=>typeof v!=='string'||!v.trim()||v.length>100)||new Set(data.stages.map(v=>v.trim().toLocaleLowerCase())).size!==data.stages.length)fail('Use up to 50 distinct stage names.');
+  const row={templateId:o.templateId,stages:data.stages.map(v=>v.trim()),updatedAt:now};b.features.christmasGiftStages=[...(b.features.christmasGiftStages||[]).filter(r=>r.templateId!==o.templateId),row];return M.normalize(b);
+ }else if(action==='receipt-later'){
+  if(!g||!christmasReceiptDue(b,today).some(r=>r.occurrenceId===oid&&r.id===g.id))fail('This delivery reminder is no longer due.');g.receiptPromptedAt=today;g.updatedAt=now;
+ }else if(action==='link'){
   const target=ctx.available.find(x=>x.id===data.id);if(!target)fail('Gift is already linked or does not match this Christmas date.');
   o.giftIds=[...(o.giftIds||[]),target.id];if(target.recipientId&&b.features.giftPeople.some(p=>p.id===target.recipientId))o.recipientIds=[...new Set([...(o.recipientIds||[]),target.recipientId])];
- }else if(action==='save'){
+ }else if(action==='save'||action==='idea'){
   if(data.id&&!g)fail('Gift no longer belongs to this occasion.');
-  const person=b.features.giftPeople.find(p=>p.id===data.recipientId&&p.tracker!==false),title=String(data.title||'').trim(),price=Number(data.price);
-  if(!person||!title||title.length>160||data.price===''||!Number.isFinite(price)||price<0||!['ordered','received'].includes(data.receiptStatus)||typeof data.noWrapping!=='boolean')fail('Enter a recipient, gift name, price and receipt status.');
+  const idea=action==='idea',person=b.features.giftPeople.find(p=>p.id===data.recipientId&&p.tracker!==false),title=String(data.title||'').trim(),price=Number(data.price??(idea?g?.price??g?.spent??g?.budget??0:NaN)),stage=data.stage===undefined?g?.stage||'':String(data.stage).trim();
+  if(!person||!title||title.length>160||data.price===''||!Number.isFinite(price)||price<0||!Number.isSafeInteger(Math.round(price*100))||!idea&&(!['ordered','received'].includes(data.receiptStatus)||typeof data.noWrapping!=='boolean')||stage.length>100||stage&&stage!==g?.stage&&!ctx.stages.includes(stage)||idea&&g&&g.status!=='idea')fail('Enter a recipient, gift name, price and receipt status.');
   if(g?.status==='wrapped'&&data.receiptStatus==='ordered')fail('Unwrap the gift before changing its receipt status.');
-  const row={...g,id:g?.id||id(),occasion:'christmas',recipientId:person.id,recipient:person.name,title,price,budget:price,spent:price,eventDate:g?.eventDate||o.eventDate,status:g?.status==='wrapped'?'wrapped':'bought',receiptStatus:data.receiptStatus,noWrapping:data.noWrapping,createdAt:g?.createdAt||now,updatedAt:now};
-  if(data.receiptStatus==='ordered')row.orderedAt=g?.receiptStatus==='ordered'&&g.orderedAt?g.orderedAt:today;
-  else delete row.orderedAt;
+  const row={...g,id:g?.id||id(),occasion:'christmas',recipientId:person.id,recipient:person.name,title,price,budget:price,spent:price,eventDate:g?.eventDate||o.eventDate,status:idea?'idea':g?.status==='wrapped'?'wrapped':'bought',receiptStatus:idea?undefined:data.receiptStatus,noWrapping:idea?false:data.noWrapping,createdAt:g?.createdAt||now,updatedAt:now};
+  if(stage)row.stage=stage;else delete row.stage;
+  for(const [key,max] of [['link',2000],['notes',4000]])if(data[key]!==undefined){const value=String(data[key]).trim();if(value.length>max||key==='link'&&value&&!/^https?:\/\/[^\s]+$/i.test(value))fail('Enter a valid http or https gift link and shorter notes.');if(value)row[key]=value;else delete row[key];}
+  if(idea)delete row.receiptStatus;
+  if(!idea&&data.receiptStatus==='ordered'){row.orderedAt=g?.receiptStatus==='ordered'&&g.orderedAt?g.orderedAt:today;if(g?.receiptStatus!=='ordered')delete row.receiptPromptedAt;}
+  else {delete row.orderedAt;delete row.receiptPromptedAt;}
   if(g)b.features.gifts[b.features.gifts.indexOf(g)]=row;else{b.features.gifts.push(row);o.giftIds=[...(o.giftIds||[]),row.id];}
   o.recipientIds=[...new Set([...(o.recipientIds||[]),person.id])];
  }else if(action==='delete'){
   if(!g)fail('Gift no longer belongs to this occasion.');b.features.gifts=b.features.gifts.filter(x=>x.id!==g.id);o.giftIds=(o.giftIds||[]).filter(x=>x!==g.id);
  }else if(action==='receive'){
-  if(!g||g.status!=='bought'||g.receiptStatus!=='ordered')fail('Only ordered gifts can be marked received.');g.receiptStatus='received';delete g.orderedAt;g.updatedAt=now;
+  if(!g||g.status!=='bought'||g.receiptStatus!=='ordered')fail('Only ordered gifts can be marked received.');g.receiptStatus='received';delete g.orderedAt;delete g.receiptPromptedAt;g.updatedAt=now;
  }else if(action==='wrap'){
-  if(!g||!(needsWrap(g)||g.status==='wrapped'&&g.noWrapping!==true))fail('This gift is not eligible for wrapping.');g.status=g.status==='wrapped'?'bought':'wrapped';g.receiptStatus='received';delete g.orderedAt;g.updatedAt=now;
+  if(!g||!(needsWrap(g)||g.status==='wrapped'&&g.noWrapping!==true))fail('This gift is not eligible for wrapping.');g.status=g.status==='wrapped'?'bought':'wrapped';g.receiptStatus='received';delete g.orderedAt;delete g.receiptPromptedAt;g.updatedAt=now;
  }else fail('Unknown gift action.');
+ if(action==='receipt-later')return M.normalize(b);
+ if(['person-add','person-check','person-tracker','budget'].includes(action)){b.features.seasonalEditedAt=now;return M.normalize(b);}
  // Each direct gift or receipt action also carries a Seasonal edit timestamp.
  // Sync compares saved edits, rather than a later refresh time.
  b.features.seasonalEditedAt=now;
@@ -220,5 +250,5 @@ function giftRole(input,taskId,today=M.date()){if(!hasPlans(input))return null;c
 function dueReminders(input,today=M.date()){const b=hydrate(input,true),out=[],seen=new Set();if(!shareReady(b))return out;for(const {o} of active(b,today)){const w=o.workflow;if(!w.settings.tasksEnabled)continue;for(const row of w.items){if(!row.selected||!row.taskId||row.role==='wrap'||row.role==='teardown'||row.reminderOffset===null||(w.reminded||[]).includes(row.definitionId)||seen.has(row.taskId))continue;const due=validItemWindow(o,{offset:row.reminderOffset??row.offset}),task=b.tasks.find(t=>t.id===row.taskId&&!t.archived&&!t.done);if(due&&due<=today&&task){out.push({occurrenceId:o.id,definitionId:row.definitionId,taskId:row.taskId,title:task.title,name:w.name});seen.add(row.taskId);}}}return out;}
 function markReminders(input,rows,today=M.date()){const b=hydrate(input),due=dueReminders(input,today);for(const r of rows){if(!due.some(x=>x.occurrenceId===r.occurrenceId&&x.definitionId===r.definitionId))continue;const {o}=get(b,r.occurrenceId);o.workflow.reminded||=[];if(!o.workflow.reminded.includes(r.definitionId))o.workflow.reminded.push(r.definitionId);}return dehydrate(b);}
 function editable(b,oid){return editableHydrated(hydrate(b,true),oid);}
-return Object.freeze({shareReady,PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders,christmasContext,christmasGiftChange,received,needsWrap});
+return Object.freeze({shareReady,PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders,christmasContext,christmasGiftChange,christmasPersonSettings,christmasOwn,christmasTotals,christmasReceiptDue,received,needsWrap});
 });

@@ -7,7 +7,7 @@ function stable(x){if(x===undefined)return '<absent>';if(x===null||typeof x!=='o
 const rid=id=>String(id||'').replace(/^room-/,'').replace(/^craft$/,'storage');
 const sid=(id,side,raw)=>side&&(raw.tasks||[]).some(t=>t.id===id)?'web-side:'+id:id;
 const originalId=t=>t._sharedId||t.id;
-const SEASONAL_ROW='tidy-seasonal-plans-v1';
+const SEASONAL_ROW='tidy-seasonal-plans-v1',CHRISTMAS_STAGE_PREFIX='tidy-christmas-stages:';
 const seasonalKeys=['occasionTemplates','occasionOccurrences','occasionPlans','updatedAt'];
 const seasonalRow=raw=>(raw?.settings||[]).find(r=>r.id===SEASONAL_ROW);
 function seasonalData(f){const data={occasionTemplates:C(f.occasionTemplates||[]),occasionOccurrences:C(f.occasionOccurrences||[])};if(f.occasionPlans!==undefined)data.occasionPlans=C(f.occasionPlans);if(f.seasonalEditedAt)data.updatedAt=f.seasonalEditedAt;return data;}
@@ -74,7 +74,7 @@ function importRaw(raw){validateRaw(raw);const b=M.board(),defaults=b.rooms;b.ro
  b.features.dailyLogRewashes=settings.filter(r=>r.id?.startsWith('tidy-daily-log-rewash:')&&r.dailyLogRewash&&r.dailyLogRewash.id===r.id.slice('tidy-daily-log-rewash:'.length)).map(r=>C(r.dailyLogRewash));
  const dailyLogCore=globalThis.TidyDailyLogCore;if(dailyLogCore?.normalizeState){const log=dailyLogCore.normalizeState({schemaVersion:1,records:b.features.dailyLogRecords,rewashes:b.features.dailyLogRewashes});b.features.dailyLogRecords=log.records;b.features.dailyLogRewashes=log.rewashes;}
  b.features.gifts=settings.filter(r=>r.id?.startsWith('tidy-gift:')&&r.gift&&r.gift.id===r.id.slice(10)).map(r=>C(r.gift));b.features.giftPeople=settings.filter(r=>r.id?.startsWith('tidy-gift-person:')&&r.person&&r.person.id===r.id.slice(17)).map(r=>C(r.person));
- const seasonal=seasonalRow(raw);if(seasonal)installSeasonal(b.features,seasonal);
+ const seasonal=seasonalRow(raw);if(seasonal){installSeasonal(b.features,seasonal);const stageRows=settings.filter(r=>r.id?.startsWith(CHRISTMAS_STAGE_PREFIX));if(stageRows.length){if(stageRows.some(r=>!r.data||r.data.templateId!==r.id.slice(CHRISTMAS_STAGE_PREFIX.length)))throw Error('Invalid shared Christmas gift stages. Both copies are preserved.');const rows=stageRows.filter(r=>b.features.occasionTemplates.some(t=>t.id===r.data.templateId)).map(r=>C(r.data));if(rows.length){const probe=M.clone(b);probe.features.christmasGiftStages=rows;M.normalize(probe);b.features.christmasGiftStages=rows;}}}
  const diary=settings.find(r=>r.id==='tidy-html-activity-diary');if(diary?.data)b.features.activityDiary=C(diary.data);
  const definitions=settings.find(r=>r.id==='tidy-html-quest-definitions-v1')?.data;
  if(definitions){
@@ -111,7 +111,7 @@ function project(b,raw,account){const out={tasks:[],side:[],rooms:[],wins:[],set
  for(const record of b.features.dailyLogRecords||[]){if(record?.id)out.settings.push({id:'tidy-daily-log-record:'+record.id,dailyLogRecord:C(record)});}
  for(const record of b.features.dailyLogRewashes||[]){if(record?.id)out.settings.push({id:'tidy-daily-log-rewash:'+record.id,dailyLogRewash:C(record)});}
  out.settings.push({id:'tidy-html-activity-diary',data:C(b.features.activityDiary||{annotations:{},earned:[]})});
- if(b.features.seasonalSharedHouse&&(b.features.browserSync?b.features.browserSync.house===b.features.seasonalSharedHouse:!!seasonalRow(raw)))out.settings.push({id:SEASONAL_ROW,data:seasonalData(b.features),updatedAt:b.features.seasonalEditedAt||''});
+ if(b.features.seasonalSharedHouse&&(b.features.browserSync?b.features.browserSync.house===b.features.seasonalSharedHouse:!!seasonalRow(raw))){out.settings.push({id:SEASONAL_ROW,data:seasonalData(b.features),updatedAt:b.features.seasonalEditedAt||''});for(const row of b.features.christmasGiftStages||[])out.settings.push({id:CHRISTMAS_STAGE_PREFIX+row.templateId,data:C(row),updatedAt:row.updatedAt});}
  for(const gift of b.features.gifts||[])out.settings.push({id:'tidy-gift:'+gift.id,gift:C(gift)});for(const person of b.features.giftPeople||[])out.settings.push({id:'tidy-gift-person:'+person.id,person:C(person)});
  out.settings.push({id:'tidy-html-quest-definitions-v1',data:{
   templates:C(b.features.templates||[]),hiddenTemplates:C(b.features.hiddenTemplates||[]),
@@ -158,7 +158,7 @@ function accept(current,payload,state){const incoming=importRaw(payload),next=C(
  const sharedSeasonal=seasonalRow(payload),localSeasonal=seasonalData(current.features);
  if(sharedSeasonal){
   if(current.features.seasonalSharedHouse!==state.house&&(localSeasonal.occasionTemplates.length||localSeasonal.occasionOccurrences.length)&&!equal(localSeasonal,sharedSeasonal.data))throw Error('Local-only Seasonal plans differ from this household. Both copies are preserved; review them before sharing.');
-  next.features.seasonalSharedHouse=state.house;installSeasonal(next.features,sharedSeasonal);
+  next.features.seasonalSharedHouse=state.house;installSeasonal(next.features,sharedSeasonal);if(incoming.features.christmasGiftStages)next.features.christmasGiftStages=C(incoming.features.christmasGiftStages);else delete next.features.christmasGiftStages;
  }else if(current.features.seasonalSharedHouse===state.house&&(localSeasonal.occasionTemplates.length||localSeasonal.occasionOccurrences.length))throw Error('Shared Seasonal plans are missing from the response. Saved work is preserved.');
  next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','gifts','giftPeople'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[]};return next;}
 function transition(before,next){const state=next.features.browserSync;if(!state)return;
