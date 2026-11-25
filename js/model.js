@@ -199,6 +199,32 @@
     }
     return out;
   }
+  // Stage 2B: create a local template and its first occurrence from explicit
+  // choices. Existing tasks, gifts, wins, schedules and sharing state are untouched.
+  function createOccasion(board,draft){
+    const fail=message=>{throw Error(message+' No data changed.');};
+    if(!isObject(draft)||typeof draft.name!=='string'||!draft.name.trim()||draft.name.trim().length>100)fail('Enter an occasion name of 1–100 characters.');
+    if(!['annual','one-off'].includes(draft.recurrence))fail('Choose annual or one-off.');
+    for(const k of ['eventDate','preparationStartDate','endDate'])if(!parseDay(draft[k]))fail('Choose all three valid dates.');
+    if(draft.preparationStartDate>draft.eventDate||draft.endDate<draft.eventDate)fail('The preparation and end dates must contain the event date.');
+    if(!Array.isArray(draft.taskIds)||new Set(draft.taskIds).size!==draft.taskIds.length||!Array.isArray(draft.optionalTitles))fail('Invalid task selection.');
+    if(draft.optionalTitles.length>100||draft.optionalTitles.some(t=>typeof t!=='string'||!t.trim()||t.trim().length>160))fail('Use up to 100 optional task names of 1–160 characters.');
+    const optional=draft.optionalTitles.map(t=>t.trim());
+    if(new Set(optional.map(t=>t.toLocaleLowerCase())).size!==optional.length)fail('Remove duplicate optional task names.');
+    const selected=draft.taskIds.map(id=>board.tasks.find(t=>t.id===id&&!t.archived));
+    if(selected.some(t=>!t))fail('A selected task is no longer available.');
+    if(optional.some(name=>selected.some(t=>t.title.trim().toLocaleLowerCase()===name.toLocaleLowerCase())))fail('An optional task duplicates a selected task name.');
+    const name=draft.name.trim(),out=clone(board),f=out.features;
+    if(f.occasionTemplates.some(t=>t.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase()))fail('An occasion with this name already exists.');
+    const templateId=uid(),occurrenceId=uid();
+    const definitions=selected.map(t=>({id:uid(),title:t.title}));
+    const taskLinks=selected.map((t,i)=>({definitionId:definitions[i].id,taskId:t.id}));
+    definitions.push(...optional.map(title=>({id:uid(),title})));
+    f.occasionTemplates.push({id:templateId,name,recurrence:draft.recurrence,taskDefinitions:definitions});
+    f.occasionOccurrences.push({id:occurrenceId,templateId,occurrenceKey:JSON.stringify([templateId,draft.recurrence,draft.recurrence==='annual'?Number(draft.eventDate.slice(0,4)):occurrenceId]),eventDate:draft.eventDate,preparationStartDate:draft.preparationStartDate,endDate:draft.endDate,taskLinks});
+    validateOccasions(f);
+    return out;
+  }
   // Comparison ignores object key ordering but not record content or array order.
   const stableSeasonal=value=>Array.isArray(value)?value.map(stableSeasonal):isObject(value)?Object.fromEntries(Object.keys(value).sort().map(k=>[k,stableSeasonal(value[k])])):value;
   const sameSeasonal=(a,b)=>JSON.stringify(stableSeasonal(a))===JSON.stringify(stableSeasonal(b));
@@ -589,5 +615,5 @@
     taskCompletionTime,taskCompletionExpiresAt,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,messBreakdown,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
     saveCustomCycle,removeCustomCycle,startCustomLoad,completeCustomStep,undoCustomStep,customLaundryNeedsAttention,customLaundryReminderDue,
-    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
+    laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,createOccasion,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
 });

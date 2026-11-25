@@ -6,3 +6,12 @@
 .seasonal-hub .seasonal-hub-shortcuts{display:grid;gap:.5rem;min-width:0;}
 .seasonal-hub .seasonal-hub-shortcuts>button{min-height:44px;min-width:0;white-space:normal;}
 .seasonal-hub summary:focus-visible{outline:2px solid currentColor;outline-offset:2px;}
+
+/* Stage 2B: local creation and explicit task choices. */
+.seasonal-hub .seasonal-create{min-height:44px;white-space:normal;}
+.seasonal-create-form{min-width:0;overflow-wrap:anywhere;}
+.seasonal-create-form input:not([type=checkbox]),.seasonal-create-form select,.seasonal-create-form textarea{min-width:0;max-width:100%;box-sizing:border-box;}
+.seasonal-create-form .seasonal-task-choice{min-width:0;margin:.6rem 0;padding:.5rem;border:1px solid currentColor;border-radius:.5rem;}
+.seasonal-create-form .seasonal-task-choice label{display:flex;align-items:center;gap:.6rem;min-height:44px;}
+.seasonal-create-form .seasonal-task-choice input[type=checkbox]{flex:0 0 auto;width:1.25rem;height:1.25rem;}
+.seasonal-create-form .seasonal-task-choice label span{min-width:0;overflow-wrap:anywhere;}

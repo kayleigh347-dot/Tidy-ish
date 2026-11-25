@@ -687,16 +687,27 @@ function giftIdeasDialog(personId){
 function giftPersonEditor(existing=null){
  dialog(existing?'Rename tracker person':'Add person with tracker',field('Name','name',existing?.name||'','text','required maxlength="100"'),fd=>{const name=String(fd.get('name')||'').trim();if(!name)throw Error('Enter a name.');if(giftPeopleWithLegacy().some(p=>p.id!==existing?.id&&p.name.toLocaleLowerCase()===name.toLocaleLowerCase()))throw Error('That person is already listed.');const id=existing?.id||M.uid(),priorTab=giftPersonTab;giftPersonTab=id;if(change(b=>{const row=b.features.giftPeople.find(p=>p.id===existing?.id);if(existing&&row){row.name=name;row.tracker=true;}else if(!existing)b.features.giftPeople.push({id,name,tracker:true,ideas:[],checkoffs:{}});for(const gift of b.features.gifts)if(gift.recipientId===existing?.id)gift.recipient=name;}))closeDialog(true);else giftPersonTab=priorTab;},{saveLabel:existing?'Save name':'Add tracker'});
 }
-function focusHubPage(){return `<section class="focus-hub" aria-label="Choose Focus area"><div class="focus-hub-grid">${button('Doing Now','focus-hub-doing','','wide focus-hub-doing')}${rooms().map(r=>button(esc(r.name),'focus-hub-room',r.id,'wide')).join('')}</div></section>`;}
 function morePage(){return [['side','Side Tasks'],['locations','Where Does This Live?'],['gifts','Gift tracker'],['seasonal','Seasonal'],['library','Task Library'],['occasional','Occasional Essentials'],['laundry','Laundry'],['laundry-settings','Laundry setup & editing'],['care','Pet & plant care'],['backup','Backup & custom tasks'],['settings','Settings & household'],['help','Help']].map(([id,label])=>card(button(esc(label)+' ›',id==='care'?'open-grind':id==='occasional'?'library-occasional':'navigate',id,'wide ghost'))).join('');}
 function focusHubPage(){return `<section class="focus-hub" aria-label="Choose Focus area"><div class="focus-hub-grid">${button('Doing Now','focus-hub-doing','','wide focus-hub-doing')}${rooms().map(r=>button(esc(r.name),'focus-hub-room',r.id,'wide')).join('')}</div></section>`;}
+function seasonalOccasionEditor(){
+ const groups=OCC?.seasonalGroups(board)||[];
+ const options=groups.map(g=>({label:g.label,tasks:g.tasks.filter(t=>!t.archived)})).filter(g=>g.tasks.length);
+ const taskChoices=options.map(g=>`<fieldset class="seasonal-task-choice"><legend>${esc(g.label)}</legend>${g.tasks.map(t=>`<label><input type="checkbox" name="taskIds" value="${esc(t.id)}"><span>${esc(t.title)}</span></label>`).join('')}</fieldset>`).join('');
+ dialog('Create occasion',`<div class="seasonal-create-form">${field('Occasion name','name','','text','required maxlength="100"')}${select('Repeats','recurrence',[['','Choose…'],['annual','Every year'],['one-off','One-off']],'')}${field('Event date','eventDate','','date','required')}${field('Start preparing','preparationStartDate','','date','required')}${field('End date','endDate','','date','required')}<h3>Choose existing Seasonal tasks</h3><p class="small">Tick tasks to link. They stay where they are; no task starts or changes dates.</p>${taskChoices||'<p class="small">No existing Seasonal tasks available.</p>'}<h3>Optional tasks</h3><p class="small">Ideas only, one name per line. They will not create or activate tasks.</p>${area('Optional task names','optionalTitles')}<p class="small">Saved on this device. An annual choice records this occurrence only for now.</p></div>`,fd=>{
+  const allowed=new Set((OCC?.seasonalGroups(board)||[]).flatMap(g=>g.tasks.filter(t=>!t.archived).map(t=>t.id)));
+  const taskIds=fd.getAll('taskIds');if(taskIds.some(id=>!allowed.has(id)))throw Error('A selected Seasonal task is no longer available.');
+  const next=M.createOccasion(board,{name:fd.get('name'),recurrence:fd.get('recurrence'),eventDate:fd.get('eventDate'),preparationStartDate:fd.get('preparationStartDate'),endDate:fd.get('endDate'),taskIds,optionalTitles:String(fd.get('optionalTitles')||'').split(/\r?\n/).map(t=>t.trim()).filter(Boolean)});
+  // Local-only operation: standard guarded persistence, no sharing transition or queue.
+  persist(next);closeDialog(true);render();notice('Occasion saved. No tasks were started.');
+ },{saveLabel:'Create occasion'});
+}
 function seasonalHubPage(){
  const f=board.features,templates=new Map((f.occasionTemplates||[]).map(t=>[t.id,t]));
  const occurrences=[...(f.occasionOccurrences||[])].sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||a.id.localeCompare(b.id));
  const dateLabel=value=>esc(value.split('-').reverse().join('/'));
  const taskRow=(definition,link)=>{
   const target=link?.status==='linked'?board.tasks.find(t=>t.id===link.taskId):null;
-  const label=target?(target.done?'Completed':'Linked task'):link?'Linked task missing':'Not linked';
+  const label=target?(target.done?'Completed':'Linked task'):link?'Linked task missing':'Not linked · optional';
   return `<li><strong>${esc(definition.title)}</strong><span class="small">${target?' · '+esc(target.title):''} · ${label}</span></li>`;
  };
  const saved=occurrences.map(o=>{
@@ -707,7 +718,7 @@ function seasonalHubPage(){
  }).join('');
  const legacy=OCC?.seasonalGroups(board)||[];
  const existing=legacy.map(g=>`<details class="card seasonal-occasion-preview"><summary><strong>${esc(g.label)}</strong> <span class="small">${g.tasks.length} saved tasks</span></summary><ul class="seasonal-preview-list">${g.tasks.map(t=>`<li>${esc(t.title)}</li>`).join('')}</ul></details>`).join('');
- return `<section class="seasonal-hub" aria-label="Seasonal occasions"><h2>Saved occasions</h2><p class="small">View saved occasions and their linked tasks and gifts. This view does not start or change tasks.</p>${saved||'<p class="empty">No saved occasions yet.</p>'}<h2>Existing seasonal tasks</h2><p class="small">Your existing seasonal task groups remain in Task Library. These are not new occasion records.</p>${existing||'<p class="empty">No existing seasonal tasks.</p>'}${card(button('Open Seasonal Task Library','library-seasonal','','wide ghost')+button('Open Gift Tracker','navigate','gifts','wide ghost'),'seasonal-hub-shortcuts')}</section>`;
+ return `<section class="seasonal-hub" aria-label="Seasonal occasions"><h2>Saved occasions</h2><p class="small">View or create occasions and choose existing tasks. This does not start tasks or change their dates.</p>${button('＋ Create occasion','seasonal-create','','wide primary seasonal-create')}${saved||'<p class="empty">No saved occasions yet.</p>'}<h2>Existing seasonal tasks</h2><p class="small">Your existing seasonal task groups remain in Task Library. These are not new occasion records.</p>${existing||'<p class="empty">No existing seasonal tasks.</p>'}${card(button('Open Seasonal Task Library','library-seasonal','','wide ghost')+button('Open Gift Tracker','navigate','gifts','wide ghost'),'seasonal-hub-shortcuts')}</section>`;
 }
 function questLibraryPage(){
  if(!L)return card('Task Library cannot load. Existing tasks and history have not changed.');
@@ -1160,6 +1171,7 @@ const actions={
  'library-tab':el=>{if(['saved','custom','occasional','seasonal'].includes(el.dataset.id)){libraryTab=el.dataset.id;rememberBackState();render();}},
  'library-occasional':()=>navigate('library',null,'occasional'),
  'library-seasonal':()=>navigate('library',null,'seasonal'),
+ 'seasonal-create':()=>seasonalOccasionEditor(),
  'library-ideas':libraryIdeas,
  'library-find-existing':libraryFindExisting,
  'library-save-custom':el=>{if(change(b=>L.saveCustom(b,el.dataset.id,M)))notice('Saved to reusable tasks.');},
