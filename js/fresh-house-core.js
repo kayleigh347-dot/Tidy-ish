@@ -9,6 +9,8 @@
   const original=M.clone(board);
   delete original.features.browserSync;delete original.features.connectedHouse;delete original.features.householdSync;
   original.features.householdName='';
+  // Preserve the browser copy but do not implicitly share these plans with a new household.
+  delete original.features.seasonalSharedHouse;
   original.features.locationTabs=[{id:'household',name:'Household',order:0}];original.features.locationAreas=[];original.features.locationEntries=[];original.features.locationMoves=[];original.features.locationTrash=[];
   const chooseAll=selection==='all';
   if(!chooseAll){

@@ -41,10 +41,10 @@
     const safeRaw = {...raw};
     delete safeRaw.sharedSnapshot;
     // Account/household bindings belong to this browser, never to a portable backup.
-    delete safeRaw.browserSync;delete safeRaw.householdSync;delete safeRaw.connectedHouse;
+    delete safeRaw.browserSync;delete safeRaw.householdSync;delete safeRaw.connectedHouse;delete safeRaw.seasonalSharedHouse;
     const copy = model.normalize(safeRaw);
     // The app stores these links inside features; discard them in either location.
-    delete copy.features.browserSync;delete copy.features.householdSync;delete copy.features.connectedHouse;
+    delete copy.features.browserSync;delete copy.features.householdSync;delete copy.features.connectedHouse;delete copy.features.seasonalSharedHouse;
     for (const group of COLLECTIONS) {
       const records = FEATURE_KEYS.has(group) ? copy.features[group] : copy[group];
       if (!Array.isArray(records)) throw Error(`Invalid backup ${group} records. Nothing was imported.`);

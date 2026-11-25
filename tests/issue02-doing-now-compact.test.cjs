@@ -45,5 +45,5 @@ test('style is scoped to Doing Now; five columns with 44px height and square com
  for(const m of css.matchAll(/(?:^|\n)\s*(#app[^\{]+)\{/g))for(const s of m[1].split(','))assert.match(s.trim(),/^#app \.doing-board \.task\.doing-task/);
 });
 test('new stylesheet follows tap-target stylesheet; app cache tag advances',()=>{
- const link='css/doing-now-compact.css?v=20261117-issue02a1-cardhotfix1';assert.equal(html.split(link).length,2);assert.ok(html.indexOf(link)>html.indexOf('css/mobile-tap-targets.css'));assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1-interface1-timedcompletion1-subtasktimer1-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1"'));
+ const link='css/doing-now-compact.css?v=20261117-issue02a1-cardhotfix1';assert.equal(html.split(link).length,2);assert.ok(html.indexOf(link)>html.indexOf('css/mobile-tap-targets.css'));assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1-interface1-timedcompletion1-subtasktimer1-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1"'));
 });

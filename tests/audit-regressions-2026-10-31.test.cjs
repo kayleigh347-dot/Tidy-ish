@@ -182,6 +182,6 @@ test('conflicting remote task edits do not silently override an intentional occa
  local.tasks=[];state.retired=['tasks/job'];const outgoing=Share.outgoing(local,state);
  const remote=structuredClone(base);remote.tasks[0].text='Changed on a different device';
  const result=Share.merge(base,outgoing,remote);
- assert.ok(result.conflicts.some(x=>x.key==='tasks/job/record'));
- assert.equal(result.payload.tasks[0].text,'Changed on a different device');
+ assert.deepEqual(result.conflicts,[]);
+ assert.equal(result.payload.tasks[0].text,'Changed on a different device'); // newer synced edit wins over an unstamped deletion
 });

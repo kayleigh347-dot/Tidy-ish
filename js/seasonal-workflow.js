@@ -15,6 +15,12 @@ function hydrate(input,readOnly=false){const b=readOnly?{...input,features:{...i
 function dehydrate(b){const store={templates:[],occurrences:[]};for(const [kind,key] of [['templates','occasionTemplates'],['occurrences','occasionOccurrences']])for(const x of b.features[key])if(x.workflow){store[kind].push({id:x.id,plan:x.workflow});delete x.workflow;}if(store.templates.length||store.occurrences.length)b.features.occasionPlans=store;return b;}
 function inspect(b,oid){const o=b.features.occasionPlans?.occurrences.find(x=>x.id===oid)?.plan;return o?copy(o):null;}
 function hasPlans(b){return !!b.features.occasionPlans?.templates?.length;}
+// Old local-only plans are not implicitly uploaded when joining a house.
+// Only an empty connected board or a plan already bound to that household
+// can participate. Existing local plans require an explicit migration flow.
+function shareReady(b){const f=b.features,state=f.browserSync;if(!state)return true;if(!state.account||!state.house||!Array.isArray(state.base?.tasks)||!state.native?.features)return false;if(f.seasonalSharedHouse===state.house)return true;return !f.occasionTemplates.length&&!f.occasionOccurrences.length&&!(state.base.settings||[]).some(r=>r.id==='tidy-seasonal-plans-v1');}
+function requireShare(b){if(!shareReady(b))fail('Seasonal household sharing needs a current household copy or review of existing local-only plans.');}
+
 
 // Explicit date rule selection. Fixed-day leap handling remains explicit;
 // no February 29 substitution is silently selected for an existing occasion.
@@ -38,7 +44,9 @@ const selectedLinks=items=>items.filter(r=>r.selected&&r.taskId).map(r=>({defini
 function validItemWindow(o,row){try{return S.relativeTaskStart(o,row.offset);}catch{return '';}}
 function configure(b,oid,draft,scope='this'){
  if(!['this','every'].includes(scope))fail('Choose this year or every year.');
- const n=hydrate(b),{o,t}=get(n,oid),prior=editableHydrated(n,oid),oldItems=prior.items;
+ requireShare(b);
+ const n=hydrate(b);if(n.features.browserSync)n.features.seasonalSharedHouse=n.features.browserSync.house;
+ const {o,t}=get(n,oid),prior=editableHydrated(n,oid),oldItems=prior.items;
  if(o.workflow?.closed)fail('Ended occasion history is read-only.');
  if(typeof draft.name!=='string'||!draft.name.trim()||draft.name.trim().length>100)fail('Enter an occasion name.');
  if((scope==='every'||!t.workflow)&&n.features.occasionTemplates.some(x=>x.id!==t.id&&x.name.trim().toLocaleLowerCase()===draft.name.trim().toLocaleLowerCase()))fail('An occasion with this name already exists.');
@@ -62,7 +70,7 @@ function configure(b,oid,draft,scope='this'){
   if(!Array.isArray(row.children||[])||(row.children||[]).some(x=>typeof x!=='string'||!x.trim()||x.length>160))fail('Invalid subtask names.');
   const offset=S.daysBetween(window.eventDate,row.startDate),reminderOffset=row.reminderDate===''?null:S.daysBetween(window.eventDate,row.reminderDate||row.startDate);
   if(row.selected&&(!validItemWindow(window,{offset})||(reminderOffset!==null&&!validItemWindow(window,{offset:reminderOffset}))))fail('Selected task start and reminder dates must be inside the occasion window.');
-  if(row.selected&&!taskId){if(n.features.browserSync)fail('New Seasonal tasks on a connected household require the Seasonal sharing workload.');if(n.tasks.some(t=>!t.archived&&t.section==='Seasonal'&&t.title.trim().toLocaleLowerCase()===row.title.trim().toLocaleLowerCase()&&!pairs(n).some(({o:x})=>x.id!==oid&&x.workflow?.items.some(r=>r.taskId===t.id))))fail('A Seasonal task named '+row.title+' already exists. Choose that task instead of creating a duplicate.');task=M.task({title:row.title.trim(),section:'Seasonal',taskType:'maintenance',messImpact:'small',showInSuggestions:false});task.children=(row.children||[]).map(title=>M.child({title,parentId:task.id}));M.add(n,task);taskId=task.id;taskIds.add(taskId);}
+  if(row.selected&&!taskId){if(n.tasks.some(t=>!t.archived&&t.section==='Seasonal'&&t.title.trim().toLocaleLowerCase()===row.title.trim().toLocaleLowerCase()&&!pairs(n).some(({o:x})=>x.id!==oid&&x.workflow?.items.some(r=>r.taskId===t.id))))fail('A Seasonal task named '+row.title+' already exists. Choose that task instead of creating a duplicate.');task=M.task({title:row.title.trim(),section:'Seasonal',taskType:'maintenance',messImpact:'small',showInSuggestions:false});task.children=(row.children||[]).map(title=>M.child({title,parentId:task.id}));M.add(n,task);taskId=task.id;taskIds.add(taskId);}
   // A linked task is a shared identity, including its canonical name. Occasion
   // edits may change its schedule/selection, not rename the underlying task.
   const title=task?.title||old?.taskId&&old.title||row.title.trim();
@@ -77,7 +85,7 @@ function configure(b,oid,draft,scope='this'){
  // Keep removed definitions in the historical template catalogue.
  for(const old of oldItems.filter(x=>!ids.has(x.definitionId))){const offset=S.daysBetween(prior.eventDate,old.startDate);items.push({...old,offset,selected:false});delete items.at(-1).startDate;delete items.at(-1).reminderDate;}
  const wasActive=existingActivated.filter(a=>!items.some(r=>r.definitionId===a.definitionId&&r.selected));
- for(const a of wasActive){if(!a.wasDoing&&!n.features.browserSync&&!pairs(n).some(({o:x})=>x.id!==oid&&!x.workflow?.closed&&x.workflow?.activated.some(r=>r.taskId===a.taskId&&!r.suspended))&&n.tasks.some(x=>x.id===a.taskId&&x.doing)){M.select(n,a.taskId,false);a.suspended=true;}}
+ for(const a of wasActive){if(!a.wasDoing&&shareReady(n)&&!pairs(n).some(({o:x})=>x.id!==oid&&!x.workflow?.closed&&x.workflow?.activated.some(r=>r.taskId===a.taskId&&!r.suspended))&&n.tasks.some(x=>x.id===a.taskId&&x.doing)){M.select(n,a.taskId,false);a.suspended=true;}}
  if(!t.workflow||scope==='every'){
   t.name=draft.name.trim();t.workflow={reference:copy(window),preset:presetKey,dateRule,leapPolicy,annualEnabled:draft.annualEnabled,settings:{...settings,celebrated:false},items:copy(items)};
  }else if(t.recurrence==='annual'&&(dateRule!==t.workflow.dateRule||leapPolicy!==t.workflow.leapPolicy||draft.annualEnabled!==t.workflow.annualEnabled))fail('Change recurring settings with Every year.');
@@ -91,9 +99,10 @@ function configure(b,oid,draft,scope='this'){
   const y=Number(other.eventDate.slice(0,4));let date;try{date=eventFor(dateRule,y,window.eventDate,leapPolicy);}catch{continue;}
   const w=S.shiftWindow(window,date);Object.assign(other,w,{workflow:{name:t.name,settings:{...settings,celebrated:false},items:copy(items.filter(x=>x.repeat)),activated:[],history:[],closed:false,override:false,reminded:[]}});other.taskLinks=selectedLinks(other.workflow.items);
  }
+ n.features.seasonalEditedAt=new Date().toISOString();
  return M.normalize(dehydrate(n));
 }
-function create(b,draft){const n=M.createOccasion(b,{name:draft.name,recurrence:draft.recurrence,...windowOf(draft),taskIds:[],optionalTitles:[]}),o=n.features.occasionOccurrences.at(-1);return configure(n,o.id,draft,'every');}
+function create(b,draft){requireShare(b);const n=M.createOccasion(b,{name:draft.name,recurrence:draft.recurrence,...windowOf(draft),taskIds:[],optionalTitles:[]}),o=n.features.occasionOccurrences.at(-1);if(n.features.browserSync)n.features.seasonalSharedHouse=n.features.browserSync.house;return configure(n,o.id,draft,'every');}
 function recurring(b,t,today,warnings){
  if(t.recurrence!=='annual'||!t.workflow||!t.workflow.annualEnabled)return;
  const old=b.features.occasionOccurrences.filter(o=>o.templateId===t.id),ref=t.workflow.reference,refYear=Number(ref.eventDate.slice(0,4));
@@ -106,7 +115,7 @@ function recurring(b,t,today,warnings){
   // Do not accumulate future years while there is already an unended occurrence,
   // unless the next occurrence is itself active (overlapping windows).
   if(window.preparationStartDate>today&&old.some(o=>o.endDate>=today))continue;
-  const items=copy(t.workflow.items.filter(r=>r.repeat));const occurrence={id:id(),templateId:t.id,occurrenceKey:key,...window,taskLinks:selectedLinks(items),workflow:{name:t.name,settings:{...t.workflow.settings,celebrated:false},items,activated:[],history:[],closed:false,override:false,reminded:[]}};
+  const items=copy(t.workflow.items.filter(r=>r.repeat));const occurrence={id:b.features.browserSync?'seasonal-year:'+t.id+':'+year:id(),templateId:t.id,occurrenceKey:key,...window,taskLinks:selectedLinks(items),workflow:{name:t.name,settings:{...t.workflow.settings,celebrated:false},items,activated:[],history:[],closed:false,override:false,reminded:[]}};
   b.features.occasionOccurrences.push(occurrence);old.push(occurrence);
  }
 }
@@ -146,10 +155,11 @@ function christmasGiftChange(input,oid,action,data,today=M.date()){
  }else if(action==='wrap'){
   if(!g||!(needsWrap(g)||g.status==='wrapped'&&g.noWrapping!==true))fail('This gift is not eligible for wrapping.');g.status=g.status==='wrapped'?'bought':'wrapped';g.receiptStatus='received';delete g.orderedAt;g.updatedAt=now;
  }else fail('Unknown gift action.');
- // Existing household sync excludes occurrence links. Do not mutate shared task
- // state based on a private/local occurrence until that contract is integrated.
+ // Each direct gift or receipt action also carries a Seasonal edit timestamp.
+ // Sync compares saved edits, rather than a later refresh time.
+ b.features.seasonalEditedAt=now;
  const next=reconcile(b,today).board,after=christmasContext(next,oid,today);
- if(!next.features.browserSync&&after?.active&&after.w.settings.tasksEnabled&&after.gifts.some(g=>needsWrap(g)&&!prior.has(g.id))){
+ if(shareReady(next)&&after?.active&&after.w.settings.tasksEnabled&&after.gifts.some(g=>needsWrap(g)&&!prior.has(g.id))){
   for(const r of after.w.items.filter(r=>r.selected&&r.role==='wrap')){
    const a=after.w.activated.find(x=>x.definitionId===r.definitionId&&!x.suspended),task=next.tasks.find(t=>t.id===r.taskId&&!t.archived);
    // A real completed wrapping cycle can be reopened, never an unrelated task
@@ -167,7 +177,7 @@ function reconcile(input,today=M.date()){
  const b=hydrate(input),warnings=[];S.windowOffsets({eventDate:today,preparationStartDate:today,endDate:today});
  // Household coordination is separate (Workload B). Do not reset or select
  // shared task state from local-only occasion records on a synced household.
- if(b.features.browserSync){if(pairs(b).some(({o})=>o.workflow))warnings.push('Automatic Seasonal task changes require Seasonal household sharing.');return {board:copy(input),warnings,changed:false};}
+ if(!shareReady(b)){if(pairs(b).some(({o})=>o.workflow))warnings.push('Automatic Seasonal task changes require Seasonal household sharing to be ready.');return {board:copy(input),warnings,changed:false};}
  for(const t of b.features.occasionTemplates)recurring(b,t,today,warnings);
  const sorted=pairs(b).filter(({o})=>o.workflow).sort((a,z)=>a.o.eventDate.localeCompare(z.o.eventDate));
  for(const {o} of sorted){const w=o.workflow;if(w.closed||phase(o,today)!=='ended')continue;
@@ -199,15 +209,16 @@ function reconcile(input,today=M.date()){
    const wasDoing=!!task.doing;M.select(b,task.id,true);w.activated.push({definitionId:row.definitionId,taskId:task.id,wasDoing,priorWinIds:b.features.wins.filter(w=>w.rootId===task.id||w.taskId===task.id).map(w=>w.id)});held.add(task.id);
   }
  }
- const out=dehydrate(b);return {board:out,warnings,changed:JSON.stringify(out)!==JSON.stringify(input)};
+ const stable=x=>JSON.stringify(x,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+ const out=dehydrate(b);return {board:out,warnings,changed:stable(out)!==stable(input)};
 }
 function activeGroups(input,today=M.date()){
  const b=hydrate(input,true),seen=new Set();return active(b,today).map(({o,t})=>({id:o.id,name:o.workflow.name||t.name,eventDate:o.eventDate,countdown:o.workflow.settings.countdown,tasks:o.workflow.items.filter(r=>eligible(b,o,r,today)&&o.workflow.activated.some(a=>a.definitionId===r.definitionId&&!a.suspended)).map(r=>b.tasks.find(x=>x.id===r.taskId&&x.doing&&!x.archived&&!M.paused(x,today))).filter(x=>x&&!seen.has(x.id)&&seen.add(x.id))}));
 }
 function birthdayMarks(input){if(!hasPlans(input))return [];const b=hydrate(input,true);return pairs(b).filter(({o,t})=>t.workflow?.preset==='birthday'&&o.workflow).map(({o,t})=>({id:o.id,date:o.eventDate,name:o.workflow.name||t.name}));}
 function giftRole(input,taskId,today=M.date()){if(!hasPlans(input))return null;const b=hydrate(input,true);for(const {o,t} of pairs(b).filter(({o})=>o.workflow&&!o.workflow.closed&&phase(o,today)!=='ended').sort((a,z)=>Number(phase(z.o,today)==='active')-Number(phase(a.o,today)==='active')||a.o.eventDate.localeCompare(z.o.eventDate))){const row=o.workflow.items.find(r=>r.selected&&r.taskId===taskId&&['buy','wrap'].includes(r.role));if(row)return {role:row.role,preset:t.workflow?.preset||'custom',occurrenceId:o.id};}return null;}
-function dueReminders(input,today=M.date()){const b=hydrate(input,true),out=[],seen=new Set();if(b.features.browserSync)return out;for(const {o} of active(b,today)){const w=o.workflow;if(!w.settings.tasksEnabled)continue;for(const row of w.items){if(!row.selected||!row.taskId||row.role==='wrap'||row.role==='teardown'||row.reminderOffset===null||(w.reminded||[]).includes(row.definitionId)||seen.has(row.taskId))continue;const due=validItemWindow(o,{offset:row.reminderOffset??row.offset}),task=b.tasks.find(t=>t.id===row.taskId&&!t.archived&&!t.done);if(due&&due<=today&&task){out.push({occurrenceId:o.id,definitionId:row.definitionId,taskId:row.taskId,title:task.title,name:w.name});seen.add(row.taskId);}}}return out;}
+function dueReminders(input,today=M.date()){const b=hydrate(input,true),out=[],seen=new Set();if(!shareReady(b))return out;for(const {o} of active(b,today)){const w=o.workflow;if(!w.settings.tasksEnabled)continue;for(const row of w.items){if(!row.selected||!row.taskId||row.role==='wrap'||row.role==='teardown'||row.reminderOffset===null||(w.reminded||[]).includes(row.definitionId)||seen.has(row.taskId))continue;const due=validItemWindow(o,{offset:row.reminderOffset??row.offset}),task=b.tasks.find(t=>t.id===row.taskId&&!t.archived&&!t.done);if(due&&due<=today&&task){out.push({occurrenceId:o.id,definitionId:row.definitionId,taskId:row.taskId,title:task.title,name:w.name});seen.add(row.taskId);}}}return out;}
 function markReminders(input,rows,today=M.date()){const b=hydrate(input),due=dueReminders(input,today);for(const r of rows){if(!due.some(x=>x.occurrenceId===r.occurrenceId&&x.definitionId===r.definitionId))continue;const {o}=get(b,r.occurrenceId);o.workflow.reminded||=[];if(!o.workflow.reminded.includes(r.definitionId))o.workflow.reminded.push(r.definitionId);}return dehydrate(b);}
 function editable(b,oid){return editableHydrated(hydrate(b,true),oid);}
-return Object.freeze({PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders,christmasContext,christmasGiftChange,received,needsWrap});
+return Object.freeze({shareReady,PRESETS,preset,eventFor,phase,editable,create,configure,reconcile,activeGroups,inspect,hasPlans,birthdayMarks,giftRole,dueReminders,markReminders,christmasContext,christmasGiftChange,received,needsWrap});
 });
