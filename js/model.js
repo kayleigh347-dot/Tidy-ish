@@ -178,6 +178,35 @@
   }
   // Read-only resolution: distinguish missing and ambiguous gift targets;
   // never fabricate people, copy task data, or award completion points.
+  // Separate optional records keep the #75 occasion/plan schemas readable on rollback.
+  function validateSeasonalContent(f){
+    const fail=()=>{throw Error('Invalid saved Seasonal notes or gift history; original saved data preserved.');};
+    const rows=f.seasonalNotes===undefined?[]:f.seasonalNotes, history=f.seasonalGiftHistory===undefined?[]:f.seasonalGiftHistory;
+    const validId=v=>typeof v==='string'&&v.length>0;
+    const str=(v,max)=>typeof v==='string'&&v.length<=max;
+    const stamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v));
+    const money=v=>typeof v==='number'&&v>=0&&Number.isSafeInteger(Math.round(v*100));
+    const ids=a=>new Set(a.map(x=>x.id)).size===a.length;
+    const hasOccurrence=id=>f.occasionOccurrences.some(o=>o.id===id);
+    const keys=(r,allowed)=>isObject(r)&&Object.keys(r).every(k=>allowed.includes(k));
+    if(!Array.isArray(rows)||!Array.isArray(history))fail();
+    let photoBytes=0;
+    for(const r of rows){
+      if(!keys(r,['id','occurrenceId','kind','title','body','items','url','photo','updatedAt','deleted'])||!validId(r.id)||!hasOccurrence(r.occurrenceId)||!stamp(r.updatedAt)||typeof r.deleted!=='boolean')fail();
+      if(r.deleted){if(Object.keys(r).some(k=>!['id','occurrenceId','updatedAt','deleted'].includes(k)))fail();continue;}
+      if(!['note','checklist','link','photo'].includes(r.kind)||!str(r.title,160)||!r.title.trim()||!str(r.body,4000))fail();
+      if(r.kind==='checklist'){if(!Array.isArray(r.items)||r.items.length<1||r.items.length>100||r.items.some(i=>!keys(i,['id','text','checked'])||!validId(i.id)||!str(i.text,300)||!i.text.trim()||typeof i.checked!=='boolean')||!ids(r.items))fail();}else if(r.items!==undefined)fail();
+      if(r.kind==='link'){if(!str(r.url,2000)||!/^https?:\/\/[^\s]+$/i.test(r.url))fail();try{if(!new URL(r.url).hostname)fail();}catch{fail();}}else if(r.url!==undefined)fail();
+      if(r.kind==='photo'){if(!str(r.photo,80000)||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(r.photo))fail();photoBytes+=r.photo.length;}else if(r.photo!==undefined)fail();
+    }
+    if(!ids(rows)||photoBytes>640000)fail();
+    for(const r of history){
+      if(!keys(r,['id','occurrenceId','updatedAt','people'])||!validId(r.id)||r.id!==r.occurrenceId||!hasOccurrence(r.occurrenceId)||!f.occasionPlans?.occurrences.find(o=>o.id===r.occurrenceId)?.plan.closed||!stamp(r.updatedAt)||!Array.isArray(r.people))fail();
+      for(const p of r.people){if(!keys(p,['id','name','gifts','total'])||!validId(p.id)||!str(p.name,100)||!Array.isArray(p.gifts)||!money(p.total)||p.gifts.some(g=>!keys(g,['title','price'])||typeof g.title!=='string'||!money(g.price))||p.total!==p.gifts.reduce((n,g)=>n+Math.round(g.price*100),0)/100)fail();}
+      if(!ids(r.people))fail();
+    }
+    if(!ids(history))fail();
+  }
   function occasionLinkStatus(board,occurrence){
     const f=board.features;
     const target=(rows,id)=>rows.find(row=>row.id===id);
@@ -318,6 +347,7 @@
       if(prior){if(!sameSeasonal(prior,t)||!sameSeasonal(plan(current,'templates',t.id),plan(incoming,'templates',t.id)))incompatible.add(t.id);}
       else {current.occasionTemplates.push(t);templates.set(t.id,t);addPlan('templates',t.id);}
     }
+    const addedOccurrences=new Set();
     const ids=new Set(current.occasionOccurrences.map(o=>o.id));
     const keys=new Set(current.occasionOccurrences.map(o=>o.occurrenceKey));
     for(const o of incoming.occasionOccurrences){
@@ -326,9 +356,11 @@
       if(incompatible.has(o.templateId)||ids.has(o.id)||keys.has(o.occurrenceKey))continue;
       const linked=(o.taskLinks||[]).length||(o.giftIds||[]).length||(o.recipientIds||[]).length;
       if(linked&&(!backup||!compatibleOccasionLinks(result,source,o)))continue;
-      current.occasionOccurrences.push(o);ids.add(o.id);keys.add(o.occurrenceKey);addPlan('occurrences',o.id);
+      current.occasionOccurrences.push(o);addedOccurrences.add(o.id);ids.add(o.id);keys.add(o.occurrenceKey);addPlan('occurrences',o.id);
     }
+    for(const key of ['seasonalNotes','seasonalGiftHistory']){const added=(incoming[key]||[]).filter(r=>addedOccurrences.has(r.occurrenceId));if(added.length){const rows=current[key]||[],ids=new Set(rows.map(r=>r.id));if(added.some(r=>ids.has(r.id)))throw Error('Conflicting Seasonal content identity; original saved data preserved.');current[key]=[...rows,...clone(added)];}}
     validateOccasions(current);
+    validateSeasonalContent(current);
     if(backup&&incoming.christmasGiftStages?.length){const rows=current.christmasGiftStages||[];for(const row of incoming.christmasGiftStages)if(!incompatible.has(row.templateId)&&templates.has(row.templateId)&&!rows.some(r=>r.templateId===row.templateId))rows.push(clone(row));if(rows.length)current.christmasGiftStages=rows;}
   }
   // Backup-only gift merge. Existing IDs win, and an imported gift must not
@@ -404,6 +436,7 @@
       if(!Array.isArray(b.features[name]))throw Error(`Invalid saved ${name}; original saved data preserved.`);
     validateRoutineDefinitions(b.features);
     validateOccasions(b.features);
+    validateSeasonalContent(b.features);
     if(b.features.christmasGiftStages!==undefined){const rows=b.features.christmasGiftStages;if(!Array.isArray(rows)||rows.some(r=>!isObject(r)||typeof r.templateId!=='string'||!r.templateId||!b.features.occasionTemplates.some(t=>t.id===r.templateId)||!Array.isArray(r.stages)||r.stages.length>50||r.stages.some(v=>typeof v!=='string'||!v.trim()||v.length>100)||new Set(r.stages.map(v=>v.trim().toLocaleLowerCase())).size!==r.stages.length||typeof r.updatedAt!=='string'||!Number.isFinite(Date.parse(r.updatedAt)))||new Set(rows.map(r=>r.templateId)).size!==rows.length)throw Error('Invalid saved Christmas gift stages; original saved data preserved.');}
     const giftIds=new Set();for(const gift of b.features.gifts){if(!isObject(gift)||typeof gift.id!=='string'||!gift.id||giftIds.has(gift.id)||!['christmas','birthday'].includes(gift.occasion)||typeof gift.recipient!=='string'||typeof gift.title!=='string'||gift.recipientId!==undefined&&typeof gift.recipientId!=='string'||!Number.isFinite(Number(gift.budget))||Number(gift.budget)<0||!Number.isFinite(Number(gift.spent))||Number(gift.spent)<0||!['idea','bought','wrapped'].includes(gift.status)||gift.receiptStatus!==undefined&&!['ordered','received'].includes(gift.receiptStatus)||gift.noWrapping!==undefined&&typeof gift.noWrapping!=='boolean'||gift.orderedAt!==undefined&&!parseDay(gift.orderedAt)||gift.receiptPromptedAt!==undefined&&!parseDay(gift.receiptPromptedAt)||gift.stage!==undefined&&(typeof gift.stage!=='string'||gift.stage.length>100))throw Error('Invalid saved gift record; original saved data preserved.');giftIds.add(gift.id);}
     const personIds=new Set();for(const person of b.features.giftPeople){if(!isObject(person)||typeof person.id!=='string'||!person.id||personIds.has(person.id)||typeof person.name!=='string'||!person.name.trim()||person.name.length>100||person.tracker!==undefined&&typeof person.tracker!=='boolean'||person.checkoffs!==undefined&&(!isObject(person.checkoffs)||Object.values(person.checkoffs).some(value=>typeof value!=='boolean'))||person.ideas!==undefined&&(!Array.isArray(person.ideas)||person.ideas.length>100||person.ideas.some(idea=>typeof idea!=='string'||idea.length>160))||person.christmasSettings!==undefined&&(!Array.isArray(person.christmasSettings)||person.christmasSettings.some(r=>!isObject(r)||typeof r.occurrenceId!=='string'||!r.occurrenceId||typeof r.checked!=='boolean'||r.budget!==null&&(typeof r.budget!=='number'||!Number.isFinite(r.budget)||r.budget<0||!Number.isSafeInteger(Math.round(r.budget*100))))||new Set(person.christmasSettings.map(r=>r.occurrenceId)).size!==person.christmasSettings.length))throw Error('Invalid saved gift person; original saved data preserved.');personIds.add(person.id);}

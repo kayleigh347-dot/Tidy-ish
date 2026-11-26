@@ -685,6 +685,7 @@ function christmasLinked(id){return (board.features.occasionOccurrences||[]).som
 function christmasGiftLinks(){return (board.features.occasionOccurrences||[]).filter(o=>SW?.christmasContext?.(board,o.id)).map(o=>button('Christmas · '+esc(dateLabel(o.eventDate)),'christmas-gift-open',o.id,'wide ghost')).join('');}
 function christmasGiftPage(){
  const ctx=SW?.christmasContext?.(board,christmasGiftId);if(!ctx)return card('Christmas occasion not available. No saved gifts changed.');
+ if(ctx.readOnly&&typeof seasonalGiftArchiveHtml==='function')return `<section class="task-data-page gift-tracker christmas-gifts"><h2>Christmas · ${dateLabel(ctx.o.eventDate)}</h2><p class="small">Ended occasion · read only</p>${seasonalGiftArchiveHtml(ctx.o.id)}${button('Open occasion history','seasonal-open',ctx.o.id,'wide ghost')}</section>`;
  const {o,gifts,available,readOnly}=ctx,wrap=route==='christmas-wrap',people=giftPeopleWithLegacy(),trackers=people.filter(p=>p.tracker!==false),tabsList=[['all','All People'],...trackers.map(p=>[p.id,p.name])];
  if(!tabsList.some(([id])=>id===christmasPerson))christmasPerson='all';
  const person=trackers.find(p=>p.id===christmasPerson),own=person?SW.christmasOwn(gifts,person):gifts;
@@ -845,6 +846,45 @@ function seasonalWorkflowEditor(id,draft=null){
  editor.addEventListener('invalid',revealInvalid,true);
  dialogCleanup=()=>{dateField.removeEventListener('change',shift);editor.removeEventListener('click',toggleOptions);editor.removeEventListener('input',updateTaskLabel);editor.removeEventListener('invalid',revealInvalid,true);};
 }
+function seasonalGiftArchiveHtml(oid){
+ // All content is escaped; only validated HTTP(S) links and raster data URLs
+ // are rendered. Photos are resized before writing to the existing board.
+ const ctx=SW.notesContext(board,oid),archive=ctx?.history;
+ if(!archive)return '<p class="small">No frozen gift history was recorded for this occasion. Original gift records are retained.</p>';
+ return `<section class="seasonal-gift-history"><h3>Gift history</h3><p class="small">Purchased gifts for personal-tracker recipients only.</p>${archive.people.map(p=>`<details class="seasonal-history-person"><summary><strong>${esc(p.name)}</strong> · £${p.total.toFixed(2)}</summary><ul>${p.gifts.map(g=>`<li>${esc(g.title)} · £${g.price.toFixed(2)}</li>`).join('')}</ul></details>`).join('')||'<p class="small">No personal-tracker purchases recorded.</p>'}</section>`;
+}
+function seasonalNotesSection(oid){
+ const ctx=SW.notesContext(board,oid);if(!ctx)return '';
+ const attr=`data-occurrence-id="${esc(oid)}"`;
+ const rows=ctx.notes.map(r=>`<article class="seasonal-note-card"><strong>${esc(r.title)}</strong><span class="small">${({note:'Note',checklist:'Checklist',link:'Link',photo:'Photo'})[r.kind]}</span>${r.body?`<p class="seasonal-note-text">${esc(r.body)}</p>`:''}${r.kind==='checklist'?`<div class="seasonal-note-checks">${r.items.map(i=>button((i.checked?'✓ ':'○ ')+esc(i.text),'seasonal-note-toggle',r.id,'ghost seasonal-note-check',`${attr} data-item-id="${esc(i.id)}" role="checkbox" aria-checked="${i.checked}" ${ctx.readOnly?'disabled':''}`)).join('')}</div>`:''}${r.kind==='link'?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Open saved link</a>`:''}${r.kind==='photo'?`<img class="seasonal-note-photo" src="${esc(r.photo)}" alt="${esc(r.title)}" loading="lazy">`:''}${ctx.readOnly?'':`<div class="row">${button('Edit','seasonal-note-edit',r.id,'ghost',attr)}${button('Delete','seasonal-note-delete',r.id,'ghost',attr)}</div>`}</article>`).join('');
+ return `<details class="seasonal-notes-section" ${ctx.readOnly?'':'open'}><summary><strong>Notes &amp; Ideas</strong> · ${ctx.notes.length}</summary>${ctx.readOnly?'<p class="small">Archived · read only</p>':`<div class="seasonal-note-add">${[['note','Note'],['checklist','Checklist'],['link','Link'],['photo','Photo']].map(([kind,label])=>button('＋ '+label,'seasonal-note-add',kind,'ghost',attr)).join('')}</div>`}${rows||'<p class="small">No notes or ideas saved.</p>'}</details>`;
+}
+async function seasonalPhoto(file){
+ if(!file||!file.size)return '';
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>12*1024*1024)throw Error('Choose a JPEG, PNG or WebP image under 12 MB.');
+ const url=URL.createObjectURL(file);try{
+  const img=new Image();img.src=url;await img.decode();if(!img.naturalWidth||!img.naturalHeight)throw Error('Could not open this photo.');
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(!ctx)throw Error('Photo resizing is unavailable.');
+  for(const size of [1000,800,600,400,280]){
+   const scale=Math.min(1,size/Math.max(img.naturalWidth,img.naturalHeight));canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   for(const quality of [.82,.65,.48]){const data=canvas.toDataURL('image/jpeg',quality);if(data.length<=80000&&data.startsWith('data:image/jpeg;base64,'))return data;}
+  }throw Error('This photo is too large after resizing. Use a smaller photo or save a link.');
+ }finally{URL.revokeObjectURL(url);}
+}
+function seasonalNoteEditor(oid,kind,nid=''){
+ const ctx=SW.notesContext(board,oid),old=ctx?.notes.find(r=>r.id===nid);if(!ctx||ctx.readOnly||nid&&!old)return;seasonalOpenId=oid;kind=old?.kind||kind;
+ let body=field('Title','title',old?.title||'','text','required maxlength="160"')+area(kind==='note'?'Note':'Optional notes','body',old?.body||'');
+ if(kind==='checklist')body+=area('Checklist (one item per line)','lines',(old?.items||[]).map(i=>i.text).join('\n'));
+ if(kind==='link')body+=field('Website link','url',old?.url||'','url','required maxlength="2000"');
+ if(kind==='photo')body+=`<label class="field">${old?'Replace photo (optional)':'Photo'}<input name="photo" type="file" accept="image/jpeg,image/png,image/webp" ${old?'':'required'}></label><p class="small">Photos are resized and stored in the board, including household backups and sync. Space is limited; you can also save a link.</p>`;
+ dialog(old?'Edit '+kind:'Add '+kind,body,async(fd,form)=>{
+  const data={id:old?.id,kind,title:fd.get('title'),body:fd.get('body'),lines:fd.get('lines'),url:fd.get('url')};if(kind==='photo')data.photo=await seasonalPhoto(fd.get('photo'));
+  if(!editor.open||editor.querySelector('#modal-form')!==form)return;
+  if(old&&JSON.stringify(SW.notesContext(board,oid)?.notes.find(r=>r.id===old.id))!==JSON.stringify(old))throw Error('This note changed. Close and reopen before saving.');
+  if(change(b=>Object.assign(b,SW.noteChange(b,oid,'save',data,M.date()))))closeDialog(true);
+ });
+}
+function seasonalNoteDelete(oid,id){const old=SW.notesContext(board,oid)?.notes.find(r=>r.id===id);if(!old)return;seasonalOpenId=oid;dialog('Delete note?',`<p>Delete ${esc(old.title)} from this occasion?</p>`,()=>{if(JSON.stringify(SW.notesContext(board,oid)?.notes.find(r=>r.id===id))!==JSON.stringify(old))throw Error('This note changed. Close and reopen before deleting.');if(change(b=>Object.assign(b,SW.noteChange(b,oid,'delete',{id},M.date()))))closeDialog(true);},{saveLabel:'Delete'});}
 function seasonalHubPage(){
  const f=board.features,templates=new Map((f.occasionTemplates||[]).map(t=>[t.id,t]));
  const occurrences=[...(f.occasionOccurrences||[])].sort((a,b)=>a.eventDate.localeCompare(b.eventDate)||a.id.localeCompare(b.id));
@@ -855,15 +895,17 @@ function seasonalHubPage(){
   const historical=workflow?.closed?workflow.history.find(h=>h.definitionId===definition.id):null;const label=workflow?.closed?(historical?.done?'Completed in this occurrence':historical?'Unfinished history retained':item?.selected?'Not activated':'Not selected · optional'):item&&!item.selected?'Not selected · optional':target?(target.done?'Completed':'Linked task'):link?'Linked task missing':'Not linked · optional';
   return `<li><strong>${esc(workflow?.closed?definition.title:target?.title||definition.title)}</strong><span class="small"> · ${label}${item?.selected&&!workflow.closed?(item.role==='wrap'&&SW?.christmasContext?.(board,o.id)?' · Starts when a gift needs wrapping':' · Starts '+dateLabel(window.TidySeasonal.shiftDays(o.eventDate,item.offset))):''}</span></li>`;
  };
- const saved=occurrences.map(o=>{
+ const renderOccurrence=o=>{
   const t=templates.get(o.templateId),refs=M.occasionLinkStatus(board,o),workflow=typeof SW!=='undefined'?SW?.inspect(board,o.id):null,defs=workflow?workflow.items.map(r=>({id:r.definitionId,title:r.title})):t?.taskDefinitions||[];
   const unresolved=[...refs.tasks,...refs.gifts,...refs.recipients].filter(r=>r.status!=='linked').length;
   const tasks=defs.map(d=>taskRow(d,refs.tasks.find(l=>l.definitionId===d.id),workflow,o)).join('');
-  return `<details class="card seasonal-occasion-preview" ${typeof seasonalOpenId!=='undefined'&&seasonalOpenId===o.id?'open':''}><summary><strong>${esc(workflow?.name||t?.name||'Saved occasion')}</strong> <span class="small">${dateLabel(o.eventDate)}</span></summary><p class="small">Preparation ${dateLabel(o.preparationStartDate)} · Ends ${dateLabel(o.endDate)}</p>${workflow?`<p class="small">${workflow.closed?'Ended · history retained':SW.phase(o,M.date())}${workflow.settings.tasksEnabled?'':' · Tasks disabled'}</p>`:'<p class="small">Edit to configure task start dates and recurrence.</p>'}<h3>Tasks</h3>${tasks?`<ul class="seasonal-preview-list">${tasks}</ul>`:'<p class="small">No task definitions saved for this occasion.</p>'}<h3>Gift tracker</h3>${typeof SW!=='undefined'&&SW?.christmasContext?.(board,o.id)?button('Open Christmas Gift Tracker','christmas-gift-open',o.id,'wide ghost')+button('Open wrapping','christmas-wrap-open',o.id,'wide ghost')+(!SW.christmasContext(board,o.id).readOnly?button('Edit template gift stages','christmas-stages',o.id,'wide ghost'):''):''}<p class="small">${refs.gifts.filter(l=>l.status==='linked').length} linked gifts · ${refs.recipients.filter(l=>l.status==='linked').length} linked recipients</p>${unresolved?`<p class="small" role="status">${unresolved} missing or conflicting link(s). Existing records are unchanged.</p>`:''}${workflow?.closed?`<p class="small">${workflow.history.length} task records retained.</p>`:button('Edit occasion','seasonal-edit',o.id,'wide ghost seasonal-edit')}</details>`;
- }).join('');
+  return `<details class="card seasonal-occasion-preview" ${typeof seasonalOpenId!=='undefined'&&seasonalOpenId===o.id?'open':''}><summary><strong>${esc(workflow?.name||t?.name||'Saved occasion')}</strong> <span class="small">${dateLabel(o.eventDate)}</span></summary><p class="small">Preparation ${dateLabel(o.preparationStartDate)} · Ends ${dateLabel(o.endDate)}</p>${workflow?`<p class="small">${workflow.closed?'Ended · history retained':SW.phase(o,M.date())}${workflow.settings.tasksEnabled?'':' · Tasks disabled'}</p>`:'<p class="small">Edit to configure task start dates and recurrence.</p>'}<h3>Tasks</h3>${tasks?`<ul class="seasonal-preview-list">${tasks}</ul>`:'<p class="small">No task definitions saved for this occasion.</p>'}<h3>Gift tracker</h3>${typeof SW!=='undefined'&&SW?.christmasContext?.(board,o.id)?button('Open Christmas Gift Tracker','christmas-gift-open',o.id,'wide ghost')+button('Open wrapping','christmas-wrap-open',o.id,'wide ghost')+(!SW.christmasContext(board,o.id).readOnly?button('Edit template gift stages','christmas-stages',o.id,'wide ghost'):''):''}<p class="small">${refs.gifts.filter(l=>l.status==='linked').length} linked gifts · ${refs.recipients.filter(l=>l.status==='linked').length} linked recipients</p>${unresolved?`<p class="small" role="status">${unresolved} missing or conflicting link(s). Existing records are unchanged.</p>`:''}${typeof seasonalNotesSection==='function'&&workflow?seasonalNotesSection(o.id):''}${workflow?.closed?`<p class="small">${workflow.history.length} task records retained.</p>${typeof seasonalGiftArchiveHtml==='function'&&SW?.christmasContext?.(board,o.id)?seasonalGiftArchiveHtml(o.id):''}`:button('Edit occasion','seasonal-edit',o.id,'wide ghost seasonal-edit')}</details>`;
+ };
+ const ended=o=>typeof SW!=='undefined'&&SW?.inspect(board,o.id)?.closed;
+ const saved=occurrences.filter(o=>!ended(o)).map(renderOccurrence).join(''),history=occurrences.filter(ended).reverse().map(renderOccurrence).join('');
  const legacy=OCC?.seasonalGroups(board)||[];
  const existing=legacy.map(g=>`<details class="card seasonal-occasion-preview"><summary><strong>${esc(g.label)}</strong> <span class="small">${g.tasks.length} saved tasks</span></summary><ul class="seasonal-preview-list">${g.tasks.map(t=>`<li>${esc(t.title)}</li>`).join('')}</ul></details>`).join('');
- return `<section class="seasonal-hub" aria-label="Seasonal occasions"><h2>Saved occasions</h2><p class="small">Create or edit occasions, select tasks, and set their start dates.</p>${button('＋ Create occasion','seasonal-create','','wide primary seasonal-create')}${typeof seasonalWarnings!=='undefined'?seasonalWarnings.map(w=>`<p class="small" role="status">${esc(w)}</p>`).join(''):''}${saved||'<p class="empty">No saved occasions yet.</p>'}<h2>Existing seasonal tasks</h2><p class="small">Your existing seasonal task groups remain in Task Library. These are not new occasion records.</p>${existing||'<p class="empty">No existing seasonal tasks.</p>'}${card(button('Open Seasonal Task Library','library-seasonal','','wide ghost')+button('Open Gift Tracker','navigate','gifts','wide ghost'),'seasonal-hub-shortcuts')}</section>`;
+ return `<section class="seasonal-hub" aria-label="Seasonal occasions"><h2>Saved occasions</h2><p class="small">Create or edit occasions, select tasks, and set their start dates.</p>${button('＋ Create occasion','seasonal-create','','wide primary seasonal-create')}${typeof seasonalWarnings!=='undefined'?seasonalWarnings.map(w=>`<p class="small" role="status">${esc(w)}</p>`).join(''):''}${saved||'<p class="empty">No saved occasions yet.</p>'}${history?`<h2>Seasonal History</h2>${history}`:''}<h2>Existing seasonal tasks</h2><p class="small">Your existing seasonal task groups remain in Task Library. These are not new occasion records.</p>${existing||'<p class="empty">No existing seasonal tasks.</p>'}${card(button('Open Seasonal Task Library','library-seasonal','','wide ghost')+button('Open Gift Tracker','navigate','gifts','wide ghost'),'seasonal-hub-shortcuts')}</section>`;
 }
 function questLibraryPage(){
  if(!L)return card('Task Library cannot load. Existing tasks and history have not changed.');
@@ -1339,6 +1381,10 @@ const actions={
  'seasonal-create':()=>seasonalWorkflowChooser(),
  'seasonal-edit':el=>seasonalWorkflowEditor(el.dataset.id),
  'seasonal-gift-shortcut':el=>{const r=SW?.giftRole(board,el.dataset.id);if(!r)return;if(r.preset==='christmas')return navigate(r.role==='wrap'?'christmas-wrap':'christmas-gifts',r.occurrenceId);giftView=['christmas','birthday'].includes(r.preset)?r.preset:'all';giftPersonTab='all';giftStatusTab='needs-wrap';navigate('gifts');},
+ 'seasonal-note-add':el=>seasonalNoteEditor(el.dataset.occurrenceId,el.dataset.id),
+ 'seasonal-note-edit':el=>seasonalNoteEditor(el.dataset.occurrenceId,'',el.dataset.id),
+ 'seasonal-note-toggle':el=>{seasonalOpenId=el.dataset.occurrenceId;change(b=>Object.assign(b,SW.noteChange(b,el.dataset.occurrenceId,'toggle',{id:el.dataset.id,itemId:el.dataset.itemId},M.date())));},
+ 'seasonal-note-delete':el=>seasonalNoteDelete(el.dataset.occurrenceId,el.dataset.id),
  'seasonal-open':el=>{seasonalOpenId=el.dataset.id;if(route==='seasonal')render();else navigate('seasonal');},
  'library-ideas':libraryIdeas,
  'library-find-existing':libraryFindExisting,

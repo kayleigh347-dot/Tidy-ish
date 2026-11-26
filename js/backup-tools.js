@@ -102,6 +102,7 @@
     if (skipped.rooms) notes.push('Rooms with matching IDs keep their current settings and artwork.');
     if (skipped.occasionTemplates || skipped.occasionOccurrences) notes.push(`Seasonal merge keeps current records: ${skipped.occasionTemplates} template(s) and ${skipped.occasionOccurrences} occurrence(s) not added because of matching IDs, logical duplicates, conflicting templates or missing/conflicting linked records. Full restore is a separate replacement option.`);
     if (skipped.gifts || skipped.giftPeople) notes.push(`Gift merge keeps current records: ${skipped.gifts} gift(s) and ${skipped.giftPeople} person record(s) not added because of matching IDs, conflicting recipients or duplicate names. Full restore is a separate replacement option.`);
+    if(incoming.features.seasonalNotes?.length||incoming.features.seasonalGiftHistory?.length)notes.push('Seasonal notes and gift history are copied only for newly imported occasions; matching current occasions keep their content. Full restore is a separate replacement option.');
     // A confirmed backup may restore a previously absent identity. Surface
     // links that become usable again; no implicit activation or completion.
     let restoredLinks=0;
