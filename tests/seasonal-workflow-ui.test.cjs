@@ -81,3 +81,12 @@ test('out-of-window suggestions remain unticked on first creation and saved edit
  f.edit(o.id);const html=f.modal().body;
  assert.match(html,/name="selected-0" checked/);assert.match(html,/name="selected-1" (?!checked)/);
 });
+
+test('Christmas decoration control is independent of tasks and countdown and preserves saved task IDs',()=>{
+ const d={...draft,...SW.preset('christmas','2026-12-25'),preset:'christmas',decorationsEnabled:true};
+ const b=SW.reconcile(SW.create(M.board(),d),'2026-12-10').board,o=b.features.occasionOccurrences[0],f=fixture(b),before=b.tasks.map(t=>t.id);
+ f.edit(o.id);assert.match(f.modal().body,/name="decorationsEnabled" checked/);
+ const fd=form(SW.editable(b,o.id),{scope:'this'});fd.delete('decorationsEnabled');f.modal().save(fd);
+ const saved=SW.inspect(f.ctx.board,o.id);assert.equal(saved.settings.decorationsEnabled,false);assert.equal(saved.settings.tasksEnabled,true);assert.equal(saved.settings.countdown,true);assert.deepEqual(f.ctx.board.tasks.map(t=>t.id),before);
+ f.edit(o.id);assert.match(f.modal().body,/name="decorationsEnabled" (?!checked)/);assert.equal(f.saved(),1);
+});

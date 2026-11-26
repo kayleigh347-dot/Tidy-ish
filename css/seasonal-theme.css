@@ -1,0 +1,25 @@
+/* Seasonal decoration layer: never changes task layout or captures input. */
+body[data-seasonal-theme="christmas"]{--seasonal-accent:#e6c16d}
+body[data-seasonal-theme="newyear"]{--seasonal-accent:#e5d9ab}
+body[data-seasonal-theme] .top{box-shadow:0 2px 0 var(--seasonal-accent)}
+body[data-seasonal-theme="christmas"] .top::after{content:"";position:absolute;inset:auto 0 -9px;height:10px;background:url(../assets/seasonal/christmas/snow-edge.webp) center/100% 100% no-repeat;pointer-events:none;z-index:0}
+body[data-seasonal-theme="newyear"] .top::after{content:"";position:absolute;inset:auto 0 -2px;height:2px;background:linear-gradient(90deg,#e9c461,#e7e8ee,#e9c461);pointer-events:none}
+/* Home keeps the larger festive countdown; art is within its decorative area. */
+.seasonal-home .seasonal-home-christmas.is-decorated::before{height:18px;background:url(../assets/seasonal/christmas/snow-edge.webp) center/100% 100% no-repeat}
+.seasonal-home .seasonal-christmas-icon{width:42px;height:48px;background:url(../assets/seasonal/christmas/gonk.webp) center/contain no-repeat;font-size:0}
+.seasonal-home .seasonal-christmas-tree{width:36px;height:48px;flex:0 0 36px;background:url(../assets/seasonal/christmas/tree.webp) center/contain no-repeat;pointer-events:none}
+.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-eyebrow,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-agenda h3,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-countdown,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-after,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-celebration{color:#eee1f4}
+.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-tasks li::before{content:"•";color:#eee1f4}
+#seasonal-snow-layer{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2;contain:strict}
+#seasonal-snow-layer:empty{display:none}
+.seasonal-snow-particle{position:absolute;top:0;width:var(--snow-size);height:var(--snow-size);background-position:center;background-size:contain;background-repeat:no-repeat;opacity:.48;animation:seasonal-snowfall var(--snow-duration) linear var(--snow-delay) infinite;pointer-events:none;left:2px}
+.seasonal-snow-particle:nth-child(even){left:auto;right:2px}
+@keyframes seasonal-snowfall{from{transform:translateY(-24px)}to{transform:translateY(calc(100vh + 24px))}}
+body.seasonal-page-hidden .seasonal-snow-particle{animation-play-state:paused}
+body.reduce-motion #seasonal-snow-layer{display:none}
+@media(prefers-reduced-motion:reduce){#seasonal-snow-layer{display:none}.seasonal-snow-particle{animation:none!important}}
+@media(max-width:350px){.seasonal-home .seasonal-christmas-tree{width:28px;height:38px;flex-basis:28px}.seasonal-home .seasonal-christmas-icon{width:35px;height:42px}}
+
+.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-open{border-bottom-color:#a58ab6;color:#eee1f4}
+.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-agenda{border-top-color:#a58ab6}
+body[data-seasonal-theme="newyear"] .seasonal-home>h2{padding-right:54px;background:url(../assets/seasonal/newyear/gold-sparkle.webp) right 26px center/20px 20px no-repeat,url(../assets/seasonal/newyear/silver-sparkle.webp) right 2px center/20px 20px no-repeat;color:#eee1ba}

@@ -1,11 +1,12 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const M=require('../js/model.js'),SW=require('../js/seasonal-workflow.js'),S=require('../js/seasonal-core.js');
+const Theme=require('../js/seasonal-theme.js');
 const source=fs.readFileSync(require.resolve('../js/app.js'),'utf8');
 const htmlEscape=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const chunk=source.slice(source.indexOf('function seasonalHomeSection(){'),source.indexOf('\nfunction seasonalWorkflowChooser(){'));
 function render(board,today='2026-11-25'){
- const context={M:{date:()=>today},SW,board,window:{TidySeasonal:S},esc:htmlEscape,button:(title,action,id,cls='',extra='')=>`<button class="${cls}" data-action="${action}" data-id="${htmlEscape(id)}" ${extra}>${title}</button>`};
+ const context={M:{date:()=>today},SW,board,window:{TidySeasonal:S,TidySeasonalTheme:Theme},esc:htmlEscape,button:(title,action,id,cls='',extra='')=>`<button class="${cls}" data-action="${action}" data-id="${htmlEscape(id)}" ${extra}>${title}</button>`};
  return vm.runInNewContext(`(${chunk})`,context)();
 }
 function event(preset,eventDate,overrides={}){
@@ -18,7 +19,7 @@ test('Christmas Home gives a large accessible countdown, festive styling, active
  assert.match(html,/<strong class="seasonal-christmas-number">30<\/strong>/);
  assert.match(html,/aria-label="30 days until Christmas"/);
  assert.match(html,/days to go/);assert.match(html,/Christmas to-dos/);assert.match(html,/Buy gifts/);
- assert.match(html,/data-action="seasonal-open"/);assert.match(html,/class="seasonal-christmas-flakes" aria-hidden="true"/);
+ assert.match(html,/data-action="seasonal-open"/);assert.match(html,/class="seasonal-christmas-icon" aria-hidden="true"/);
  assert.equal(JSON.stringify(board),prior,'Home render is read-only');
 });
 test('occasion-specific celebrations: Christmas day is Today, and countdown displays singular day',()=>{
@@ -31,13 +32,13 @@ test('occasion-specific celebrations: Christmas day is Today, and countdown disp
 test('Christmas ornaments stop after 30 December without removing the still-open occasion',()=>{
  const board=SW.reconcile(event('christmas','2026-12-25'),'2026-12-31').board;
  const html=render(board,'2026-12-31');
- assert.match(html,/Christmas plans/);assert.doesNotMatch(html,/is-decorated|seasonal-christmas-flakes/);
+ assert.match(html,/Christmas plans/);assert.doesNotMatch(html,/is-decorated|seasonal-christmas-icon/);
  assert.match(html,/Christmas has passed/);
 });
 test('disabled decoration preference removes visual ornaments but keeps the Christmas countdown',()=>{
  const board=SW.reconcile(event('christmas','2026-12-25',{decorationsEnabled:false}),'2026-11-25').board;
  const html=render(board);assert.match(html,/class="seasonal-home-event seasonal-home-christmas"/);
- assert.doesNotMatch(html,/seasonal-christmas-flakes|is-decorated/);
+ assert.doesNotMatch(html,/seasonal-christmas-icon|is-decorated/);
  assert.match(html,/class="seasonal-christmas-number">30/);
 });
 test('non-Christmas occasions retain their former neutral Home layout',()=>{

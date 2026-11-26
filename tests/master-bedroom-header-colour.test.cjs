@@ -9,7 +9,7 @@ const headerBounds=vm.runInNewContext('('+source.match(/^const headerBounds=([^\
 function renderHeader(route,roomId){
  const app={innerHTML:''},features={reduceMotion:false,laundry:[]},board=M.board();
  const rooms=new Map(board.rooms.map(r=>[r.id,r]));
- const ctx={route,roomId,app,board,headerBounds,window:{scrollY:0,TidyActivityHost:{unmount:()=>{}},scrollTo:()=>{}},document:{body:{classList:{toggle:()=>{}}}},F:()=>features,M:{laundryNeedsAttention:()=>false},editor:{querySelector:()=>null},Q:{content:()=>'<p>Focus fixture</p>'},storageError:'',seasonalMaintain:()=>false,unmountDailyLogViews:()=>{},mountDailyLogViews:()=>{},customLaundryAttentionSignature:()=>'',careAttentionSignature:()=>'',customAttentionSignature:()=>'',updateClocks:()=>{},room:id=>rooms.get(id),asset:p=>p,esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),globals:()=>'',pageHeading:()=>'<div class="top-page-line">Room heading</div>',footer:()=>'',roomPage:()=>'<p>Room fixture</p>',sidePage:()=>'<p>Side fixture</p>',morePage:()=>'',calendarView:'plan'};
+ const ctx={route,roomId,app,board,headerBounds,window:{scrollY:0,TidyActivityHost:{unmount:()=>{}},scrollTo:()=>{}},document:{body:{classList:{toggle:()=>{}}}},F:()=>features,M:{laundryNeedsAttention:()=>false},editor:{querySelector:()=>null},Q:{content:()=>'<p>Focus fixture</p>'},storageError:'',seasonalMaintain:()=>false,applySeasonalTheme:()=>{},unmountDailyLogViews:()=>{},mountDailyLogViews:()=>{},customLaundryAttentionSignature:()=>'',careAttentionSignature:()=>'',customAttentionSignature:()=>'',updateClocks:()=>{},room:id=>rooms.get(id),asset:p=>p,esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),globals:()=>'',pageHeading:()=>'<div class="top-page-line">Room heading</div>',footer:()=>'',roomPage:()=>'<p>Room fixture</p>',sidePage:()=>'<p>Side fixture</p>',morePage:()=>'',calendarView:'plan'};
  vm.runInNewContext(extract('compactHeader','pageHeading'),ctx);
  vm.runInNewContext(extract('render','dialog'),ctx);
  ctx.render();return app.innerHTML;
@@ -47,6 +47,6 @@ test('Master-only artwork cache bust updates actual WebP URL but not other room 
 });
 test('Only changed styles and app script get fresh cache keys',()=>{
  assert.match(html,/css\/style\.css\?v=[^"\n]+-masterportrait2-roomchildstrike2-kayleighwriting1"/);
- assert.match(html,/js\/app\.js\?v=[^"\n]+-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1"/);
+ assert.match(html,/js\/app\.js\?v=[^"\n]+-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1"/);
  assert.match(html,/css\/quest-library\.css\?v=20261031-management1-libraryheader1-filterrow1-occasionaltab1-seasonaltab1"/);
 });
