@@ -1013,7 +1013,7 @@ async function readPhotoTaskList(){
  finally{if(buttonEl)buttonEl.disabled=false;}
 }
 // Suggestions are plain tappable rows immediately below the title input.
-// Neither matching nor choosing writes to the household board.
+// Matching and choosing reusable drafts are read-only; an explicit Do Later selection adds its existing ID to Doing Now.
 function hideTaskTitleSuggestions({dismiss=false}={}){
  const state=taskTitleSuggestionState;
  if(!state)return;
@@ -1032,11 +1032,12 @@ function renderTaskTitleSuggestion(){
  const value=String(input.value||'').trim();
  if(!value||state.dismissedTitle===value||state.appliedTitle===value){hideTaskTitleSuggestions();return;}
  const selectedRoom=editor.querySelector('#modal-form [name="room"]')?.value||'';
- const matches=L?.autocompleteSavedTasks?.(board,value,selectedRoom,6)||[];
+ const isSide=editor.querySelector('#modal-form [name="side"]')?.checked;
+ const matches=L?.autocompleteSavedTasks?.(board,value,selectedRoom,6,isSide?null:M)||[];
  state.matches=matches;
  input.setAttribute('aria-expanded',matches.length?'true':'false');
  if(!matches.length){host.innerHTML='';return;}
- host.innerHTML=`<ul class="task-autocomplete-list" aria-label="Matching saved task names">${matches.map(item=>`<li>${button(`<span class="task-autocomplete-name">${esc(item.title)}</span><span class="task-autocomplete-room">${esc(item.roomName)} · ${item.sourceType==='template'?'Saved reusable task':'Existing task'}</span>`,'task-title-suggestion-use',item.id,'task-autocomplete-choice',`aria-label="Use ${esc(item.title)} from ${esc(item.roomName)}"`)}</li>`).join('')}</ul>`;
+ host.innerHTML=`<ul class="task-autocomplete-list" aria-label="Matching task names">${matches.map(item=>`<li>${button(`<span class="task-autocomplete-name">${esc(item.title)}</span><span class="task-autocomplete-room">${esc(item.roomName)} · ${item.sourceType==='do-later'?'Do Later · Add to Doing Now':item.sourceType==='template'?'Saved reusable task':'Existing task'}</span>`,'task-title-suggestion-use',item.id,'task-autocomplete-choice',`data-source-type="${esc(item.sourceType)}" aria-label="${item.sourceType==='do-later'?'Add to Doing Now:':'Use'} ${esc(item.title)} from ${esc(item.roomName)}"`)}</li>`).join('')}</ul>`;
 }
 function focusTaskTitleInput(){editor.querySelector('#modal-form [name="title"]')?.focus({preventScroll:true});}
 // Copy reusable values into existing controls only. Never open More options
@@ -1050,8 +1051,13 @@ function copyReusableTaskSettingsToForm(draft){
 }
 function useTaskTitleSuggestion(el){
  const state=taskTitleSuggestionState;
- const match=state?.matches?.find(row=>row.id===el?.dataset?.id);
+ const match=state?.matches?.find(row=>row.id===el?.dataset?.id&&row.sourceType===el?.dataset?.sourceType);
  if(!match)return;
+ if(match.sourceType==='do-later'){
+  if(editor.querySelector('#modal-form [name="side"]')?.checked)return;
+  if(change(b=>L.selectDoLaterTask(b,match.id,M))){closeDialog(true);notice('Added to Doing Now');}
+  return;
+ }
  const draft=L?.draftFromSavedTask?.(match);if(!draft)return;
  state.applying=true;
  copyReusableTaskSettingsToForm(draft);
@@ -1470,7 +1476,7 @@ case 'name-form':change(b=>b.features.displayName=String(fd.get('name')).trim())
 case 'tools-form':change(b=>b.features.tools=[...new Set(String(fd.get('tools')).split('\n').map(s=>s.trim()).filter(Boolean))]);notice('Tools saved');break;
 default:await window.TidySharing?.submit?.(e.target,fd);}}catch(err){notice(err.message)}});
  document.addEventListener('input',e=>{if(e.target.name!=='title'||!taskTitleSuggestionState||!editor.contains(e.target))return;const state=taskTitleSuggestionState;if(state.applying)return;const value=String(e.target.value||'').trim(),host=editor.querySelector('[data-task-title-suggestion]');if(state.appliedTitle&&value!==state.appliedTitle){state.appliedTitle='';state.appliedFrom='';}if(state.dismissedTitle&&value!==state.dismissedTitle)state.dismissedTitle='';hideTaskTitleSuggestions();if(value)taskTitleSuggestionTimer=setTimeout(renderTaskTitleSuggestion,130);});
- document.addEventListener('change',e=>{if(e.target.name!=='room'||!taskTitleSuggestionState||!editor.contains(e.target))return;taskTitleSuggestionState.dismissedTitle='';hideTaskTitleSuggestions();renderTaskTitleSuggestion();});
+ document.addEventListener('change',e=>{if(!['room','side'].includes(e.target.name)||!taskTitleSuggestionState||!editor.contains(e.target))return;taskTitleSuggestionState.dismissedTitle='';hideTaskTitleSuggestions();renderTaskTitleSuggestion();});
  // Arrow keys, Enter and Escape are available alongside touch/click and Tab.
  document.addEventListener('keydown',e=>{
   if(!taskTitleSuggestionState||!editor.open)return;

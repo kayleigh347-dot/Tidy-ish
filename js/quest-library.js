@@ -107,13 +107,25 @@ function matchSavedTask(board,query,room=''){
 }
 // Autocomplete is a bounded, read-only list: literal substrings first,
 // then known alternative words and close spelling. Never inserts a task.
-function autocompleteSavedTasks(board,query,room='',limit=6){
+function isDoLaterTask(t,M){
+ return !!(t&&M&&kindAllowed(t)&&!t.done&&!t.doing&&!M.paused(t)&&!M.repeat(t)&&!t.calendarEnabled&&!t.occasionKind&&!t.seasonMonth&&!t.nextDue);
+}
+function selectDoLaterTask(board,id,M){
+ const t=(board.tasks||[]).find(row=>row.id===id);
+ if(t&&t.doing&&!t.done)return false;
+ if(!isDoLaterTask(t,M))throw Error('This Do Later task is no longer available. Nothing changed.');
+ M.select(board,id,true);return true;
+}
+function autocompleteSavedTasks(board,query,room='',limit=6,M=null){
  const value=String(query||'').trim();
  if(!value||value.length>160)return [];
  const normalized=fold(value),terms=matchWords(value);
  if(!normalized||!terms.length)return [];
  const max=Math.max(1,Math.min(8,Number(limit)||6));
- return savedTaskCandidates(board).map(item=>{
+ const later=M?(board.tasks||[]).filter(t=>isDoLaterTask(t,M)).map(t=>({...t,sourceType:'do-later',room:String(t.room||''),roomName:(board.rooms||[]).find(r=>r.id===t.room)?.name||'General'})):[];
+ const laterIds=new Set(later.map(t=>t.id));
+ const candidates=[...later,...savedTaskCandidates(board).filter(t=>t.sourceType!=='task'||!laterIds.has(t.id))];
+ return candidates.map(item=>{
   const title=fold(item.title),sameRoom=!!room&&item.room===room;
   let rank=0;
   if(title===normalized)rank=500;
@@ -127,7 +139,7 @@ function autocompleteSavedTasks(board,query,room='',limit=6){
   }
   return {...item,autocompleteRank:rank?rank+(sameRoom?15:0):0,sameRoom};
  }).filter(item=>item.autocompleteRank>0)
-  .sort((a,b)=>Number(b.sameRoom)-Number(a.sameRoom)||b.autocompleteRank-a.autocompleteRank||a.title.localeCompare(b.title)||a.roomName.localeCompare(b.roomName))
+  .sort((a,b)=>Number(b.sameRoom)-Number(a.sameRoom)||b.autocompleteRank-a.autocompleteRank||Number(b.sourceType==='do-later')-Number(a.sourceType==='do-later')||a.title.localeCompare(b.title)||a.roomName.localeCompare(b.roomName))
   .slice(0,max);
 }
 function draftFromSavedTask(item){
@@ -243,5 +255,5 @@ function activateSaved(board,id,selectedRooms,doing,M){
   else {const duplicate=findDuplicateTask(board,t.title,room,!!t.side);if(duplicate)throw Error('A task with this title already exists in this room. Choose or edit that task instead.');M.add(board,M.templateCopy(t,room,doing));}
  }
 }
-return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,autocompleteSavedTasks,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,isCustomTask,linkedTemplate,libraryRows,hideCustom,saveCustom,saveFromTask,removeSaved,activateSaved,SUGGESTIONS});
+return Object.freeze({catalogue,availableTags,suggestion,addSuggestion,kindAllowed,scoring,matchSavedTask,autocompleteSavedTasks,isDoLaterTask,selectDoLaterTask,draftFromSavedTask,findDuplicateTask,hasActiveDuplicate,isCustomTask,linkedTemplate,libraryRows,hideCustom,saveCustom,saveFromTask,removeSaved,activateSaved,SUGGESTIONS});
 });

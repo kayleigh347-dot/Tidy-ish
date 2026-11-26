@@ -121,25 +121,72 @@ test('task title displays an inline autocomplete list with tappable options', ()
   assert.match(source, /class=\"task-title-autocomplete\"/);
   assert.match(source, /task-autocomplete-list/);
   assert.match(source, /task-autocomplete-choice/);
-  assert.match(source, /L\?\.autocompleteSavedTasks\?\.\(board,value,selectedRoom,6\)/);
+  assert.match(source, /L\?\.autocompleteSavedTasks\?\.\(board,value,selectedRoom,6,isSide\?null:M\)/);
+  assert.ok(source.includes(`const isSide=editor.querySelector('#modal-form [name="side"]')?.checked;`));
+  assert.ok(source.includes('data-source-type="${esc(item.sourceType)}"'));
+  assert.ok(source.includes('Do Later · Add to Doing Now'));
   assert.match(source, /task-title-suggestion-use/);
   assert.doesNotMatch(source, /Did you mean/);
 });
 
 test('typed and dictated input clears stale autocomplete options', () => {
   const start=source.indexOf("document.addEventListener('input',e=>{if(e.target.name!=='title'");
-  const end=source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'",start);
+  const end=source.indexOf("document.addEventListener('change',e=>{if(!['room','side'].includes(e.target.name)",start);
   assert.ok(start>=0&&end>start);
   assert.match(source.slice(start,end), /hideTaskTitleSuggestions\(\)/);
   assert.match(source, /setTimeout\(renderTaskTitleSuggestion,130\)/);
   assert.match(source, /dispatchEvent\(new Event\('input',\{bubbles:true\}\)\)/);
 });
 
-test('selection copies only reviewed task settings without saving', () => {
-  assert.match(source, /state\?\.matches\?\.find\(row=>row.id===el\?\.dataset\?\.id\)/);
-  assert.match(source, /L\?\.draftFromSavedTask\?\.\(match\)/);
-  assert.match(source, /hideTaskTitleSuggestions\(\)/);
-  assert.match(source, /focusTaskTitleInput\(\)/);
+test('reusable suggestion selection copies only reviewed settings without saving', () => {
+  const start=source.indexOf('function useTaskTitleSuggestion(');
+  const end=source.indexOf('\nfunction dismissTaskTitleSuggestion(',start);
+  assert.ok(start>=0&&end>start);
+  const handler=source.slice(start,end);
+  assert.match(handler, /state\?\.matches\?\.find\(row=>row.id===el\?\.dataset\?\.id&&row.sourceType===el\?\.dataset\?\.sourceType\)/);
+  const draftStart=handler.indexOf('const draft=L?.draftFromSavedTask?.(match)');
+  const laterStart=handler.indexOf("if(match.sourceType==='do-later')");
+  assert.ok(laterStart>=0&&draftStart>laterStart);
+  const reusable=handler.slice(draftStart);
+  assert.match(reusable, /L\?\.draftFromSavedTask\?\.\(match\)/);
+  assert.match(reusable, /copyReusableTaskSettingsToForm\(draft\)/);
+  assert.match(reusable, /hideTaskTitleSuggestions\(\)/);
+  assert.match(reusable, /focusTaskTitleInput\(\)/);
+  assert.doesNotMatch(reusable, /\b(?:change|persist|selectDoLaterTask|reactivate)\s*\(/);
+});
+
+test('Do Later routing selects the existing ID only, and rejects stale side-mode or source-type clicks', () => {
+  const L=require('../js/quest-library.js'),board=M.board();
+  const task=M.task({title:'Wipe shelf',room:'living',children:[M.child({title:'Top shelf',done:true})]});
+  M.add(board,task);
+  const template=M.task({title:task.title,room:task.room});
+  board.features.templates.push(template);
+  const matches=L.autocompleteSavedTasks(board,'shelf','living',6,M);
+  assert.ok(matches.some(x=>x.id===task.id&&x.sourceType==='do-later'));
+  assert.ok(matches.some(x=>x.id===template.id&&x.sourceType==='template'));
+  const start=source.indexOf('function useTaskTitleSuggestion(');
+  const end=source.indexOf('\nfunction dismissTaskTitleSuggestion(',start);
+  assert.ok(start>=0&&end>start);
+  let side=false,saves=0,closes=0,draft=null;
+  const context={M,L,board,taskTitleSuggestionState:{matches},
+    editor:{querySelector(selector){return selector.includes('[name="side"]')?{checked:side}:null;}},
+    change(edit){saves++;edit(board);return true;},
+    closeDialog(){closes++;},notice(){},hideTaskTitleSuggestions(){},focusTaskTitleInput(){},
+    copyReusableTaskSettingsToForm(value){draft=value;}
+  };
+  vm.runInNewContext(source.slice(start,end)+'\nthis.choose=useTaskTitleSuggestion;',context);
+  const before=M.clone(board);
+  context.choose({dataset:{id:task.id,sourceType:'template'}});
+  side=true;
+  context.choose({dataset:{id:task.id,sourceType:'do-later'}});
+  assert.equal(saves,0);assert.equal(closes,0);assert.equal(draft,null);assert.deepEqual(board,before);
+  side=false;
+  context.choose({dataset:{id:template.id,sourceType:'template'}});
+  assert.deepEqual(draft,L.draftFromSavedTask(template));assert.equal(saves,0);assert.equal(closes,0);assert.deepEqual(board,before);
+  draft=null;
+  const expected=M.clone(board);M.select(expected,task.id,true);
+  context.choose({dataset:{id:task.id,sourceType:'do-later'}});
+  assert.equal(saves,1);assert.equal(closes,1);assert.equal(draft,null);assert.deepEqual(board,expected);
 });
 
 test('autocomplete supports arrows, enter and Escape plus click-outside dismissal', () => {
@@ -149,8 +196,8 @@ test('autocomplete supports arrows, enter and Escape plus click-outside dismissa
   assert.match(source, /e.target.closest\('\.task-title-autocomplete'\)/);
 });
 
-test('changing rooms dismisses stale matches and rematches', () => {
-  const start=source.indexOf("document.addEventListener('change',e=>{if(e.target.name!=='room'");
+test('changing rooms or side-task mode dismisses stale matches and rematches', () => {
+  const start=source.indexOf("document.addEventListener('change',e=>{if(!['room','side'].includes(e.target.name)");
   const end=source.indexOf("\n let librarySearchTimer",start);
   assert.ok(start>=0&&end>start);
   assert.match(source.slice(start,end), /taskTitleSuggestionState\.dismissedTitle='';hideTaskTitleSuggestions\(\);renderTaskTitleSuggestion\(\)/);
