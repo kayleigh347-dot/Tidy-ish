@@ -665,13 +665,15 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
 }
 
 
-/* Kayleigh's supplied Compact font. Settings keeps the existing font cascade. */
+/* Kayleigh's supplied Compact font: enlarge glyphs and their metrics together.
+   Settings keeps the existing font cascade. */
 @font-face {
   font-family: "Kayleigh Writing Compact";
   src: url("../assets/fonts/Kayleighs-writing_Compact_Regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
+  size-adjust: 120%;
 }
 @font-face {
   font-family: "Kayleigh Writing Compact";
@@ -679,9 +681,12 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
   font-style: normal;
   font-weight: 700;
   font-display: swap;
+  size-adjust: 120%;
 }
 body.kayleigh-writing-active,
 body.kayleigh-writing-active * {
+  -webkit-text-stroke: 0.5px #160b1e;
+  paint-order: stroke fill;
   font-family: "Kayleigh Writing Compact", "Tidy Josefin Sans", "Trebuchet MS", system-ui, sans-serif;
 }
 body.kayleigh-writing-active .tac h1,

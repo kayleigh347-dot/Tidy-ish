@@ -46,7 +46,7 @@ test('Master-only artwork cache bust updates actual WebP URL but not other room 
  assert.match(source,/const optimized=routed\.replace\(/); // Runtime loader resolves .png to .webp.
 });
 test('Only changed styles and app script get fresh cache keys',()=>{
- assert.match(html,/css\/style\.css\?v=[^"\n]+-masterportrait2-roomchildstrike2-kayleighwriting1"/);
+ assert.match(html,/css\/style\.css\?v=[^"\n]+-masterportrait2-roomchildstrike2-kayleighwriting1-fontreadability1"/);
  assert.match(html,/js\/app\.js\?v=[^"\n]+-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1"/);
  assert.match(html,/css\/quest-library\.css\?v=20261031-management1-libraryheader1-filterrow1-occasionaltab1-seasonaltab1"/);
 });
