@@ -36,12 +36,23 @@ test('routine editor centres the editable title with matching Exit and Save cont
  click(UI,'quest-save-options');assert.equal(dialogs.at(-1).title,'Save routine');assert.match(dialogs.at(-1).body,/Save for later/);assert.match(dialogs.at(-1).body,/Save and start/);assert.equal(UI.get().phase,'clear-choose');
 });
 
-test('Focus header groups controls on one row and only shows Reload for a saved selection',()=>{
- const {board,UI}=setup(),task=M.task({id:'focus-audit-quest',title:'Audit Quest',room:'kitchen'});board.tasks.push(task);UI.enter(board,'kitchen','focus');
+test('Focus picker follows the approved top and bottom controls and only shows Reload for a saved selection',()=>{
+ const {board,UI,dialogs}=setup(),task=M.task({id:'focus-audit-quest',title:'Audit Quest',room:'kitchen'});board.tasks.push(task);UI.enter(board,'kitchen','focus');
  let html=UI.content(board);assert.match(html,/class="quest-picker-header"/);assert.match(html,/data-action="quest-plan"/);assert.match(html,/class="quest-title">Add Tasks/);assert.doesNotMatch(html,/data-action="quest-reload"/);
  UI.pick(task.id);html=UI.content(board);assert.match(html,/data-action="quest-reload"/);assert.match(html,/data-action="quest-exit"/);assert.match(html,/data-action="quest-go"/);
- const header=html.match(/<nav class="quest-picker-header"[^>]*>(.*?)<\/nav>/)?.[1]||'';for(const action of ['quest-exit','quest-plan','quest-reload','quest-go'])assert.match(header,new RegExp(`data-action="${action}"`));assert.match(header,/Add Tasks/);
+ const header=html.match(/<nav class="quest-picker-header"[^>]*>(.*?)<\/nav>/)?.[1]||'';for(const action of ['quest-exit','quest-add-task','quest-reload','quest-go'])assert.match(header,new RegExp(`data-action="${action}"`));assert.match(header,/Add Some Tasks/);assert.match(header,/Add Tasks/);assert.match(header,/Let&#39;s Get Tidy-ish/);assert.doesNotMatch(header,/Plan for me/);assert.match(html,/<div class="quest-picker-bottom">[\s\S]*?Plan for me[\s\S]*?Let&#39;s Get Tidy-ish/);
+ click(UI,'quest-go');assert.equal(dialogs.at(-1).title,'Start Task?');assert.match(dialogs.at(-1).body,/Re-pick/);assert.match(dialogs.at(-1).body,/Task Accepted/);click(UI,'quest-repick');
  const css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/quest-focus.css'),'utf8');assert.match(css,/\.quest-picker-header\{display:grid;grid-template-columns:/);
+});
+
+test('Focus picker shows Side Tasks directly above Future Tasks and searches both together without changing selection',()=>{
+ const {board,UI}=setup(),main=M.task({id:'focus-search-main',title:'Clean the shelf',room:'kitchen',repeatDays:7,nextDue:DAY,priority:1}),side=M.task({id:'focus-search-side',title:'Sort side basket',room:'kitchen',side:true}),future=M.task({id:'focus-search-future',title:'Polish tomorrow',room:'kitchen',repeatDays:7,nextDue:'2026-12-01'});board.tasks.push(main,side,future);UI.enter(board,'kitchen','focus');UI.pick(main.id);UI.pick(side.id);
+ const html=UI.content(board),sections=[...html.matchAll(/data-quest-section="([^"]+)"/g)].map(match=>match[1]);assert.deepEqual(sections,['mine','main','bonus','optional','side','future']);assert.match(html,/Side Tasks <small>1<\/small>/);assert.match(html,/Future Tasks <small>1<\/small>/);assert.match(html,/data-quest-select="focus-search-main"[^>]*checked/);assert.match(html,/data-quest-select="focus-search-side"[^>]*checked/);assert.doesNotMatch(html,/data-action="quest-tab"|role="tablist"/);
+ const controls=html.match(/<div class="quest-search-wrap">([\s\S]*?)<\/div>/)?.[1]||'';assert.match(controls,/<label[^>]*>Search<\/label>[\s\S]*?<input[^>]*id="quest-search"[\s\S]*?<button[^>]*quest-clear-search[\s\S]*?<button[^>]*quest-search-voice/);
+ const rows=[{dataset:{searchText:'clean shelf kitchen'},hidden:false},{dataset:{searchText:'sort side basket kitchen'},hidden:false}],details=sections.map(id=>({dataset:{questSection:id},open:false})),empty={hidden:true},body={querySelectorAll(selector){return selector==='[data-quest-row]'?rows:details;}},previous=global.document;
+ global.document={querySelector(selector){return selector==='#quest-categories'?body:selector==='#quest-search-empty'?empty:null;}};
+ try{UI.input({target:{id:'quest-search',value:'side'}});assert.equal(rows[0].hidden,true);assert.equal(rows[1].hidden,false);assert.ok(details.every(section=>section.open));assert.deepEqual(UI.get().questIds,[main.id,side.id]);assert.equal(empty.hidden,true);}finally{global.document=previous;}
+ const css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/quest-focus.css'),'utf8');assert.match(css,/\.quest-search-clear\{position:static/);assert.match(css,/\.quest-search-wrap \.quest-search-mic\{flex:none;min-width:44px;min-height:44px/);
 });
 
 test('Room Focus offers Clear the Way or Skip before task selection',()=>{
@@ -184,14 +195,17 @@ test('optional Finish the Room has a scrollable floor area and shows repeatable 
  assert.match(html,/Finish the Room\? · optional/);assert.match(html,/<h4>Floors<\/h4><div class="tidy-utility-scroll">/);assert.match(html,/I did a thing!/);assert.match(html,/Finish for now/);
 });
 
-test('shared dialog and Focus tabs expose accessible names and selected state',()=>{
+test('shared dialog and Focus selection controls expose accessible names',()=>{
  const fs=require('node:fs'),path=require('node:path');
  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
  const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
  const focus=fs.readFileSync(path.join(__dirname,'../js/quest-focus-ui.js'),'utf8');
  assert.match(html,/id="editor" aria-labelledby="dialog-title"/);
  assert.match(app,/<h2 id="dialog-title">/);
- assert.match(focus,/role="tab" aria-selected=/);
+ assert.match(focus,/aria-label="Focus task selection controls"/);
+ assert.match(focus,/aria-label="Clear search"/);
+ assert.match(focus,/aria-label="Search by voice"/);
+ assert.doesNotMatch(focus,/data-action="quest-tab"|role="tablist"/);
 });
 
 test('active Focus removes the old Options disclosure while keeping compact subtask actions',()=>{

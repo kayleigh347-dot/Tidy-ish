@@ -67,7 +67,7 @@ test('Focus totals and time recommendations use the same personal task estimates
  assert.deepEqual(Q.recommend(b,'kitchen',DAY,{count:1}),[a.id]);
 });
 
-test('Plan for me includes unscheduled Quests, honors no-limit selection, and follows the active category tab',()=>{
+test('Plan for me keeps its current priority order and leaves Side Tasks as a separate choice',()=>{
  const b=M.board(),high=add(b,'High priority',{repeatDays:7,nextDue:DAY,priority:1}),mine=add(b,'My unscheduled Quest'),side=add(b,'Side Quest',{side:true});
  assert.deepEqual(Q.recommend(b,'kitchen',DAY),[high.id,mine.id]);
  assert.deepEqual(Q.recommend(b,'kitchen',DAY,{count:null,tab:'side'}),[side.id]);

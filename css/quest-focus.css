@@ -18,9 +18,9 @@
 .quest-focus .quest-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
 .quest-focus .quest-fields label{display:grid;gap:4px;font-size:.81rem;min-width:0}
 .quest-focus .quest-search-label{display:block;font-size:.78rem;margin:12px 0 3px;color:#edddf6}
-.quest-focus .quest-search-wrap{display:flex;gap:3px;align-items:center;max-width:100%;position:relative}
-.quest-focus #quest-search{padding-right:34px;min-height:40px}
-.quest-focus .quest-search-clear{position:absolute;right:3px;top:3px;border:0;border-radius:7px;background:#68537a;color:white;min-width:33px;min-height:33px;font-size:1.2rem}
+.quest-focus .quest-search-wrap{display:flex;gap:6px;align-items:center;max-width:100%}
+.quest-focus #quest-search{padding-right:8px;min-height:44px;flex:1;min-width:0}
+.quest-focus .quest-search-clear{position:static;flex:none;border:0;border-radius:7px;background:#68537a;color:white;min-width:44px;min-height:44px;font-size:1.2rem}
 .quest-focus .quest-counter{margin:10px 0;color:#ffe1a8;font-size:.83rem;text-align:center;font-weight:700}
 .quest-focus .quest-category{border:1px solid #7f6a96;border-radius:10px;margin:7px 0;background:#281d3c;overflow:hidden}
 .quest-focus .quest-category summary{font-size:.91rem;color:#f5e5c5;font-weight:750;cursor:pointer;padding:9px 10px;list-style-position:inside;line-height:1.25}
@@ -69,8 +69,7 @@
 .quest-focus .quest-row-action .quest-btn{min-height:34px;padding:6px 8px;font-size:.75rem}
 .quest-focus .quest-active-bottom{display:flex;justify-content:space-between;gap:8px;margin:10px 0}
 .quest-focus .quest-search-wrap input[type=search]{flex:1;min-width:0;width:auto}
-.quest-focus .quest-search-wrap .quest-search-mic{flex:none;min-width:39px;padding:7px 9px}
-.quest-focus .quest-search-wrap .quest-search-clear{right:47px}
+.quest-focus .quest-search-wrap .quest-search-mic{flex:none;min-width:44px;min-height:44px;padding:7px 9px}
 .quest-focus .quest-routine-editor .field{display:grid;gap:5px;margin:9px 0;color:#f4e8f8}
 .quest-focus .quest-routine-editor input,.quest-focus .quest-routine-editor textarea{font:inherit;width:100%;max-width:100%;border:1px solid #9680aa;border-radius:8px;background:#241936;color:#fff;padding:8px}
 @media(max-width:350px){.quest-focus .quest-add-choices .quest-plan-actions .quest-btn{font-size:.69rem}}
@@ -90,11 +89,11 @@
 
 /* Step 01 audit fixes: compact grouped controls, editable routine heading and Focus-only card order. */
 .quest-focus .quest-picker-header{display:grid;grid-template-columns:auto auto minmax(55px,1fr) auto auto;align-items:center;gap:4px;margin:4px 0 7px}
-.quest-focus .quest-picker-header>.quest-btn{min-width:0;min-height:36px;padding:5px 6px;font-size:.72rem;white-space:nowrap}
+.quest-focus .quest-picker-header>.quest-btn{min-width:0;min-height:44px;padding:4px 4px;font-size:.68rem;line-height:1.05;white-space:normal}
 .quest-focus .quest-picker-header .quest-title{margin:0;max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.9rem}
 .quest-focus .quest-header-gap{width:1px}
 .quest-focus .quest-picker-bottom{margin:7px 0;gap:4px}
-.quest-focus .quest-picker-bottom .quest-btn{font-size:.7rem}
+.quest-focus .quest-picker-bottom .quest-btn{font-size:.68rem;line-height:1.05;white-space:normal;min-height:44px;padding:4px}
 .quest-focus .quest-corner-actions{display:flex;justify-self:end;gap:5px}
 .quest-focus .quest-corner-actions .quest-btn{min-width:40px;min-height:38px;padding:5px 8px}
 .quest-focus .quest-clear-all-top{min-height:50px;padding:9px 13px;font-size:.94rem}
