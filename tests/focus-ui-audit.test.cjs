@@ -226,6 +226,12 @@ test('shared dialog and Focus selection controls expose accessible names',()=>{
  assert.doesNotMatch(focus,/data-action="quest-tab"|role="tablist"/);
 });
 
+test('Focus resume scripts use refreshed cache versions',()=>{
+ const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8');
+ assert.match(html,/js\/quest-focus-ui\.js\?v=20261126-focus-task-selection1-focusresume1"/);
+ assert.match(html,/js\/app\.js\?v=[^"]+-taskcardart1-focusresume1"/);
+});
+
 test('active Focus removes the old Options disclosure while keeping compact subtask actions',()=>{
  const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
  assert.match(app,/function focusTaskCard\([\s\S]*?childrenHtml\(t,'',0,true\)/);
