@@ -140,3 +140,9 @@
 #editor .quest-resume-tasks small{flex:none;color:#d8c9e8;font-size:.7rem;text-align:right}
 #editor .quest-resume-note{font-size:.72rem;color:#d8c9e8;margin:6px 0 0}
 .quest-focus .focus-remove{min-height:32px;padding:4px 7px;font-size:.7rem;white-space:nowrap}
+.quest-focus .quest-room-overview .room-focus-overview h2{margin:0 0 10px;color:#ffdfb0;font-size:1.12rem}
+.quest-focus .quest-room-overview .room-focus-overview h3{margin:12px 0 7px;color:#ffdfb0;font-size:1rem}
+#editor .focus-return-list{list-style:none;margin:7px 0;padding:0;display:grid;gap:4px;max-height:38vh;overflow:auto}
+#editor .focus-return-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 8px;border:1px solid #ffffff38;border-radius:7px;background:#2d2342;color:#fff;overflow-wrap:anywhere}
+#editor .focus-return-row .row{flex-wrap:wrap;justify-content:flex-end;gap:4px}
+#editor .focus-return-row .quest-btn{min-height:32px;padding:4px 7px;font-size:.7rem;white-space:nowrap}

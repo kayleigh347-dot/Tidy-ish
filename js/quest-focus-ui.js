@@ -3,7 +3,7 @@
 if(!Q)throw Error('Task Focus selector module is missing.');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const btn=(label,action,id='',cls='',attrs='')=>`<button type="button" class="quest-btn ${cls}" data-action="${action}" data-id="${esc(id)}" ${attrs}>${esc(label)}</button>`;
-let api=null,room='',session=null,personal=[],last='',key='',error='',pending='',query='',chosenRoutine='',clearMode=false,scope='room',editing=null,previousFocusAvailable=false,opened=new Set(['mine','main','bonus','optional','side','future']);
+let api=null,room='',session=null,personal=[],last='',key='',error='',pending='',query='',chosenRoutine='',clearMode=false,scope='room',editing=null,previousFocusAvailable=false,overview=false,opened=new Set(['mine','main','bonus','optional','side','future']);
 const storage=()=>api.storage||window.localStorage,user=()=>String(api.memberId?.()||'browser-local');
 const hasFocus=s=>!!s&&((s.startedIds||[]).length>0||(s.questIds||[]).length>0);
 function resumeSummary(board,savedIds,savedSession){
@@ -16,7 +16,7 @@ function resumeSummary(board,savedIds,savedSession){
 function storageKey(id,mode,forScope){const prefix=mode?'tidyish-html-v023-clear-way-v1:':'tidyish-html-v023-quest-focus-v2:';return prefix+encodeURIComponent(user())+':'+(forScope==='doing'&&!mode?'doing:':'')+encodeURIComponent(id);}
 function load(board,id,force=false,mode=clearMode,forScope='room'){
  const target=storageKey(id,mode,forScope);if(!force&&room===id&&key===target&&session)return;
- clearMode=mode;scope=mode?'room':forScope;room=id;key=target;session=null;personal=[];previousFocusAvailable=false;error='';pending='';query='';chosenRoutine='';editing=null;opened=new Set(['mine','main','bonus','optional','side','future']);last='';
+ clearMode=mode;scope=mode?'room':forScope;room=id;key=target;session=null;personal=[];previousFocusAvailable=false;overview=false;error='';pending='';query='';chosenRoutine='';editing=null;opened=new Set(['mine','main','bonus','optional','side','future']);last='';
  try{last=storage().getItem(key)||'';if(last){const saved=JSON.parse(last),restored=Q.sanitize(saved.session,board,id);if(!restored)throw Error('Invalid saved Focus session');session=restored;personal=Array.isArray(saved.personal)?saved.personal.filter(r=>r.scope==='personal'&&r.owner===user()&&r.room===id):[];}}
  catch{error='Your personal Focus session cannot be opened. No saved board was overwritten.';}previousFocusAvailable=!mode&&hasFocus(session);
 }
@@ -38,6 +38,11 @@ function all(board){return Q.routines(board,room,personal);}
 function currentRoutine(board){return all(board).find(r=>r.id===(chosenRoutine||session?.routineId))||Q.standard(room);}
 function layout(body,mode){
  const active=mode==='clear-active'||mode==='active',title=mode==='routine-editor'?'Clear the Way routine':clearMode?'Clear the Way':active?'My Focus Tasks':session?.replaceStarted?'Change Focus Tasks':'Choose Focus Tasks';
+ if(mode==='room-overview'){
+  const nav=`<nav class="quest-corners" aria-label="Room overview controls">${btn('Back to Focus','quest-return-focus','','quest-no')}<strong class="quest-title">Room overview</strong><span class="quest-header-gap" aria-hidden="true"></span></nav>`;
+  const subtitle=scope==='doing'?'Doing Now · all rooms':esc(api.board().rooms.find(x=>x.id===room)?.name||room);
+  return `<div class="quest-focus">${nav}<p class="quest-room">${subtitle}</p>${body}</div>`;
+ }
  if(mode==='routine-editor'){
   const nav=`<nav class="quest-corners quest-editor-header" aria-label="Routine editor controls">${btn('Exit','quest-editor-exit','','quest-no')}<input class="quest-editor-title" id="quest-routine-name" maxlength="60" value="${esc(editing?.name||'')}" placeholder="Tap To Rename" aria-label="Routine name">${btn('Save','quest-save-options','','quest-yes')}</nav>`;
   return `<div class="quest-focus">${nav}${body}</div>`;
@@ -50,7 +55,7 @@ function layout(body,mode){
   return `<div class="quest-focus">${nav}<p class="quest-room">${where}</p>${body}${bottom}</div>`;
  }
  const left=btn(mode==='active'||mode==='clear-active'||mode==='clear-choose'?'Exit':'Not now','quest-exit','','quest-no');
- const right=mode==='clear-choose'?`<div class="quest-corner-actions">${btn('+','quest-new-routine','','quest-no','aria-label="Add custom routine" title="Add custom routine"')}${btn('Load','quest-load-routine','','quest-no')}</div>`:clearMode&&mode==='clear-active'?btn('All Clear','quest-clear-all','','quest-yes quest-clear-all-top'):!clearMode&&mode==='active'?btn('+ Add Tasks','quest-add-more','','quest-yes'):'';
+ const right=mode==='clear-choose'?`<div class="quest-corner-actions">${btn('+','quest-new-routine','','quest-no','aria-label="Add custom routine" title="Add custom routine"')}${btn('Load','quest-load-routine','','quest-no')}</div>`:clearMode&&mode==='clear-active'?btn('All Clear','quest-clear-all','','quest-yes quest-clear-all-top'):!clearMode&&mode==='active'?btn('Room overview','quest-overview','','quest-no'):'';
  const nav=`<nav class="quest-corners" aria-label="${clearMode?'Clear the Way':'Focus'} controls">${left}<strong class="quest-title">${title}</strong>${right}</nav>`;
  const subtitle=scope==='doing'&&!clearMode?'Doing Now · all rooms':esc(api.board().rooms.find(x=>x.id===room)?.name||room);
  return `<div class="quest-focus">${nav}<p class="quest-room">${subtitle}</p>${body}${mode==='active'?`<div class="quest-active-bottom">${btn('Exit Focus','quest-exit','','quest-no')}${btn('What I Need','quest-tools','','quest-no')}${btn('+ Add Tasks','quest-add-more','','quest-yes')}</div>`:''}${mode==='clear-active'?`<div class="quest-clear-bottom">${btn('+','quest-add-clear','','quest-no','aria-label="Add steps"')}${btn('All Clear','quest-clear-all','','quest-yes')}</div>`:''}</div>`;
@@ -118,7 +123,7 @@ function editorPage(board){
  const body=`<section class="quest-sheet quest-routine-editor">${scopeChoice}<details class="quest-category" open><summary>Default Clear the Way steps <small>${Q.standardSteps.length}</small></summary><div class="quest-compact-list">${defaultRows}</div></details><details class="quest-category"><summary>Unique steps from saved routines <small>${other.length}</small></summary><div class="quest-compact-list">${extras||'<p class="quest-empty">No additional routine steps.</p>'}</div></details><label class="field">My custom steps<textarea id="quest-routine-custom" rows="5" maxlength="6000" placeholder="Add one step per line">${esc(editing.customLines.join('\n'))}</textarea></label><div class="quest-routine-bottom">${btn('Exit','quest-editor-exit','','quest-no')}${btn('Save','quest-save-options','','quest-yes')}</div></section>`;
  return layout(body,'routine-editor');
 }
-function content(board){if(!session)return '<p class="quest-empty">Choose a room to start Focus Mode.</p>';if(editing)return editorPage(board);switch(session.phase){case 'clear-choose':return clearChoose(board);case 'clear-active':return clearActive(board);case 'pick':case 'plan':return picking(board);case 'active':return active(board);case 'clear-finished':return layout(`<section class="quest-sheet"><h3>Clear the Way finished</h3><div class="quest-actions">${btn("let's get Tidy-ish",'quest-praise-next','','quest-yes')}${btn('Review Clear the Way','quest-review-clear','','quest-no')}</div></section>`,'clear-finished');default:return '<p>Focus session unavailable.</p>';}}
+function content(board){if(!session)return '<p class="quest-empty">Choose a room to start Focus Mode.</p>';if(editing)return editorPage(board);if(overview&&session.phase==='active')return layout(`<section class="quest-sheet quest-room-overview">${api.roomOverview?.(board,room,scope)||'<p class="quest-empty">Room overview is unavailable.</p>'}</section>`,'room-overview');switch(session.phase){case 'clear-choose':return clearChoose(board);case 'clear-active':return clearActive(board);case 'pick':case 'plan':return picking(board);case 'active':return active(board);case 'clear-finished':return layout(`<section class="quest-sheet"><h3>Clear the Way finished</h3><div class="quest-actions">${btn("let's get Tidy-ish",'quest-praise-next','','quest-yes')}${btn('Review Clear the Way','quest-review-clear','','quest-no')}</div></section>`,'clear-finished');default:return '<p>Focus session unavailable.</p>';}}
 function modal(title,body){api.dialog(title,body);}
 function praisePopup(skipped){const i=(session.praiseIndex+1)%Q.praise.length;if(!set({phase:'clear-finished',clearSkipped:!!skipped,praiseIndex:i}))return;modal(skipped?'Clear the Way paused':'Clear the Way complete',`<p class="quest-praise">${esc(Q.praise[i])}</p><div class="quest-actions">${btn("let's get Tidy-ish",'quest-praise-next','','quest-yes')}</div>`);}
 function startPrompt(){const board=api.board(),ids=session.questIds.filter(id=>{const t=board.tasks.find(x=>x.id===id),kept=session.replaceStarted&&session.startedIds.includes(id);return canUseTask(board,t)&&!t.done&&!t.archived&&(kept||!t.paused||t.pauseUntil&&t.pauseUntil<=api.date())&&(scope!=='doing'||t.doing||kept);});if(!ids.length){api.notice('Choose at least one available task.');return;}const m=Q.metrics(board,ids);modal('Start Task?',`<p><strong>${m.count} ${m.count===1?'task':'tasks'}</strong> · ${m.minutes} estimated minutes</p><div class="quest-actions">${btn('Re-pick','quest-repick','','quest-no')}${btn('Task Accepted','quest-accepted','','quest-yes')}</div>`);}
@@ -136,6 +141,8 @@ function saveRoutine(start){
 function handle(el){if(!api||!el?.dataset?.action?.startsWith('quest-'))return false;const action=el.dataset.action,id=el.dataset.id,board=api.board();if(!session&&action!=='quest-exit')return true;
  switch(action){
  case 'quest-exit':editing=null;api.leave();break;
+ case 'quest-overview':if(session.phase==='active'){overview=true;api.render();}break;
+ case 'quest-return-focus':overview=false;api.render();break;
  case 'quest-fresh-load':api.closeDialog(true);api.render();break;
  case 'quest-leave-later':api.closeDialog(true);api.leaveForLater?.();break;
  case 'quest-fresh-change':{api.closeDialog(true);const ids=session.phase==='active'?session.startedIds.filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return t&&!t.done;}):Q.uniqueIds([...(session.replaceStarted?session.startedIds:[]),...session.questIds]).filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return t&&!t.done;});set({phase:'pick',questIds:ids,replaceStarted:session.startedIds.length>0,addMethod:'manual',limitMinutes:null,limitCount:null});break;}

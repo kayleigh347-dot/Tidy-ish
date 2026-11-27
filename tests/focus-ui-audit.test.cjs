@@ -7,12 +7,12 @@ const Q=require('../js/quest-focus.js');
 globalThis.TidyQuestFocus=Q;
 const DAY='2026-11-01';
 
-function setup(now=Date.now()){
- const board=M.board(),values=new Map(),dialogs=[];let counter=0,leaveForLaterCalls=0;
+function setup(now=Date.now(),options={}){
+ const board=M.board(),values=new Map(),dialogs=[],completedReturns=[];let counter=0,leaveForLaterCalls=0;
  delete require.cache[require.resolve('../js/quest-focus-ui.js')];
  const UI=require('../js/quest-focus-ui.js');
- const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>[],isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},leaveForLater:()=>{leaveForLaterCalls++;},openFocus:()=>{}};
- UI.init(api);return {board,UI,dialogs,values,leaveForLaterCalls:()=>leaveForLaterCalls};
+ const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>options.returnTasks||[],completeReturn:id=>completedReturns.push(id),roomOverview:(_board,_id,scope)=>`<p data-overview-scope="${scope}"></p>`,isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},leaveForLater:()=>{leaveForLaterCalls++;},openFocus:()=>{}};
+ UI.init(api);return {board,UI,dialogs,values,completedReturns,leaveForLaterCalls:()=>leaveForLaterCalls};
 }
 const click=(UI,action,id='')=>UI.handle({dataset:{action,id,direction:'-1'}});
 
@@ -161,6 +161,40 @@ test('resuming Focus lists saved tasks and changing selection replaces only Focu
  click(UI,'quest-fresh-change');assert.equal(UI.get().phase,'pick');assert.deepEqual(UI.get().questIds,[oldTask.id]);
  UI.change({target:{dataset:{questSelect:oldTask.id}}});UI.change({target:{dataset:{questSelect:newTask.id}}});click(UI,'quest-go');click(UI,'quest-accepted');
  assert.deepEqual(UI.get().startedIds,[newTask.id]);assert.equal(oldTask.doing,true);assert.equal(board.tasks.length,2);
+});
+
+test('adding tasks keeps existing Focus tasks, progress, and timer state',()=>{
+ const {board,UI}=setup(),current=M.task({id:'focus-add-current',title:'Current task',room:'kitchen',doing:true}),next=M.task({id:'focus-add-next',title:'Another task',room:'kitchen'});
+ current.children.push({id:'focus-add-child',title:'Wipe behind toaster',done:false,startedAt:1234});board.tasks.push(current,next);
+ UI.enter(board,'kitchen','focus');UI.pick(current.id);click(UI,'quest-accepted');click(UI,'quest-add-more');
+ assert.equal(UI.get().phase,'pick');assert.deepEqual(UI.get().questIds,[current.id]);
+ UI.pick(next.id);click(UI,'quest-accepted');
+ assert.deepEqual(UI.get().startedIds,[current.id,next.id]);assert.equal(current.children[0].startedAt,1234);assert.equal(current.doing,true);
+});
+
+test('Room and Doing Now overview toggles preserve Focus progress and timers',()=>{
+ for(const scope of ['room','doing']){
+  const {board,UI,values,dialogs}=setup(),current=M.task({id:`focus-overview-${scope}`,title:'Current task',room:'kitchen',doing:true}),other=M.task({id:`focus-overview-other-${scope}`,title:'Other room task',room:'bathroom',doing:true});
+  current.children.push({id:`focus-overview-child-${scope}`,title:'Timed subtask',done:false,startedAt:4321});board.tasks.push(current,other);
+  UI.enter(board,'kitchen','focus',scope);UI.pick(current.id);click(UI,'quest-accepted');
+  const savedSession=JSON.stringify(UI.get()),savedStorage=[...values.entries()],savedDialogs=dialogs.length;
+  click(UI,'quest-overview');assert.match(UI.content(board),new RegExp(`data-overview-scope="${scope}"`));
+  assert.equal(JSON.stringify(UI.get()),savedSession);assert.deepEqual([...values.entries()],savedStorage);assert.equal(current.children[0].startedAt,4321);assert.equal(dialogs.length,savedDialogs);
+  click(UI,'quest-return-focus');assert.match(UI.content(board),/quest-active-bottom/);assert.equal(JSON.stringify(UI.get()),savedSession);assert.deepEqual([...values.entries()],savedStorage);
+ }
+ const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
+ assert.match(app,/const list=CQ\?\.doingEligible\(board,M\.date\(\)\)\|\|M\.doing\(board\),groups=\[\.\.\.new Set\(list\.map\(t=>t\.room\|\|'\'\)\)\]/);
+});
+
+test('each Returned control targets one item and Return Later keeps unfinished items active',()=>{
+ const returns=[{id:'collected-one',title:'Put books away'},{id:'collected-two',title:'Sort craft box'}],{board,UI,completedReturns}=setup(Date.now(),{returnTasks:returns}),focused=M.task({id:'focus-return-done',title:'Finished Focus task',room:'kitchen'});board.tasks.push(focused);
+ UI.enter(board,'kitchen','focus');UI.pick(focused.id);click(UI,'quest-accepted');focused.done=true;
+ const html=UI.content(board);assert.match(html,/data-action="quest-return-complete" data-id="collected-one"/);assert.match(html,/data-action="quest-return-complete" data-id="collected-two"/);
+ click(UI,'quest-return-complete','collected-two');assert.deepEqual(completedReturns,['collected-two']);assert.deepEqual(UI.get().startedIds,[focused.id]);
+ const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
+ assert.match(app,/button\('Returned','clear-return-complete',t\.id/);assert.match(app,/function completeCollectedReturn\(id\)[\s\S]*?M\.finish\(b,id,true\)/);
+ assert.match(app,/clear-return-complete':el=>\{closeDialog\(true\);if\(!completeCollectedReturn\(el\.dataset\.id\)\)/);
+ assert.match(app,/clear-return-later':\(\)=>\{const current=Q\?\.get\(\),destination=current\?\.scope==='doing'\?'doing':'room';closeDialog\(true\);navigate\(destination,current\?\.room\|\|roomId\);notice\('Return and sorting Tasks remain active for later\.'\);\}/);
 });
 
 test('a Focus task can be removed from the session without changing the task',()=>{
