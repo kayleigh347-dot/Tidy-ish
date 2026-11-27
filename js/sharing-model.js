@@ -103,22 +103,26 @@ function staleUndo(before,mine,theirs){const previous=before?.completionUndo?.wi
 const completionFields=new Set(['done','completedAt','completionUndo','lastDone','nextDue','elapsedMs','htmlCompletionIds','htmlUndoChildren']);
 function applyPendingUndos(base,remote,pendingUndos){
  if(!pendingUndos?.length)return remote;
- const out=C(remote),baseWins=new Set((base.wins||[]).map(row=>row.id));
+ const out=C(remote),remoteRows=[...(remote.tasks||[]),...(remote.side||[])],rowById=new Map(remoteRows.map(row=>[row.id,row]));
  for(const undo of pendingUndos){
   const winIds=new Set(undo.winIds||[]),taskIds=new Set(undo.taskIds||[]);
   if(!winIds.size||!taskIds.size)continue;
   const familyWins=(remote.wins||[]).filter(row=>taskIds.has(row.taskId)||taskIds.has(row.rootTaskId));
-  if(!familyWins.some(row=>winIds.has(row.id)))continue;
-  const hasCompetingWin=familyWins.some(row=>!baseWins.has(row.id)&&!winIds.has(row.id));
-  if(!hasCompetingWin){
-   const undoRows=new Map((undo.rows||[]).map(row=>[row.id,row]));
-   for(const collection of ['tasks','side'])for(const row of out[collection]||[]){
-    if(!taskIds.has(row.id))continue;
-    const identities=[row.completionUndo?.winId,...(row.htmlCompletionIds||[])].filter(Boolean);
-    if(!identities.some(id=>winIds.has(id)))continue;
-    const prior=undoRows.get(row.id);if(!prior)continue;
-    for(const field of completionFields){if(Object.hasOwn(prior,field))row[field]=C(prior[field]);else delete row[field];}
-   }
+  const targetWins=familyWins.filter(row=>winIds.has(row.id));if(!targetWins.length)continue;
+  const undoRows=new Map((undo.rows||[]).map(row=>[row.id,row])),restoreIds=new Set();
+  for(const win of targetWins){
+   // A newer completion of this same leaf wins over a stale Undo. Sibling
+   // completions do not: the undone leaf and its ancestors still revert.
+   const direct=rowById.get(win.taskId),identities=[direct?.completionUndo?.winId,...(direct?.htmlCompletionIds||[])].filter(Boolean);
+   if(!identities.includes(win.id))continue;
+   let id=win.taskId,seen=new Set();
+   while(id&&!seen.has(id)){seen.add(id);if(taskIds.has(id))restoreIds.add(id);id=rowById.get(id)?.parentId;}
+   if(taskIds.has(win.rootTaskId))restoreIds.add(win.rootTaskId);
+  }
+  for(const collection of ['tasks','side'])for(const row of out[collection]||[]){
+   if(!restoreIds.has(row.id))continue;
+   const prior=undoRows.get(row.id);if(!prior)continue;
+   for(const field of completionFields){if(Object.hasOwn(prior,field))row[field]=C(prior[field]);else delete row[field];}
   }
   out.wins=(out.wins||[]).filter(row=>!winIds.has(row.id));
   const removedSettings=new Set(undo.settingIds||[]);
@@ -201,10 +205,13 @@ function accept(current,payload,state){const incoming=importRaw(payload),next=C(
  next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','gifts','giftPeople'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[],pendingUndos:[]};return next;}
 function transition(before,next){const state=next.features.browserSync;if(!state)return;
  const baselineWins=new Set((state.base?.wins||[]).map(row=>row.id));
+ const nextWins=new Set((next.features.wins||[]).map(row=>row.id));
  for(const old of before.tasks){
   const current=next.tasks.find(row=>row.id===old.id);
-  if(!old.done||!current||current.done||!old._completionIds?.length)continue;
-  const winIds=old._completionIds.filter(id=>!baselineWins.has(id));if(!winIds.length)continue;
+  if(!current)continue;
+  const references=new Set([...(old._completionIds||[]),...(old.children||[]).map(child=>child._winId).filter(Boolean)]);
+  if(!references.size)continue;
+  const winIds=(before.features.wins||[]).filter(row=>references.has(row.id)&&!nextWins.has(row.id)&&!baselineWins.has(row.id)).map(row=>row.id);if(!winIds.length)continue;
   const taskIds=[old,...(old.children||[])].map(originalId),taskIdSet=new Set(taskIds),projected=project(next,state.base,state.account);
   const rows=[...projected.tasks,...projected.side].filter(row=>taskIdSet.has(row.id));
   const settingIds=(before.features.questTimings||[]).filter(row=>!(next.features.questTimings||[]).some(item=>item.id===row.id)&&(row.completionWinIds||[]).some(id=>winIds.includes(id))).map(row=>'tidy-timing:'+row.id);

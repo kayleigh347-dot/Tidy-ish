@@ -20,6 +20,49 @@ function fixture(initialBoard,{online=false}={}){
 }
 function syncState(board,base){return {account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};}
 
+test('a nested child Undo marker targets only the removed win and preserves a concurrently completed sibling',async()=>{
+ const original=M.board(),task=M.task({id:'child-undo-parent',title:'Reset the room',children:[M.child({id:'child-undo-a',title:'Wipe the shelf'}),M.child({id:'child-undo-grandchild',parentId:'child-undo-a',title:'Dust the books'}),M.child({id:'child-undo-b',title:'Put the books back'})]});M.add(original,task);
+ const base=S.project(original,{},'owner'),local=M.clone(original);local.features.browserSync=syncState(local,base);
+ M.completeChild(local,task.id,'child-undo-grandchild',true);
+ const acknowledgedCandidate=S.project(local,base,'owner'),targetWin=local.tasks[0].children[1]._winId;
+ const remoteDevice=S.importRaw(acknowledgedCandidate);M.completeChild(remoteDevice,task.id,'child-undo-b',true);
+ const remote=S.project(remoteDevice,acknowledgedCandidate,'owner');
+ const completed=M.clone(local),undone=M.clone(local);M.completeChild(undone,task.id,'child-undo-grandchild',false);S.transition(completed,undone);
+ assert.deepEqual(undone.features.browserSync.pendingUndos[0].winIds,[targetWin]);
+ const result=await S.synchronize(undone,async house=>({house,account:'owner',payload:remote}),async()=>true);
+ assert.equal(result.conflicts.length,0);
+ const rows=new Map(result.payload.tasks.map(row=>[row.id,row]));
+ assert.equal(rows.get(task.id).done,false,'the parent reflects the undone child');
+ assert.equal(rows.get('child-undo-a').done,false,'the nested parent is restored to incomplete');
+ assert.equal(rows.get('child-undo-grandchild').done,false,'the undone nested child is restored to incomplete');
+ assert.equal(rows.get('child-undo-b').done,true,'the sibling completion remains intact');
+ assert.deepEqual(result.payload.wins.map(row=>row.id),[remote.wins.find(row=>row.taskId==='child-undo-b').id]);
+});
+
+test('parent Undo targets only its newly added wins and keeps an earlier completed subtask',()=>{
+ const board=M.board(),task=M.task({id:'parent-undo-root',title:'Reset the hall',children:[M.child({id:'parent-undo-kept',title:'Hang coats'}),M.child({id:'parent-undo-new',title:'Clear the bench'})]});M.add(board,task);
+ const base=S.project(board,{},'owner');board.features.browserSync=syncState(board,base);
+ M.completeChild(board,task.id,'parent-undo-kept',true);
+ const keptWin=board.tasks[0].children[0]._winId;
+ M.finish(board,task.id,true);const completed=M.clone(board),removedWins=board.tasks[0]._completionIds.slice();
+ M.finish(board,task.id,false);S.transition(completed,board);
+ const marker=board.features.browserSync.pendingUndos[0];
+ assert.deepEqual(marker.winIds,removedWins);
+ assert.equal(marker.winIds.includes(keptWin),false,'the pre-existing subtask win is not marked for removal');
+ assert.equal(board.features.wins.some(row=>row.id===keptWin),true,'the earlier completion remains in local history');
+ assert.equal(board.tasks[0].children[0].done,true,'Undo restores the completed subtask state');
+ assert.equal(board.tasks[0].children[1].done,false);
+});
+
+test('ordinary reactivation keeps completion history and does not create an Undo marker',()=>{
+ const board=M.board(),task=M.task({id:'reactivate-history-task',title:'Restart the recurring task'});M.add(board,task);
+ const base=S.project(board,{},'owner');board.features.browserSync=syncState(board,base);
+ const before=M.clone(board);M.finish(board,task.id,true);const completionId=board.tasks[0]._completionIds[0];
+ const completed=M.clone(board);M.reactivate(board,task.id);S.transition(completed,board);
+ assert.deepEqual(board.features.browserSync.pendingUndos||[],[]);
+ assert.ok(board.features.wins.some(row=>row.id===completionId),'reactivation retains its historic completion');
+});
+
 test('offline saved edits stay visible after reload and upload after reconnection',async()=>{
  const board=M.board(),task=M.task({id:'sync-offline-task',title:'Wipe the table'});M.add(board,task);
  const base=S.project(board,{},'owner');board.features.browserSync=syncState(board,base);board.tasks[0].title='Wipe the whole table';
