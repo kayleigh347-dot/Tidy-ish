@@ -6,7 +6,7 @@ const source=fs.readFileSync(require.resolve('../js/app.js'),'utf8');
 const htmlEscape=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const chunk=source.slice(source.indexOf('function seasonalHomeSection(){'),source.indexOf('\nfunction seasonalWorkflowChooser(){'));
 function render(board,today='2026-11-25'){
- const context={M:{date:()=>today},SW,board,window:{TidySeasonal:S,TidySeasonalTheme:Theme},esc:htmlEscape,button:(title,action,id,cls='',extra='')=>`<button class="${cls}" data-action="${action}" data-id="${htmlEscape(id)}" ${extra}>${title}</button>`};
+ const context={M:{date:()=>today},SW,board,window:{TidySeasonal:S,TidySeasonalTheme:Theme},asset:p=>'assets/'+p,esc:htmlEscape,button:(title,action,id,cls='',extra='')=>`<button class="${cls}" data-action="${action}" data-id="${htmlEscape(id)}" ${extra}>${title}</button>`};
  return vm.runInNewContext(`(${chunk})`,context)();
 }
 function event(preset,eventDate,overrides={}){
@@ -20,6 +20,7 @@ test('Christmas Home gives a large accessible countdown, festive styling, active
  assert.match(html,/aria-label="30 days until Christmas"/);
  assert.match(html,/days to go/);assert.match(html,/Christmas to-dos/);assert.match(html,/Buy gifts/);assert.match(html,/data-action="seasonal-home-complete"/);assert.match(html,/aria-label="Complete Buy gifts"/);
  assert.match(html,/data-action="seasonal-open"/);assert.match(html,/class="seasonal-christmas-icon" aria-hidden="true"/);
+ assert.match(html,/class="seasonal-christmas-ornaments" src="assets\/seasonal\/christmas\/home-ornaments\.svg" alt="" aria-hidden="true"/);
  assert.equal(JSON.stringify(board),prior,'Home render is read-only');
 });
 test('occasion-specific celebrations: Christmas day is Today, and countdown displays singular day',()=>{
@@ -38,7 +39,7 @@ test('Christmas ornaments stop after 30 December without removing the still-open
 test('disabled decoration preference removes visual ornaments but keeps the Christmas countdown',()=>{
  const board=SW.reconcile(event('christmas','2026-12-25',{decorationsEnabled:false}),'2026-11-25').board;
  const html=render(board);assert.match(html,/class="seasonal-home-event seasonal-home-christmas"/);
- assert.doesNotMatch(html,/seasonal-christmas-icon|is-decorated/);
+ assert.doesNotMatch(html,/seasonal-christmas-icon|seasonal-christmas-ornaments|is-decorated/);
  assert.match(html,/class="seasonal-christmas-number">30/);
 });
 test('non-Christmas occasions retain their former neutral Home layout',()=>{
@@ -60,6 +61,7 @@ test('Christmas styles have responsive and reduced-motion fallbacks, and only so
  const css=fs.readFileSync(require.resolve('../css/seasonal-hub.css'),'utf8');
  const index=fs.readFileSync(require.resolve('../index.html'),'utf8');
  assert.match(css,/seasonal-christmas-number\{font-size:clamp\(4rem/);
+ assert.match(css,/seasonal-christmas-agenda-heading/);
  assert.match(css,/@media\(max-width:350px\)/);
  assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
  assert.match(index,/seasonal2b1-seasonal2c1-workloada2-taskcheck1-christmashome1/);

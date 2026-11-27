@@ -2,7 +2,7 @@
  * occasion, household or backup mutations. Only implemented themes compete. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.TidySeasonalTheme=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';
 const manifest=Object.freeze({
- christmas:Object.freeze({accent:'#e6c16d',edge:'snow-edge.webp',character:'gonk.webp',tree:'tree.webp',particles:Object.freeze(['snowflake-01.webp','snowflake-02.webp','snowflake-03.webp','snowflake-04.webp'])}),
+ christmas:Object.freeze({accent:'#e6c16d',edge:'snow-edge.webp',character:'gonk.webp',tree:'tree.webp',homeOrnaments:'home-ornaments.svg',particles:Object.freeze(['snowflake-01.webp','snowflake-02.webp','snowflake-03.webp','snowflake-04.webp'])}),
  newyear:Object.freeze({accent:'#e5d9ab',edge:null,character:null,sparkles:Object.freeze(['gold-sparkle.webp','silver-sparkle.webp']),particles:Object.freeze([])})
 });
 const key=boardKey=>boardKey+'-seasonal-display-v1';
@@ -24,6 +24,6 @@ function resolve(board,today,prefs={}){
  const transition=christmas.find(c=>today>=c.eventDate.slice(0,4)+'-12-31'&&today<=String(Number(c.eventDate.slice(0,4))+1)+'-01-02');
  return transition?{key:'newyear',id:transition.id}:null;
 }
-function particles(theme,animation,home){if(theme?.key!=='christmas'||!animation)return '';return Array.from({length:home?8:4},(_,i)=>`<i class="seasonal-snow-particle" style="--snow-size:${8+i%3*2}px;--snow-delay:${-i*2.1}s;--snow-duration:${12+i%4*3}s;background-image:url(assets/seasonal/christmas/${manifest.christmas.particles[i%4]})"></i>`).join('');}
+function particles(theme,animation,home){if(theme?.key!=='christmas'||!animation)return '';return Array.from({length:home?12:6},(_,i)=>`<i class="seasonal-snow-particle" style="--snow-size:${8+i%3*2}px;--snow-delay:${-i*2.1}s;--snow-duration:${12+i%4*3}s;background-image:url(assets/seasonal/christmas/${manifest.christmas.particles[i%4]})"></i>`).join('');}
 return Object.freeze({manifest,preferences,savePreference,resolve,particles});
 });

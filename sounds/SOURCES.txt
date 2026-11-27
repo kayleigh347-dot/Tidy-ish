@@ -18,7 +18,7 @@ Original low-pass, soft percussive sound generated for Tidy-ish. It contains no 
 
 Christmas jingle
 File: christmas-jingle.wav
-Original short bell-like tune synthesized locally for Tidy-ish from additive sine tones; no third-party recording or samples used.
+Original short sleigh-bell cue synthesized locally for Tidy-ish from inharmonic bell resonances, soft strikes and room reflections; no third-party recording or samples used.
 
 Task timer alarm tunes
 Files: upbeat-rise.wav, bright-steps.wav

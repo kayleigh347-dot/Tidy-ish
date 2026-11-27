@@ -7,7 +7,7 @@ body[data-seasonal-theme="newyear"] .top::after{content:"";position:absolute;ins
 /* Home keeps the larger festive countdown; art is within its decorative area. */
 .seasonal-home .seasonal-home-christmas.is-decorated::before{height:18px;background:url(../assets/seasonal/christmas/snow-edge.webp) center/100% 100% no-repeat}
 .seasonal-home .seasonal-christmas-icon{width:42px;height:48px;background:url(../assets/seasonal/christmas/gonk.webp) center/contain no-repeat;font-size:0}
-.seasonal-home .seasonal-christmas-tree{width:36px;height:48px;flex:0 0 36px;background:url(../assets/seasonal/christmas/tree.webp) center/contain no-repeat;pointer-events:none}
+.seasonal-home .seasonal-christmas-tree{width:54px;height:48px;flex:0 0 54px;background-image:url(../assets/seasonal/christmas/tree.webp),url(../assets/seasonal/christmas/tree.webp);background-size:32px 44px,24px 33px;background-position:right center,left bottom;background-repeat:no-repeat;pointer-events:none}
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-eyebrow,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-agenda h3,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-countdown,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-after,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-celebration{color:#eee1f4}
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-tasks li::before{content:"•";color:#eee1f4}
 #seasonal-snow-layer{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:2;contain:strict}
@@ -18,7 +18,7 @@ body[data-seasonal-theme="newyear"] .top::after{content:"";position:absolute;ins
 body.seasonal-page-hidden .seasonal-snow-particle{animation-play-state:paused}
 body.reduce-motion #seasonal-snow-layer{display:none}
 @media(prefers-reduced-motion:reduce){#seasonal-snow-layer{display:none}.seasonal-snow-particle{animation:none!important}}
-@media(max-width:350px){.seasonal-home .seasonal-christmas-tree{width:28px;height:38px;flex-basis:28px}.seasonal-home .seasonal-christmas-icon{width:35px;height:42px}}
+@media(max-width:350px){.seasonal-home .seasonal-christmas-tree{width:44px;height:38px;flex-basis:44px;background-size:26px 36px,20px 27px}.seasonal-home .seasonal-christmas-icon{width:35px;height:42px}}
 
 /* Tree overlays keep room layouts intact and never intercept room controls. */
 .room-scene .seasonal-room-tree{position:absolute;z-index:1;bottom:2%;width:clamp(38px,17%,76px);height:66%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 2px 3px #0006)}
