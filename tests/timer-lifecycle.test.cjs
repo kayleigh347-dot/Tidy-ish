@@ -4,76 +4,18 @@ const fs=require('node:fs');
 const path=require('node:path');
 const M=require('../js/model.js');
 const Time=require('../js/quest-time-core.js');
-const Sharing=require('../js/sharing-model.js');
-let BreakTimer;
-try{BreakTimer=require('../js/focus-break-timer.js');}catch{}
+const BreakTimer=require('../js/focus-break-timer.js');
 
 const local=(y,m,d,h=0,min=0,s=0,ms=0)=>new Date(y,m,d,h,min,s,ms);
-const withTimer=(row,{startedAt,elapsed=120000,estimate=900000,alarmNextAt=240000}={})=>Object.assign(row,{
- startedAt,elapsed,timerEstimateMs:estimate,alarmNextAtMs:alarmNextAt,alarmDismissed:false
-});
+const storageFixture=()=>{const store=new Map();return {getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,String(value)),removeItem:key=>store.delete(key)};};
 
-test('timer expiry uses the next local 3 a.m. boundary, including a timer started before 3 a.m.',()=>{
- const before=local(2026,10,3,2,59,59,999).getTime();
- const at=local(2026,10,3,3).getTime();
- const after=local(2026,10,3,3,1).getTime();
- assert.equal(M.taskTimerExpiresAt(local(2026,10,3,2).getTime()),at);
- assert.equal(M.taskTimerExpiresAt(at),local(2026,10,4,3).getTime());
- assert.equal(M.taskTimerExpiresAt(local(2026,10,2,22).getTime()),at);
- assert.ok(M.taskTimerExpiresAt(local(2026,10,3,3,1).getTime())>after);
- assert.equal(M.taskTimerExpiresAt(0),0);
-});
-
-test('reopening after 3 a.m. clears only expired active task timers and preserves completion history',()=>{
- const board=M.board(),cutoff=local(2026,10,3,3).getTime();
- const expiredRoot=withTimer(M.task({id:'expired-root',title:'Old task'}),{startedAt:local(2026,10,2,22).getTime()});
- const expiredChild=withTimer(M.child({id:'expired-child',title:'Old subtask'}),{startedAt:local(2026,10,3,2,30).getTime()});
- const current=withTimer(M.task({id:'current',title:'Current task'}),{startedAt:local(2026,10,3,3,1).getTime()});
- const paused=withTimer(M.task({id:'paused',title:'Paused task'}),{startedAt:0});
- const completed=M.task({id:'completed',title:'Completed task',done:true,completedAt:local(2026,10,2,20).toISOString()});
- expiredChild.children=[withTimer(M.child({id:'expired-grandchild',title:'Old nested subtask'}),{startedAt:local(2026,10,3,2,45).getTime()})];
- expiredRoot.children.push(expiredChild);
- board.tasks.push(expiredRoot,current,paused,completed);
- board.features.wins.push({id:'win-1',taskId:completed.id,at:completed.completedAt,points:1});
- board.features.questTimings.push({id:'attempt-1',taskId:'historical-task',kind:'valid',durationMs:60000,at:completed.completedAt});
- const beforeHistory=JSON.stringify([board.features.wins,board.features.questTimings]);
-
- assert.deepEqual(M.discardExpiredTaskTimers(board,cutoff).sort(),['expired-child','expired-grandchild','expired-root']);
-for(const item of [expiredRoot,expiredChild,expiredChild.children[0]]){
-  assert.equal(item.done,false);
-  assert.equal(item.startedAt,0);
-  assert.equal(item.elapsed,0);
-  assert.equal(item.timerEstimateMs,0);
-  assert.equal(item.alarmNextAtMs,0);
-  assert.equal(item.alarmDismissed,true);
- }
- assert.equal(current.startedAt,local(2026,10,3,3,1).getTime());
- assert.equal(paused.elapsed,120000);
- assert.equal(completed.done,true);
- assert.equal(JSON.stringify([board.features.wins,board.features.questTimings]),beforeHistory);
-});
-
-test('an expiry reset keeps its old edit stamp so newer shared timing or completion wins',()=>{
- const oldStamp='2026-11-27T04:00:00.000Z',newerStamp='2026-11-27T04:01:00.000Z';
- const base={tasks:[{id:'shared-timer',text:'Kitchen reset',done:false,elapsedMs:60000,androidTask:{syncUpdatedAt:oldStamp}}],side:[],rooms:[],wins:[],settings:[],homeless:[],sideTabs:[]};
- const expired=structuredClone(base);expired.tasks[0].elapsedMs=0;
- const newerTimer=structuredClone(base);newerTimer.tasks[0].elapsedMs=240000;newerTimer.tasks[0].androidTask.syncUpdatedAt=newerStamp;
- assert.equal(Sharing.merge(base,expired,newerTimer).payload.tasks[0].elapsedMs,240000,'a newer member timer must survive local expiry cleanup');
- const newerCompletion=structuredClone(newerTimer);Object.assign(newerCompletion.tasks[0],{done:true,elapsedMs:420000,completedAt:newerStamp,completionUndo:{winId:'newer-win'}});newerCompletion.wins=[{id:'newer-win',taskId:'shared-timer',rootTaskId:'shared-timer',at:newerStamp,points:1}];
- const merged=Sharing.merge(base,expired,newerCompletion);
- assert.equal(merged.payload.tasks[0].done,true,'a newer member completion must survive local expiry cleanup');
- assert.equal(merged.payload.tasks[0].elapsedMs,420000,'the completion timing must survive local expiry cleanup');
- assert.ok(merged.payload.wins.some(win=>win.id==='newer-win'));
-});
-
-test('only a newly completed top-level Quest in active Focus starts the between-task timer',()=>{
+test('only a newly completed top-level task in active Focus qualifies for the break',()=>{
  const before=M.board(),after=M.board(),task=M.task({id:'focus-root',title:'Kitchen reset',room:'kitchen'});
- before.tasks.push(M.clone(task));after.tasks.push(M.clone(task));
- after.tasks[0].done=true;
+ before.tasks.push(M.clone(task));after.tasks.push(M.clone(task));after.tasks[0].done=true;
  const session={phase:'active',startedIds:[task.id]};
  assert.equal(Time.focusQuestCompleted(before,after,'focus',session),true);
  after.tasks[0].done=false;after.tasks[0].children=[M.child({id:'child',title:'Wipe counter',done:true})];
- assert.equal(Time.focusQuestCompleted(before,after,'focus',session),false,'a subtask alone is not a completed top-level Quest');
+ assert.equal(Time.focusQuestCompleted(before,after,'focus',session),false,'a subtask alone is not a completed top-level task');
  after.tasks[0].done=true;
  assert.equal(Time.focusQuestCompleted(before,after,'room',session),false);
  assert.equal(Time.focusQuestCompleted(before,after,'focus',{...session,phase:'pick'}),false);
@@ -81,11 +23,9 @@ test('only a newly completed top-level Quest in active Focus starts the between-
 });
 
 test('the between-task timer lasts five minutes, survives reopening, rings once and can be cancelled',()=>{
- assert.ok(BreakTimer,'focus-break-timer.js must export its timer controller');
- const store=new Map(),storage={getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,String(value)),removeItem:key=>store.delete(key)};
- const first=BreakTimer.create(storage,'focus-break:test'),start=local(2026,10,3,12).getTime();
+ const store=storageFixture(),first=BreakTimer.create(store,'focus-break:test'),start=local(2026,10,3,12).getTime();
  assert.equal(first.start(start),start+5*60000);
- const reopened=BreakTimer.create(storage,'focus-break:test');
+ const reopened=BreakTimer.create(store,'focus-break:test');
  assert.deepEqual(reopened.check(start+5*60000-1),{state:'running',endsAt:start+5*60000,remainingMs:1});
  assert.deepEqual(reopened.check(start+5*60000),{state:'due',endsAt:start+5*60000,remainingMs:0});
  assert.deepEqual(first.check(start+5*60000+1),{state:'idle',endsAt:0,remainingMs:0});
@@ -95,28 +35,23 @@ test('the between-task timer lasts five minutes, survives reopening, rings once 
 });
 
 test('undoing the completion that triggered a Focus break cancels that break',()=>{
- const store=new Map(),storage={getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,String(value)),removeItem:key=>store.delete(key)};
- const timer=BreakTimer.create(storage,'focus-break:undo-test'),done=M.board(),start=local(2026,10,3,12).getTime();
- done.tasks.push(M.task({id:'focus-root-undo',title:'Kitchen reset',done:true}));
- timer.start(start,'focus-root-undo');
+ const store=storageFixture(),timer=BreakTimer.create(store,'focus-break:undo-test'),done=M.board(),start=local(2026,10,3,12).getTime();
+ done.tasks.push(M.task({id:'focus-root-undo',title:'Kitchen reset',done:true}));timer.start(start,'focus-root-undo');
  const undone=M.clone(done);undone.tasks[0].done=false;
  assert.equal(timer.cancelIfTaskUndone(undone),true);
  assert.deepEqual(timer.peek(start+1),{state:'idle',endsAt:0,remainingMs:0});
 });
 
-test('app expiry and between-task timer wiring stays local, cancels on task start and Focus exit, and exposes manual stop',()=>{
+test('Focus break integration has current caches, cancels its panel and has no overnight expiry path',()=>{
  const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
- assert.match(html,/js\/focus-break-timer\.js/);
- assert.match(html,/js\/model\.js\?v=[^\"]*timerexpiry2/);
- assert.match(html,/js\/quest-time-core\.js\?v=3-timerexpiry2/);
- assert.match(html,/js\/app\.js\?v=[^\"]*timerexpiry2/);
- assert.match(app,/M\.discardExpiredTaskTimers\(b,now\)/);
- assert.match(app,/change\(b=>M\.discardExpiredTaskTimers\(b,now\),\{redraw:false,stamp:false\}\)/);
+ assert.match(html,/js\/focus-break-timer\.js\?v=/);
+ assert.match(html,/js\/quest-time-core\.js\?v=3-focusbreak1/);
+ assert.match(html,/js\/app\.js\?v=[^\"]*focusbreak2/);
+ assert.doesNotMatch(app,/discardExpiredTaskTimers|hasExpiredTaskTimer|timerExpirySyncPending/);
  assert.match(app,/TIME\.focusQuestCompleted\(board,next,route,Q\?\.get\?\.\(\)\)/);
  assert.match(app,/focusBreakTimer\?\.cancelIfTaskUndone\(next\)/);
- assert.match(app,/focus-break-stop/);
- assert.match(app,/cancelFocusBreakTimer\(\)/);
  assert.match(app,/function cancelFocusBreakTimer\(\)\{focusBreakTimer\?\.cancel\(\);document\.querySelector\('\[data-focus-break\]'\)\?\.remove\(\);\}/);
+ assert.match(app,/focus-break-stop/);
  assert.match(app,/route==='focus'&&next!=='focus'/);
 });
