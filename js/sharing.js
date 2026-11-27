@@ -268,7 +268,7 @@ async function sync({fromRetry=false,fromQueue=false}={}){
   },async()=>{
    if(generation!==runGeneration||U.getBoard().features.browserSync?.house!==state.house)throw Error('Account or household changed; the earlier response was not applied.');
    if(U.editing())throw Error('Saved locally. Sync resumes when editing is closed.');
-  });
+  },window.TidySyncDiagnostics?.activeObserver?.());
   if(result.conflicts.length)throw Error('A shared update could not be resolved automatically; no data was changed.');
   const current=U.getBoard();
   if(generation!==runGeneration||current.features.browserSync?.account!==state.account||current.features.browserSync?.house!==state.house)throw Error('Household changed while syncing; the earlier response was not applied.');
