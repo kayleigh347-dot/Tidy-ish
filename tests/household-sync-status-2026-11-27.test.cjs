@@ -143,6 +143,19 @@ test('a legacy household-list failure also marks the retained v2 roster stale',a
  assert.match(app.api.panel(),/Household member list is stale/);
 });
 
+test('a missing v2-list RPC fallback cannot repopulate assignee choices from a stale roster',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
+  {data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null},
+  {data:null,error:{code:'PGRST202',message:'function missing'}}
+ ]});app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();app.ctx.window.__testUpdatePeople('owner','house');
+ assert.equal(app.api.people().some(person=>person.id==='member-a'),true);
+ await app.refresh();
+ app.ctx.window.__testUpdatePeople('owner','house');
+ assert.equal(app.roster().stale,true);
+ assert.equal(app.api.people().some(person=>person.id==='member-a'),false);
+});
+
 test('a successful retry replaces the stale v2 roster and clears its stale label',async()=>{
  const board=selectedV2Board(),task=M.task({id:'roster-recovery-task',title:'Keep the saved assignment'});M.add(board,task);board.tasks[0].assignedUserId='member-a';board.tasks[0].assigned='A member';
  const app=fixture(board),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
@@ -198,13 +211,24 @@ test('confirmed access removal clears identities if the follow-up roster refresh
  assert.equal(app.roster().loaded,false);
 });
 
+test('confirmation revalidates the account and selected household immediately before member removal',async()=>{
+ for(const change of ['account','household']){
+  const board=selectedV2Board(),app=fixture(board),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[{data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null}]});
+  app.setSession({id:'owner',email:'owner@example.test'},client);await app.refresh();app.api.actions['house-remove']({dataset:{id:'member-a'}});
+  if(change==='account')client.user.id='other';else board.features.browserSync.house='other-house';
+  await app.calls.confirm();
+  assert.equal(client.removeRequests.length,0,`a changed ${change} must block the removal RPC`);
+ }
+});
+
 function mockClient({listError=null,readError=null,saveError=null,remote,v2Lists=null,legacyLists=null,legacyList={houses:[{id:'house',label:'House'}],members:[]},userId='owner'}={}){
- const savedPayloads=[],user={id:userId,email:`${userId}@example.test`};
+ const savedPayloads=[],removeRequests=[],user={id:userId,email:`${userId}@example.test`};
  return {
   user,auth:{getUser:async()=>({data:{user},error:null}),signOut:async()=>({error:null})},
   rpc:async(name,args)=>{
    if(args.action==='list'&&name==='mission_house_sharing'){if(legacyLists?.length)return legacyLists.shift();return listError?{data:null,error:listError}:{data:legacyList,error:null};}
    if(args.action==='list'&&name==='tidyish_household_v2')return v2Lists?.length?v2Lists.shift():{data:{houses:[],members:[]},error:null};
+   if(args.action==='remove-member')removeRequests.push({name,args});
    if(name==='save_shared_mission_board'||name==='save_mission_board')savedPayloads.push(args.new_payload);
    return saveError?{data:null,error:saveError}:{data:true,error:null};
   },
@@ -215,7 +239,7 @@ function mockClient({listError=null,readError=null,saveError=null,remote,v2Lists
     }};
    }};
   },
-  channel(){return {on(){return this;},subscribe(){return this;}};},removeChannel:async()=>{},savedPayloads
+  channel(){return {on(){return this;},subscribe(){return this;}};},removeChannel:async()=>{},savedPayloads,removeRequests
  };
 }
 

@@ -68,9 +68,10 @@ function rpcFailure(error,missingMessage){
  }
  return wrapped;
 }
-async function call(action,extra={}){const db=await init();await verified();const {data,error}=await db.rpc('mission_house_sharing',{action,...extra});if(error)throw rpcFailure(error,'Household sharing is not installed in this Supabase project. The saved board is unchanged.');return data;}
-async function callNew(action,extra={}){
- const db=await init();await verified();
+async function call(action,extra={},beforeRequest){const db=await init(),user=await verified();if(beforeRequest&&!beforeRequest(user))throw Error('The selected household or member list changed after confirmation. Refresh and try again. No access was removed.');const {data,error}=await db.rpc('mission_house_sharing',{action,...extra});if(error)throw rpcFailure(error,'Household sharing is not installed in this Supabase project. The saved board is unchanged.');return data;}
+async function callNew(action,extra={},beforeRequest){
+ const db=await init(),user=await verified();
+ if(beforeRequest&&!beforeRequest(user))throw Error('The selected household or member list changed after confirmation. Refresh and try again. No access was removed.');
  const {data,error}=await db.rpc('tidyish_household_v2',{action,...extra});
  if(error)throw rpcFailure(error,'New households need the supplied additive Supabase SQL installed first. Nothing has been uploaded.');
  return data;
@@ -107,7 +108,7 @@ function updatePeople(payload,account,house){const map=new Map((payload.househol
  if(entry?.kind==='v2'){
   map.delete(house);
   if(entry.ownerId&&!map.has(entry.ownerId))map.set(entry.ownerId,{id:entry.ownerId,name:'Household owner'});
-  const houseMembers=rosterAccount===account?newMembers.filter(m=>m.houseId===house):[];
+  const houseMembers=rosterAccount===account&&rosterLoaded&&!rosterStale&&rosterHouses.some(h=>h.id===house)?newMembers.filter(m=>m.houseId===house):[];
   for(const m of houseMembers)map.set(m.id,{id:m.id,name:m.email||'Household member'});
   const allowed=new Set([account,entry.ownerId,...houseMembers.map(m=>m.id)]);
   people=[...map.values()].filter(p=>allowed.has(p.id));
@@ -400,7 +401,19 @@ const actions={
  }),
  'house-copy-invite':()=>copyInviteLink(),
  'house-cancel-invite':()=>run(async()=>{const house=U.getBoard().features.browserSync;if(!house?.house)throw Error('Choose and connect a household before cancelling an invitation.');if(house.kind==='v2')await callNew('cancel-invite',{p_house_id:house.house});else await call('cancel-invite');invite='';statusChanged('Unused invitation cancelled.')}),
- 'house-remove':el=>{const state=U.getBoard().features.browserSync;if(rosterStale){statusChanged('Member list is stale. Refresh before removing access.',true);return;}if(state?.kind==='v2'&&(!rosterLoaded||rosterAccount!==session?.user?.id||!rosterHouses.some(h=>h.id===state.house)||!newMembers.some(member=>member.id===el.dataset.id&&member.houseId===state.house))){statusChanged('Refresh the member list before removing access.',true);return;}return U.confirmDialog('Remove household access?','This removes this member’s access to your house. Previously downloaded copies remain on their device.',()=>run(async()=>{const house=U.getBoard().features.browserSync;if(house?.kind==='v2')await callNew('remove-member',{p_house_id:house.house,target_member:el.dataset.id});else await call('remove-member',{target_member:el.dataset.id});clearHouseholdLists();await refreshHouses();statusChanged('Member access removed.')}).catch(()=>{}),'Remove access');},
+ 'house-remove':el=>{
+  const state=U.getBoard().features.browserSync,memberId=String(el.dataset.id||''),target={account:session?.user?.id||'',house:state?.house||'',kind:state?.kind||'legacy',memberId};
+  if(rosterStale){statusChanged('Member list is stale. Refresh before removing access.',true);return;}
+  if(!target.account||!target.house||!memberId){statusChanged('Refresh the member list before removing access.',true);return;}
+  if(target.kind==='v2'&&(!rosterLoaded||rosterAccount!==target.account||!rosterHouses.some(h=>h.id===target.house)||!newMembers.some(member=>member.id===memberId&&member.houseId===target.house))){statusChanged('Refresh the member list before removing access.',true);return;}
+  const beforeRequest=user=>{
+   const current=U.getBoard().features.browserSync;
+   if(user.id!==target.account||session?.user?.id!==target.account||current?.account!==target.account||current?.house!==target.house||(current?.kind||'legacy')!==target.kind||rosterStale)return false;
+   if(target.kind==='v2')return rosterLoaded&&rosterAccount===target.account&&rosterHouses.some(h=>h.id===target.house)&&newMembers.some(member=>member.id===memberId&&member.houseId===target.house);
+   return houses.some(h=>h.id===target.house&&h.kind!=='v2')&&members.some(member=>member.id===memberId&&(!member.houseId||member.houseId===target.house)&&(!member.house_id||member.house_id===target.house));
+  };
+  return U.confirmDialog('Remove household access?','This removes this member’s access to your house. Previously downloaded copies remain on their device.',()=>run(async()=>{if(target.kind==='v2')await callNew('remove-member',{p_house_id:target.house,target_member:memberId},beforeRequest);else await call('remove-member',{target_member:memberId},beforeRequest);clearHouseholdLists();await refreshHouses();statusChanged('Member access removed.')}).catch(()=>{}),'Remove access');
+ },
 };
 async function submit(form,fd){if(form.id==='house-signin')return run(async()=>{const db=await init(),email=String(fd.get('email')).trim(),redirect=new URL('index.html',location.href).href,{error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:redirect,shouldCreateUser:false}});if(error)throw error;statusChanged('Check your email and open the newest sign-in link in this browser.');});if(form.id==='house-select')return run(()=>preview(String(fd.get('house'))));if(form.id==='house-join')return run(async()=>{const code=String(fd.get('code')).trim();if(!code)throw Error('Paste an invitation code.');let data;try{data=await callNew('join',{invite_code:code});}catch(e){if(!/Invite expired or invalid/i.test(e.message))throw e;data=await call('join',{invite_code:code});}await refreshHouses();clearPendingInvite();statusChanged('Invitation accepted. Preview the shared house before opening it.');if(data.houseId)await preview(data.houseId);});}
 const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{if(retryTimer){clearTimeout(retryTimer);retryTimer=null;retryDeferred=true;}listenForHouseholdChanges();queue({immediate:true});});window.addEventListener('offline',()=>{if(hasPendingChanges()&&approved(U.getBoard().features.browserSync))statusChanged(displayStatus());});document.getElementById('editor')?.addEventListener('close',()=>queue({immediate:true}));document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message,true));if(pendingInvite)U.navigate('settings',undefined,'household');U.onSyncStatus();
