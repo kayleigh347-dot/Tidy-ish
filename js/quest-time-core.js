@@ -33,11 +33,17 @@
  function ownerOf(board){const f=board?.features||{};return String(f.browserSync?.account||'local')+'|member:'+String(f.displayName||'Me');}
  function suggested(board,item){const learned=average(board?.features?.questTimings,item?.id,ownerOf(board));const starting=Number(item?.estimate);return learned??(Number.isFinite(starting)&&starting>0?starting:15);}
  function hasAttempt(item){return !!item?.startedAt||Number(item?.elapsed)>0;}
+ function focusQuestCompletionId(before,after,route,session){
+  if(!['focus','doing-focus'].includes(route)||session?.phase!=='active')return '';
+  for(const id of session.startedIds||[]){const prior=before?.tasks?.find(t=>t.id===id),current=after?.tasks?.find(t=>t.id===id);if(prior&&!prior.done&&current?.done)return id;}
+  return '';
+ }
+ function focusQuestCompleted(before,after,route,session){return !!focusQuestCompletionId(before,after,route,session);}
  function status(elapsedMs,estimateMs,alarmNextAtMs=0,alarmDismissed=false){
   const elapsed=Math.max(0,Number(elapsedMs)||0),budget=Math.max(0,Number(estimateMs)||0);
   const remaining=budget-elapsed,threshold=Math.max(budget+BUFFER_MS,Number(alarmNextAtMs)||0);
   return {phase:remaining>0?'countdown':'overtime',shownMs:Math.abs(remaining),overdue:remaining<=0,alarmDue:remaining<=0&&!alarmDismissed&&elapsed>=threshold};
  }
  function format(ms){const seconds=Math.floor(Math.max(0,ms)/1000);return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;}
- return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,status,format,valid,distraction,learningDuration});
+ return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,focusQuestCompleted,focusQuestCompletionId,status,format,valid,distraction,learningDuration});
 });

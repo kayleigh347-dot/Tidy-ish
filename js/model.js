@@ -515,6 +515,19 @@
     const at=taskCompletionTime(b,t);if(!at)return 0;const date=new Date(at);
     return new Date(date.getFullYear(),date.getMonth(),date.getDate()+1,3,0,0,0).getTime();
   }
+  function taskTimerExpiresAt(startedAt){
+    const at=Number(startedAt);if(!Number.isFinite(at)||at<=0)return 0;const boundary=new Date(at);boundary.setHours(3,0,0,0);if(boundary.getTime()<=at)boundary.setDate(boundary.getDate()+1);return boundary.getTime();
+  }
+  function hasExpiredTaskTimer(b,now=Date.now()){
+    const at=now instanceof Date?now.getTime():Number(now),current=Number.isFinite(at)?at:Date.now();let found=false;
+    const visit=item=>{if(!item||found)return;if(Number(item.startedAt)>0&&taskTimerExpiresAt(item.startedAt)<=current){found=true;return;}for(const child of item.children||[])visit(child);};
+    for(const task of b?.tasks||[])visit(task);return found;
+  }
+  function discardExpiredTaskTimers(b,now=Date.now()){
+    const at=now instanceof Date?now.getTime():Number(now),current=Number.isFinite(at)?at:Date.now(),expired=[];
+    const visit=item=>{if(!item)return;if(Number(item.startedAt)>0&&taskTimerExpiresAt(item.startedAt)<=current){expired.push(item.id);item.startedAt=0;item.elapsed=0;item.timerEstimateMs=0;item.alarmNextAtMs=0;item.alarmDismissed=true;}for(const child of item.children||[])visit(child);};
+    for(const task of b?.tasks||[])visit(task);return expired;
+  }
   function isTaskCompletionVisible(b,t,now=Date.now()){
     if(!t?.done)return true;const expiry=taskCompletionExpiresAt(b,t);if(!expiry)return false;
     const at=now instanceof Date?now.getTime():Number(now);return expiry>(Number.isFinite(at)?at:Date.now());
@@ -716,7 +729,7 @@
   function doing(b){const withheld=new Set(b.features.focusSessions.filter(s=>(s.resetIds||[]).some(id=>b.tasks.some(t=>t.id===id&&!t.done))).flatMap(s=>s.taskIds||[]));return b.doingOrder.map(id=>b.tasks.find(t=>t.id===id&&t.doing&&!paused(t)&&!withheld.has(id))).filter(Boolean);}
   function move(b,id,to,doingView=false){const list=doingView?b.doingOrder:b.tasks.map(t=>t.id);const from=list.indexOf(id),target=to==='first'?0:to==='last'?list.length-1:list.indexOf(to);if(from<0||target<0)return;list.splice(from,1);list.splice(target,0,id);if(doingView)b.doingOrder=list;else b.tasks=list.map(id=>b.tasks.find(t=>t.id===id));}
   return {id:ID,uid,clone,date,plus,months,board,features,task,child,reconcileChildren,normalize,paused,time,repeat,next,
-    taskCompletionTime,taskCompletionExpiresAt,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
+    taskCompletionTime,taskCompletionExpiresAt,taskTimerExpiresAt,hasExpiredTaskTimer,discardExpiredTaskTimers,isTaskCompletionVisible,orderTaskList,orderChildList,nextTaskCompletionExpiry,
     add,select,finish,reactivate,completeChild,refresh,messLeaves,messBreakdown,mess,householdMess,cleanPercent,phrase,calibrate,occurrences,
     saveCustomCycle,removeCustomCycle,startCustomLoad,completeCustomStep,undoCustomStep,customLaundryNeedsAttention,customLaundryReminderDue,
     laundryText,laundryNeedsAttention,laundryReminderDue,laundry,undoLaundry,uniform,undoUniform,templateCopy,merge,occasionLinkStatus,setOccasionLinks,createOccasion,editOccasion,focus,doing,move,sideTabs,uniformSteps:[...STANDARD_UNIFORM]};
