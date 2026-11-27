@@ -261,19 +261,23 @@ function reconcile(base,current,incoming){
 }
 async function synchronize(snapshot,load,save,check=()=>{},observer=null){
  const state=snapshot.features.browserSync;if(!state)throw Error('Choose a household first.');
- const observe=(stage,data,meta={})=>{try{if(typeof observer==='function')observer(stage,data,meta);}catch{}};
+ const observe=(stage,data,meta={})=>{
+  if(typeof observer!=='function')return;
+  let isolated;try{isolated=C(data);}catch{try{observer(stage,null,{...meta,availability:'unavailable',reason:'not-captured'});}catch{}return;}
+  try{observer(stage,isolated,{...meta});}catch{}
+ };
  observe('local-board',snapshot,{kind:'board'});
  observe('previous-shared-baseline',state.base,{kind:'raw'});
- try{observe('projected-shared-data',project(snapshot,state.base,state.account),{kind:'raw'});}catch{observe('projected-shared-data',null,{kind:'raw',availability:'unavailable',reason:'not-captured'});}
+ if(typeof observer==='function')try{observe('projected-shared-data',project(snapshot,state.base,state.account),{kind:'raw'});}catch{observe('projected-shared-data',null,{kind:'raw',availability:'unavailable',reason:'not-captured'});}
  const outgoingPayload=outgoing(snapshot,state);observe('outgoing-payload',outgoingPayload,{kind:'delta'});
  for(let attempt=0;attempt<3;attempt++){
   let remote;try{remote=await load(state.house);}catch(error){observe('remote-snapshot',null,{kind:'raw',availability:'unavailable',reason:'read-failed',status:'unavailable',attempt:attempt+1});throw error;}
+  if(remote.account!==state.account||remote.house!==state.house){observe('remote-snapshot',null,{kind:'raw',availability:'unavailable',reason:'not-captured',status:'unverified',attempt:attempt+1});throw Error('Account or household changed. Saved work was preserved.');}
   observe('remote-snapshot',remote?.payload,{kind:'raw',status:'response-received',attempt:attempt+1});
-  if(remote.account!==state.account||remote.house!==state.house)throw Error('Account or household changed. Saved work was preserved.');
   let combined;try{combined=merge(state.base,outgoingPayload,remote.payload,state.choices||{},state.initial,state.pendingUndos||[]);}catch(error){observe('merged-data',null,{kind:'raw',availability:'unavailable',reason:'merge-failed',status:'parse-failed',attempt:attempt+1});throw error;}
   observe('merged-data',combined.payload,{kind:'raw',attempt:attempt+1});
   if(combined.conflicts.length)return {conflicts:combined.conflicts};
-  const accepted=accept(snapshot,combined.payload,state);observe('accepted-board',accepted,{kind:'board',attempt:attempt+1});
+  const accepted=accept(snapshot,combined.payload,state);
   await check();
   if(equal(combined.payload,remote.payload)){observe('save-result',combined.payload,{kind:'raw',status:'not-needed',attempt:attempt+1});return {accepted,payload:combined.payload,conflicts:[]};}
   let saved;try{saved=await save(remote,combined.payload,state.account);}catch(error){observe('save-result',combined.payload,{kind:'raw',status:'unavailable',availability:'unavailable',reason:'save-failed',attempt:attempt+1});throw error;}
