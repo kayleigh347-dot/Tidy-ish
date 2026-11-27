@@ -161,7 +161,7 @@ test('failed join preserves invitation for retry; does not discard or import rec
 
 test('layout release advances app version and preserves the invitation-safe sharing and history asset versions',()=>{
  assert.match(html,/js\/sharing\.js\?v=20261115-invite-link-qa1/);
- assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1-interface1-timedcompletion1-subtasktimer1-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1"'));
+ assert.ok(html.includes('js/app.js?v=20261115-task-data-daily-view1-issue02a1-layoutbundle1-management1-cardhotfix1-routines1-libraryheader1-occasionaltab1-interface1-timedcompletion1-subtasktimer1-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1-focusnav1"'));
  assert.ok(html.includes('css/task-data-completed-rows.css?v=20261115-local-prototype1"'),'Protected asset: css/task-data-completed-rows.css');
  assert.ok(html.includes('css/task-data-daily-view.css?v=20261115-daily-view1"'),'Protected asset: css/task-data-daily-view.css');
  assert.ok(html.includes('addons/tidyish-daily-log/addon.css?v=20261112-connected1"'),'Protected asset: addons/tidyish-daily-log/addon.css');
