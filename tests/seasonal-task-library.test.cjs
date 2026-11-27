@@ -102,7 +102,7 @@ test('four tabs have responsive 44px controls and cache-busted script/css versio
  assert.match(css,/\.management-page \.library-tabs\{[^}]*repeat\(4,minmax\(0,1fr\)\)/);
  assert.match(css,/@media\(max-width:600px\)\{[^}]*\.management-page \.library-tabs\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/\.management-page \.library-tabs button\{[^}]*min-height:44px/);
- for(const name of ['js/app.js','js/occasional.js','css/quest-library.css'])assert.match(html,new RegExp(name.replace('.','\\.')+'\\?v=[^\"]+-seasonaltab1'+(name==='js/app.js'?'-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1-focusnav1-timeralarmfix1-focusbreak2-elapsedentry1-doingcollapse1-seasonalhomecomplete1-liftduedate1':'')+'"'));
+ for(const name of ['js/app.js','js/occasional.js','css/quest-library.css'])assert.match(html,new RegExp(name.replace('.','\\.')+'\\?v=[^\"]+-seasonaltab1'+(name==='js/app.js'?'-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1-focusnav1-timeralarmfix1-focusbreak2-elapsedentry1-doingcollapse1-seasonalhomecomplete1-liftduedate1-petcaretabs1':'')+'"'));
 });
 test('Seasonal tab selection uses existing navigation and survives back-state eligibility',()=>{
  const b=seeded(),c=renderFixture(b),before=json(b);
