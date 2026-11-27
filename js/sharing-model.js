@@ -101,6 +101,31 @@ function completionState(prior,wins,ids,existingUndo,nextDue,doingNow,fallbackAt
 }
 function staleUndo(before,mine,theirs){const previous=before?.completionUndo?.winId,current=theirs?.completionUndo?.winId;return !!(before?.done&&mine&&!mine.done&&theirs?.done&&previous&&current&&previous!==current);}
 const completionFields=new Set(['done','completedAt','completionUndo','lastDone','nextDue','elapsedMs','htmlCompletionIds','htmlUndoChildren']);
+function applyPendingUndos(base,remote,pendingUndos){
+ if(!pendingUndos?.length)return remote;
+ const out=C(remote),baseWins=new Set((base.wins||[]).map(row=>row.id));
+ for(const undo of pendingUndos){
+  const winIds=new Set(undo.winIds||[]),taskIds=new Set(undo.taskIds||[]);
+  if(!winIds.size||!taskIds.size)continue;
+  const familyWins=(remote.wins||[]).filter(row=>taskIds.has(row.taskId)||taskIds.has(row.rootTaskId));
+  if(!familyWins.some(row=>winIds.has(row.id)))continue;
+  const hasCompetingWin=familyWins.some(row=>!baseWins.has(row.id)&&!winIds.has(row.id));
+  if(!hasCompetingWin){
+   const undoRows=new Map((undo.rows||[]).map(row=>[row.id,row]));
+   for(const collection of ['tasks','side'])for(const row of out[collection]||[]){
+    if(!taskIds.has(row.id))continue;
+    const identities=[row.completionUndo?.winId,...(row.htmlCompletionIds||[])].filter(Boolean);
+    if(!identities.some(id=>winIds.has(id)))continue;
+    const prior=undoRows.get(row.id);if(!prior)continue;
+    for(const field of completionFields){if(Object.hasOwn(prior,field))row[field]=C(prior[field]);else delete row[field];}
+   }
+  }
+  out.wins=(out.wins||[]).filter(row=>!winIds.has(row.id));
+  const removedSettings=new Set(undo.settingIds||[]);
+  out.settings=(out.settings||[]).filter(row=>!removedSettings.has(row.id));
+ }
+ return out;
+}
 function project(b,raw,account){const out={tasks:[],side:[],rooms:[],wins:[],settings:[],homeless:[],sideTabs:C(b.features.sideTabs||[])};const roomRaw=id=>b.rooms.find(r=>r.id===id)?._sharedId||(id?'room-'+id:'');
  for(const r of b.rooms)out.rooms.push({id:roomRaw(r.id),name:r.name,archived:!!r.archived,order:b.rooms.indexOf(r)});
  for(const t of b.tasks){const collection=t.side?'side':'tasks',prior=(raw[collection]||[]).find(r=>r.id===originalId(t)),meta={};for(const key of ['priority','followupTitle','generatedFrom','touched','wasParent','presetDays','presetMonths','presetMinutes','pauseUntil','calendarMoves','calendarEnabled','calendarSchedule','taskType','tags','checkDays','conditionMode','showInSuggestions','oneOff','rankPriorityWeight','rankRecencyWeight','rankMessWeight','littleOften','occasionKind','occasionSourceId','seasonMonth','seasonDay','warningEnabled','warningFirstDue','warningRepeatDays','warningAmberDays','warningRedDays','warningFlashingDays','warningNextDue','warningLastCompletedAt','warningUndo','syncUpdatedAt'])meta[key]=t[key]??null;meta.occasionalUndo=t._occasionalUndo??null;if(t.section==='Seasonal')meta.section='Seasonal';
@@ -139,7 +164,7 @@ function outgoing(b,state){const raw=state.base,before=project(state.native,raw,
 function completionBranches(base,local,remote,choices){const mine=C(local),theirs=C(remote),conflicts=[];const fields=['done','completedAt','completionUndo','lastDone','nextDue','elapsedMs'];for(const key of ['tasks','side'])for(const original of base[key]||[]){const l=mine[key]?.find(r=>r.id===original.id),r=theirs[key]?.find(r=>r.id===original.id);if(original.done||!l?.done||!r?.done||equal(l.completionUndo,r.completionUndo))continue;const family=new Set([original.id]);for(let i=0;i<(base[key]||[]).length;i++)(base[key]||[]).forEach(row=>{if(family.has(row.parentId))family.add(row.id)});function branch(doc,row){const ids=new Set(row.completionUndo?.nextTaskId?[row.completionUndo.nextTaskId]:[]);for(let i=0;i<(doc[key]||[]).length;i++)(doc[key]||[]).forEach(x=>{if(ids.has(x.parentId))ids.add(x.id)});return {fields:Object.fromEntries(fields.map(f=>[f,row[f]??null])),future:(doc[key]||[]).filter(x=>ids.has(x.id)),wins:(doc.wins||[]).filter(w=>!(base.wins||[]).some(b=>b.id===w.id)&&(family.has(w.taskId)||family.has(w.rootTaskId)))};}
  const lb=branch(mine,l),rb=branch(theirs,r),stamp=row=>Date.parse(row?.androidTask?.syncUpdatedAt||row?.syncUpdatedAt||'')||0,pick=stamp(l)>stamp(r)?'local':'shared';const losingDoc=pick==='local'?theirs:mine,losing=pick==='local'?rb:lb,winning=pick==='local'?l:r;if(losing.future.some(x=>x.done||x.doingNow||x.elapsedMs>0))throw Error('The next occurrence has progressed. Both completions are kept for review.');const futureIds=new Set(losing.future.map(x=>x.id)),winIds=new Set(losing.wins.map(x=>x.id));losingDoc[key]=losingDoc[key].filter(x=>!futureIds.has(x.id));losingDoc.wins=(losingDoc.wins||[]).filter(x=>!winIds.has(x.id));const target=losingDoc[key].find(x=>x.id===original.id);for(const f of fields){if(f in winning)target[f]=C(winning[f]);else delete target[f];}}
  return {mine,theirs,conflicts};}
-function merge(base,local,remote,choices={},initial=false){validateRaw(remote);assertSeasonalMerge(base,local,remote);const seasonalBefore=seasonalScope(base,[local,remote]),seasonalChoice=seasonalDecision(base,local,remote);const branches=completionBranches(base,local,remote,choices);if(branches.conflicts.length)return {payload:C(remote),conflicts:branches.conflicts};local=branches.mine;remote=branches.theirs;const out=C(remote),conflicts=[];for(const key of collections){const b=new Map((base[key]||[]).map(x=>[x.id,x])),l=new Map((local[key]||[]).map(x=>[x.id,x])),r=new Map((remote[key]||[]).map(x=>[x.id,x])),result=new Map((remote[key]||[]).map(x=>[x.id,C(x)]));for(const id of new Set([...b.keys(),...l.keys(),...r.keys()])){const before=b.get(id),mine=l.get(id),theirs=r.get(id);function choose(field,a,z){const path=key+'/'+id+'/'+field; // Legacy manual choices are ignored; the most recent edit is authoritative.
+function merge(base,local,remote,choices={},initial=false,pendingUndos=[]){validateRaw(remote);assertSeasonalMerge(base,local,remote);remote=applyPendingUndos(base,remote,pendingUndos);const seasonalBefore=seasonalScope(base,[local,remote]),seasonalChoice=seasonalDecision(base,local,remote);const branches=completionBranches(base,local,remote,choices);if(branches.conflicts.length)return {payload:C(remote),conflicts:branches.conflicts};local=branches.mine;remote=branches.theirs;const out=C(remote),conflicts=[];for(const key of collections){const b=new Map((base[key]||[]).map(x=>[x.id,x])),l=new Map((local[key]||[]).map(x=>[x.id,x])),r=new Map((remote[key]||[]).map(x=>[x.id,x])),result=new Map((remote[key]||[]).map(x=>[x.id,C(x)]));for(const id of new Set([...b.keys(),...l.keys(),...r.keys()])){const before=b.get(id),mine=l.get(id),theirs=r.get(id);function choose(field,a,z){const path=key+'/'+id+'/'+field; // Legacy manual choices are ignored; the most recent edit is authoritative.
  if(field==='record'){// A deleted record has no own timestamp: keep a newer saved remote edit; otherwise honour the explicit deletion.
  return !mine?'shared':(editedAt(mine)>editedAt(theirs)?'local':'shared');}
  return editedAt(mine)>editedAt(theirs)?'local':'shared';}
@@ -173,8 +198,19 @@ function accept(current,payload,state){const incoming=importRaw(payload),next=C(
   if(current.features.seasonalSharedHouse!==state.house&&(localSeasonal.occasionTemplates.length||localSeasonal.occasionOccurrences.length)&&(!equal(localSeasonal,sharedSeasonal.data)||Object.keys(SEASONAL_CONTENT).some(k=>!equal(current.features[k]||[],incoming.features[k]||[]))))throw Error('Local-only Seasonal plans differ from this household. Both copies are preserved; review them before sharing.');
   next.features.seasonalSharedHouse=state.house;installSeasonal(next.features,sharedSeasonal);if(incoming.features.christmasGiftStages)next.features.christmasGiftStages=C(incoming.features.christmasGiftStages);else delete next.features.christmasGiftStages;for(const key of Object.keys(SEASONAL_CONTENT)){if(incoming.features[key])next.features[key]=C(incoming.features[key]);else delete next.features[key];}
  }else if(current.features.seasonalSharedHouse===state.house&&(localSeasonal.occasionTemplates.length||localSeasonal.occasionOccurrences.length))throw Error('Shared Seasonal plans are missing from the response. Saved work is preserved.');
- next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','gifts','giftPeople'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[]};return next;}
+ next.features.laundry=incoming.features.laundry.map(l=>{const old=current.features.laundry.find(x=>x.slot===l.slot);return old?{...l,...(old.step===l.step&&old.route===l.route&&old.revision===l.revision?{_undo:old._undo}:{}),...(old.startedAt===l.startedAt?{lastReminderAt:old.lastReminderAt}:{})}:l;});if(['uniformIndex','uniformWeek','uniformStartedAt','uniformSteps'].some(k=>!equal(current.features[k],incoming.features[k])))delete next.features._uniformUndo;for(const k of ['wash','railTransfer','dryerTransfer','railFinish','dryerFinish','uniformSteps','uniformIndex','uniformWeek','uniformPaused','uniformPauseUntil','uniformStartedAt','sideTabs','householdName','locationTabs','locationAreas','locationEntries','locationMoves','locationTrash','gifts','giftPeople'])next.features[k]=incoming.features[k];next.features.items=current.features.items.filter(i=>!['laundry','homeless'].includes(i.kind)).concat(incoming.features.items);next.features.browserSync={...state,base:C(payload),native:snapshot(next),hidden:[...hidden],initial:false,choices:{},conflicts:[],retired:[],pendingUndos:[]};return next;}
 function transition(before,next){const state=next.features.browserSync;if(!state)return;
+ const baselineWins=new Set((state.base?.wins||[]).map(row=>row.id));
+ for(const old of before.tasks){
+  const current=next.tasks.find(row=>row.id===old.id);
+  if(!old.done||!current||current.done||!old._completionIds?.length)continue;
+  const winIds=old._completionIds.filter(id=>!baselineWins.has(id));if(!winIds.length)continue;
+  const taskIds=[old,...(old.children||[])].map(originalId),taskIdSet=new Set(taskIds),projected=project(next,state.base,state.account);
+  const rows=[...projected.tasks,...projected.side].filter(row=>taskIdSet.has(row.id));
+  const settingIds=(before.features.questTimings||[]).filter(row=>!(next.features.questTimings||[]).some(item=>item.id===row.id)&&(row.completionWinIds||[]).some(id=>winIds.includes(id))).map(row=>'tidy-timing:'+row.id);
+  const key=JSON.stringify(winIds.slice().sort());
+  if(!(state.pendingUndos||[]).some(undo=>JSON.stringify((undo.winIds||[]).slice().sort())===key))state.pendingUndos=[...(state.pendingUndos||[]),{winIds,taskIds,rows,settingIds}];
+ }
  for(const old of before.tasks){
   if(old.occasionKind==='occasional'&&!next.tasks.some(t=>t.id===old.id)){
    const ids=[old,...(old.children||[])].map(t=>'tasks/'+originalId(t));
@@ -216,7 +252,7 @@ function reconcile(base,current,incoming){
  }
  return C(current);
 }
-async function synchronize(snapshot,load,save,check=()=>{}){const state=snapshot.features.browserSync;if(!state)throw Error('Choose a household first.');const outgoingPayload=outgoing(snapshot,state);for(let attempt=0;attempt<3;attempt++){const remote=await load(state.house);if(remote.account!==state.account||remote.house!==state.house)throw Error('Account or household changed. Saved work was preserved.');const combined=merge(state.base,outgoingPayload,remote.payload,state.choices||{},state.initial);if(combined.conflicts.length)return {conflicts:combined.conflicts};const accepted=accept(snapshot,combined.payload,state);await check();if(equal(combined.payload,remote.payload)||await save(remote,combined.payload,state.account))return {accepted,payload:combined.payload,conflicts:[]};}throw Error('Another device is updating this house. Changes remain saved in this browser; syncing did not complete.');}
+async function synchronize(snapshot,load,save,check=()=>{}){const state=snapshot.features.browserSync;if(!state)throw Error('Choose a household first.');const outgoingPayload=outgoing(snapshot,state);for(let attempt=0;attempt<3;attempt++){const remote=await load(state.house);if(remote.account!==state.account||remote.house!==state.house)throw Error('Account or household changed. Saved work was preserved.');const combined=merge(state.base,outgoingPayload,remote.payload,state.choices||{},state.initial,state.pendingUndos||[]);if(combined.conflicts.length)return {conflicts:combined.conflicts};const accepted=accept(snapshot,combined.payload,state);await check();if(equal(combined.payload,remote.payload)||await save(remote,combined.payload,state.account))return {accepted,payload:combined.payload,conflicts:[]};}throw Error('Another device is updating this house. Changes remain saved in this browser; syncing did not complete.');}
 
 const api={assertSeasonalMerge,reconcile,synchronize,equal,stable,validateRaw,importRaw,snapshot,project,outgoing,merge,accept,transition,collections};root.TidySharedModel=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window==='undefined'?globalThis:window);

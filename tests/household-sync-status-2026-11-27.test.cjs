@@ -153,3 +153,71 @@ test('stale Undo preserves a newer completion for a simple task',async()=>{
  assert.equal(staleUndo.payload.wins[0].id,recompleted.payload.wins[0].id);
  assert.deepEqual(S.importRaw(staleUndo.payload).features.questTimings.map(row=>row.id),['simple-new-timing']);
 });
+
+test('lost save acknowledgement keeps newer local edits, unrelated household additions and one completion',async()=>{
+ const local=M.board(),task=M.task({id:'lost-ack-edit-task',title:'Fold the towels'}),other=M.task({id:'lost-ack-other-task',title:'Clear the chair'});M.add(local,task);M.add(local,other);
+ const base=S.project(local,{},'owner');local.features.browserSync=syncState(local,base);M.finish(local,task.id,true);
+ const completionId=local.tasks.find(row=>row.id===task.id)._completionIds[0];local.features.questTimings.push({id:'lost-ack-edit-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:42000,at:'2026-11-27T09:00:00.000Z',completionWinIds:[completionId]});
+ let remote=M.clone(base),revision=1,loseResponse=true,saves=0;
+ const load=async house=>({house,account:'owner',revision,payload:M.clone(remote)});
+ const save=async(_record,payload)=>{saves++;remote=M.clone(payload);revision++;if(loseResponse){loseResponse=false;throw new TypeError('Failed to fetch after server commit');}return true;};
+ await assert.rejects(S.synchronize(local,load,save),/Failed to fetch after server commit/);
+ assert.equal(remote.wins.filter(row=>row.id===completionId).length,1);
+ local.tasks.find(row=>row.id===task.id).notes='Fold towels before lunch';
+ const otherDevice=S.importRaw(M.clone(remote));M.add(otherDevice,M.task({id:'lost-ack-remote-addition',title:'Put away the books'}));
+ remote=S.project(otherDevice,remote,'owner');revision++;
+ const retry=await S.synchronize(local,load,save);
+ assert.equal(retry.conflicts.length,0);
+ assert.equal(retry.payload.tasks.find(row=>row.id===task.id).done,true);
+ assert.equal(retry.payload.tasks.find(row=>row.id===task.id).notes,'Fold towels before lunch');
+ assert.equal(retry.payload.tasks.some(row=>row.id==='lost-ack-remote-addition'),true);
+ assert.deepEqual(retry.payload.wins.filter(row=>row.taskId===task.id).map(row=>row.id),[completionId]);
+ assert.deepEqual(S.importRaw(retry.payload).features.questTimings.map(row=>row.id),['lost-ack-edit-timing']);
+ assert.equal(saves,2,'one accepted save and one retry save');
+});
+
+test('Undo after a server-accepted save with a lost response removes that exact family win and timing',async()=>{
+ const local=M.board(),task=M.task({id:'lost-ack-undo-task',title:'Reset the kitchen',children:[M.child({id:'lost-ack-undo-child',title:'Wipe the table'})]});M.add(local,task);
+ const base=S.project(local,{},'owner');local.features.browserSync=syncState(local,base);M.finish(local,task.id,true);
+ const completionIds=local.tasks.find(row=>row.id===task.id)._completionIds.slice();local.features.questTimings.push({id:'lost-ack-undo-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:30000,at:'2026-11-27T09:01:00.000Z',completionWinIds:completionIds});
+ let remote=M.clone(base),revision=1,loseResponse=true;
+ const load=async house=>({house,account:'owner',revision,payload:M.clone(remote)});
+ const save=async(_record,payload)=>{remote=M.clone(payload);revision++;if(loseResponse){loseResponse=false;throw new TypeError('Failed to fetch after server commit');}return true;};
+ await assert.rejects(S.synchronize(local,load,save),/Failed to fetch after server commit/);
+ const completed=M.clone(local),undone=M.clone(local);M.finish(undone,task.id,false);S.transition(completed,undone);
+ const retry=await S.synchronize(undone,load,save);
+ assert.equal(retry.payload.tasks.find(row=>row.id===task.id).done,false);
+ assert.equal(retry.payload.tasks.find(row=>row.id==='lost-ack-undo-child').done,false);
+ assert.equal(retry.payload.wins.some(row=>completionIds.includes(row.id)),false);
+ assert.deepEqual(S.importRaw(retry.payload).features.questTimings,[]);
+ assert.equal(retry.accepted.features.browserSync.pendingUndos?.length||0,0,'successful sync clears the temporary Undo marker');
+});
+
+test('lost acknowledgement Undo removes only its own win when a newer remote completion exists',async()=>{
+ const local=M.board(),task=M.task({id:'lost-ack-newer-task',title:'Complete once'});M.add(local,task);
+ const base=S.project(local,{},'owner');local.features.browserSync=syncState(local,base);M.finish(local,task.id,true);
+ const originalWinIds=local.tasks.find(row=>row.id===task.id)._completionIds.slice();local.features.questTimings.push({id:'lost-ack-old-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:30000,at:'2026-11-27T09:02:00.000Z',completionWinIds:originalWinIds});
+ let remote=M.clone(base),revision=1,loseResponse=true;
+ const load=async house=>({house,account:'owner',revision,payload:M.clone(remote)});
+ const save=async(_record,payload)=>{remote=M.clone(payload);revision++;if(loseResponse){loseResponse=false;throw new TypeError('Failed to fetch after server commit');}return true;};
+ await assert.rejects(S.synchronize(local,load,save),/Failed to fetch after server commit/);
+ const completed=M.clone(local),undone=M.clone(local);M.finish(undone,task.id,false);S.transition(completed,undone);
+ const newerDevice=S.importRaw(M.clone(remote)),oldWin=M.clone(remote.wins.find(row=>originalWinIds.includes(row.id))),oldTiming=M.clone(newerDevice.features.questTimings[0]);
+ M.finish(newerDevice,task.id,false);M.finish(newerDevice,task.id,true);
+ newerDevice.features.wins.push(oldWin);newerDevice.features.questTimings.push(oldTiming);
+ const newerWinId=newerDevice.tasks.find(row=>row.id===task.id)._completionIds[0];
+ newerDevice.features.questTimings.push({id:'lost-ack-new-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:55000,at:'2026-11-27T09:03:00.000Z',completionWinIds:[newerWinId]});
+ remote=S.project(newerDevice,remote,'owner');revision++;
+ const retry=await S.synchronize(undone,load,save);
+ assert.equal(retry.payload.tasks.find(row=>row.id===task.id).done,true);
+ assert.equal(retry.payload.tasks.find(row=>row.id===task.id).completionUndo.winId,newerWinId);
+ assert.deepEqual(retry.payload.wins.filter(row=>row.taskId===task.id).map(row=>row.id),[newerWinId]);
+ assert.deepEqual(S.importRaw(retry.payload).features.questTimings.map(row=>row.id),['lost-ack-new-timing']);
+});
+
+test('remote-row deletion safeguard still stops an unconfirmed disappearance',()=>{
+ const board=M.board(),task=M.task({id:'deletion-guard-task',title:'Keep this task'});M.add(board,task);
+ const base=S.project(board,{},'owner'),state=syncState(board,base),remote=M.clone(base);remote.tasks.push({...M.clone(base.tasks[0]),id:'unseen-remote-task',text:'Remote addition'});
+ const truncated=M.clone(base),app=fixture(board);
+ assert.throws(()=>app.api._protectRemoteRows(remote,truncated,state,board),/Safety stop: shared tasks record unseen-remote-task/);
+});
