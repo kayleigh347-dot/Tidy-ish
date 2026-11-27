@@ -18,7 +18,7 @@ test('Christmas Home gives a large accessible countdown, festive styling, active
  const html=render(board);assert.match(html,/class="seasonal-home-event seasonal-home-christmas is-decorated"/);
  assert.match(html,/<strong class="seasonal-christmas-number">30<\/strong>/);
  assert.match(html,/aria-label="30 days until Christmas"/);
- assert.match(html,/days to go/);assert.match(html,/Christmas to-dos/);assert.match(html,/Buy gifts/);
+ assert.match(html,/days to go/);assert.match(html,/Christmas to-dos/);assert.match(html,/Buy gifts/);assert.match(html,/data-action="seasonal-home-complete"/);assert.match(html,/aria-label="Complete Buy gifts"/);
  assert.match(html,/data-action="seasonal-open"/);assert.match(html,/class="seasonal-christmas-icon" aria-hidden="true"/);
  assert.equal(JSON.stringify(board),prior,'Home render is read-only');
 });
@@ -43,7 +43,7 @@ test('disabled decoration preference removes visual ornaments but keeps the Chri
 });
 test('non-Christmas occasions retain their former neutral Home layout',()=>{
  const board=SW.reconcile(event('birthday','2026-12-10'),'2026-11-25').board,html=render(board);
- assert.match(html,/15 days to go/);assert.match(html,/seasonal-home-event/);
+ assert.match(html,/15 days to go/);assert.match(html,/seasonal-home-event/);assert.match(html,/data-action="seasonal-home-complete"/);
  assert.doesNotMatch(html,/seasonal-home-christmas|Christmas to-dos/);
 });
 test('Christmas Home escapes user-defined occasion names and makes no changes when none are active',()=>{
