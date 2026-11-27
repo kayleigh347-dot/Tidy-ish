@@ -1572,7 +1572,7 @@ function liftChildToRoot(b,rootId,childId,targetId,after,view){
  const descendants=branch.filter(c=>c.id!==childId).map(c=>({...c,parentId:c.parentId===childId?'':c.parentId}));
  const promoted=M.task({...child,id:child.id,room:root.room,side:root.side,sideKind:root.sideKind,
   attention:root.attention,doing:root.doing,children:descendants,wasParent:descendants.length>0,
-  repeatDays:0,repeatMonths:0,repeatWeekdays:[],repeatRestDays:[],nextDue:'',dueDate:'',paused:false});
+  repeatDays:0,repeatMonths:0,repeatWeekdays:[],repeatRestDays:[],paused:false});
  // Reject an ID collision before writing any part of the draft board.
  if(b.tasks.some(t=>t.id===promoted.id))throw Error('This subtask already exists as a task. Nothing moved.');
  const anchor=b.tasks.indexOf(target),insert=anchor+(after?1:0);

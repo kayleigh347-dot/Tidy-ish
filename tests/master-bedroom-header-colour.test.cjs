@@ -47,6 +47,6 @@ test('Master-only artwork cache bust updates actual WebP URL but not other room 
 });
 test('Only changed styles and app script get fresh cache keys',()=>{
  assert.match(html,/css\/style\.css\?v=[^"\n]+-masterportrait2-roomchildstrike2-kayleighwriting1-fontreadability2-fontcards1"/);
- assert.match(html,/js\/app\.js\?v=[^"\n]+-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1-focusnav1-timeralarmfix1-focusbreak2-elapsedentry1-doingcollapse1-seasonalhomecomplete1"/);
+ assert.match(html,/js\/app\.js\?v=[^"\n]+-masterportrait2-libraryrepeat1-seasonaltab1-kayleighwriting1-seasonal2a1-seasonal2b1-seasonal2c1-workloada2-christmasb1-seasonalshare1-taskcheck1-christmashome1-christmasb2a1-christmasb3a1-christmasart1-dolater1-christmastrees1-jingle1-fontcards1-taskcardart1-focusresume1-focusnav1-timeralarmfix1-focusbreak2-elapsedentry1-doingcollapse1-seasonalhomecomplete1-liftduedate1"/);
  assert.match(html,/css\/quest-library\.css\?v=20261031-management1-libraryheader1-filterrow1-occasionaltab1-seasonaltab1"/);
 });
