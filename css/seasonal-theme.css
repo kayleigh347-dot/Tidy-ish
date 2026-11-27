@@ -6,7 +6,7 @@ body[data-seasonal-theme="christmas"] .top::after{content:"";position:absolute;i
 body[data-seasonal-theme="newyear"] .top::after{content:"";position:absolute;inset:auto 0 -2px;height:2px;background:linear-gradient(90deg,#e9c461,#e7e8ee,#e9c461);pointer-events:none}
 /* Home keeps the larger festive countdown; art is within its decorative area. */
 .seasonal-home .seasonal-home-christmas.is-decorated::before{height:18px;background:url(../assets/seasonal/christmas/snow-edge.webp) center/100% 100% no-repeat}
-.seasonal-home .seasonal-christmas-icon{width:42px;height:48px;background:url(../assets/seasonal/christmas/gonk.webp) center/contain no-repeat;font-size:0}
+.seasonal-home .seasonal-christmas-icon{width:42px;height:48px;background:url(../assets/seasonal/christmas/tree.webp) center/contain no-repeat;font-size:0}
 .seasonal-home .seasonal-christmas-tree{width:36px;height:48px;flex:0 0 36px;background:url(../assets/seasonal/christmas/tree.webp) center/contain no-repeat;pointer-events:none}
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-eyebrow,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-agenda h3,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-countdown,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-after,.seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-celebration{color:#eee1f4}
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-tasks li::before{content:"•";color:#eee1f4}
@@ -19,6 +19,20 @@ body.seasonal-page-hidden .seasonal-snow-particle{animation-play-state:paused}
 body.reduce-motion #seasonal-snow-layer{display:none}
 @media(prefers-reduced-motion:reduce){#seasonal-snow-layer{display:none}.seasonal-snow-particle{animation:none!important}}
 @media(max-width:350px){.seasonal-home .seasonal-christmas-tree{width:28px;height:38px;flex-basis:28px}.seasonal-home .seasonal-christmas-icon{width:35px;height:42px}}
+
+/* Tree overlays keep room layouts intact and never intercept room controls. */
+.room-scene .seasonal-room-tree{position:absolute;z-index:1;bottom:2%;width:clamp(38px,17%,76px);height:66%;object-fit:contain;pointer-events:none;filter:drop-shadow(0 2px 3px #0006)}
+.room-scene .seasonal-room-tree-living{left:2%}
+.room-scene .seasonal-room-tree-master{right:2%}
+.room-scene .seasonal-room-tree-penny{left:3%}
+.room-scene .seasonal-room-tree-bathroom{right:3%}
+.room-scene .guardian.christmas-costume::after{content:"";position:absolute;top:-6%;left:22%;width:56%;height:25%;background:url(../assets/seasonal/christmas/santa-hat.svg) center/contain no-repeat;filter:drop-shadow(0 1px 2px #0008);pointer-events:none}
+body.christmas-completion-pop::before{content:"";position:fixed;z-index:120;left:50%;top:38%;width:76px;height:94px;transform:translate(-50%,-50%);background:url(../assets/seasonal/christmas/tree.webp) center/contain no-repeat;pointer-events:none;animation:christmas-tree-pop 1.25s ease-out both}
+body.christmas-completion-pop::after{content:"✦ ✧ ✦";position:fixed;z-index:121;left:50%;top:38%;color:#f3d277;font-size:24px;letter-spacing:8px;transform:translate(-50%,-50%);pointer-events:none;text-shadow:0 1px 6px #21012a;animation:christmas-sparkle-pop 1.25s ease-out both}
+@keyframes christmas-tree-pop{0%{opacity:0;scale:.45}18%{opacity:1;scale:1.08}72%{opacity:1;scale:1}100%{opacity:0;scale:1.18}}
+@keyframes christmas-sparkle-pop{0%,100%{opacity:0;scale:.65}22%,68%{opacity:1;scale:1.08}}
+body.reduce-motion.christmas-completion-pop::before,body.reduce-motion.christmas-completion-pop::after{display:none}
+@media(prefers-reduced-motion:reduce){body.christmas-completion-pop::before,body.christmas-completion-pop::after{display:none}}
 
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-open{border-bottom-color:#a58ab6;color:#eee1f4}
 .seasonal-home .seasonal-home-christmas:not(.is-decorated) .seasonal-christmas-agenda{border-top-color:#a58ab6}

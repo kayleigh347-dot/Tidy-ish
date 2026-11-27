@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" role="img" aria-label="Red Santa hat with white trim">
+  <path d="M12 49C25 27 42 12 67 9c1 15 7 26 17 35 4 4 3 9-3 10H17c-6 0-8-2-5-5Z" fill="#c92735" stroke="#76212a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M62 11c8-2 17 1 22 8-7 1-13 5-16 11-4-5-6-11-6-19Z" fill="#c92735" stroke="#76212a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M12 49c15-4 39-5 72-1 6 1 6 8 0 10-19 5-50 5-70 1-6-1-7-7-2-10Z" fill="#fff8ec" stroke="#b8a99c" stroke-width="3"/>
+  <circle cx="83" cy="19" r="8" fill="#fff8ec" stroke="#b8a99c" stroke-width="3"/>
+</svg>

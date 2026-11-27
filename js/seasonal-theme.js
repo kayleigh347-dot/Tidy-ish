@@ -2,7 +2,7 @@
  * occasion, household or backup mutations. Only implemented themes compete. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.TidySeasonalTheme=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';
 const manifest=Object.freeze({
- christmas:Object.freeze({accent:'#e6c16d',edge:'snow-edge.webp',character:'gonk.webp',tree:'tree.webp',particles:Object.freeze(['snowflake-01.webp','snowflake-02.webp','snowflake-03.webp','snowflake-04.webp'])}),
+ christmas:Object.freeze({accent:'#e6c16d',edge:'snow-edge.webp',character:'tree.webp',tree:'tree.webp',particles:Object.freeze(['snowflake-01.webp','snowflake-02.webp','snowflake-03.webp','snowflake-04.webp'])}),
  newyear:Object.freeze({accent:'#e5d9ab',edge:null,character:null,sparkles:Object.freeze(['gold-sparkle.webp','silver-sparkle.webp']),particles:Object.freeze([])})
 });
 const key=boardKey=>boardKey+'-seasonal-display-v1';

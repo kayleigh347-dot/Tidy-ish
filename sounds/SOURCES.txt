@@ -15,3 +15,7 @@ Source: https://opengameart.org/content/subtle-bass
 Timer alert
 File: soft-double-tap.wav
 Original low-pass, soft percussive sound generated for Tidy-ish. It contains no high-pitched oscillator or beep.
+
+Christmas jingle
+File: christmas-jingle.wav
+Original short bell-like tune synthesized locally for Tidy-ish from additive sine tones; no third-party recording or samples used.
