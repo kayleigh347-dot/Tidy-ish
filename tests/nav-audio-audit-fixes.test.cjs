@@ -36,7 +36,7 @@ test('saved Room and Doing Now Focus sessions offer Resume or Start new',()=>{
 test('calm local music and selectable local timer tones exist; no electronic oscillator beep remains',()=>{
  const app=read('js/app.js'),alarm=read('js/timer-alarm-audio.js'),sources=read('sounds/SOURCES.txt');
  for(const file of ['forest-ambience.mp3','subtle-bass.mp3','soft-double-tap.wav','upbeat-rise.wav','bright-steps.wav'])assert.ok(fs.statSync(path.join(root,'sounds',file)).size>1000,file+' should be bundled');
- assert.match(app,/forest-ambience/);assert.match(app,/subtle-bass/);assert.match(app,/timerAlarmAudio/);assert.match(app,/Music and alarm volume/);
+ assert.match(app,/forest-ambience/);assert.match(app,/subtle-bass/);assert.match(app,/timerAlarmAudio/);assert.match(app,/Music and alarm volume/);assert.match(app,/Preview selected timer alarm/);
  assert.match(alarm,/soft-double-tap\.wav/);assert.match(alarm,/upbeat-rise\.wav/);assert.match(alarm,/bright-steps\.wav/);
  assert.doesNotMatch(app,/createOscillator|frequency\.value\s*=\s*660|calm\.wav|dubstep\.wav|morning\.wav|steps\.wav|waltz\.wav/);
  assert.match(sources,/License: CC0 \/ public domain/);assert.match(sources,/contains no high-pitched oscillator or beep/);
