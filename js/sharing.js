@@ -178,7 +178,7 @@ function scheduleSyncRetry(state,error,expectedGeneration){
  if(!isRetryableSyncError(error)){retryAttempt=0;retryDeferred=false;return;}
  if(retryTimer)return;
  if(retryAttempt>=syncRetryDelays.length){retryDeferred=false;const pending=hasPendingChanges();statusChanged(`${error?.message||'Household sync failed.'} Automatic retries stopped after ${syncRetryDelays.length} attempts.${pending?' Pending changes remain saved in this browser; use Refresh now to retry.':' Use Refresh now to check again.'}`,true);return;}
- const delay=syncRetryDelays[retryAttempt++];
+ const delay=syncRetryDelays[retryAttempt];
  retryTimer=setTimeout(()=>{retryTimer=null;const latest=U.getBoard().features.browserSync;if(syncTarget(latest)!==target||!approved(latest))return;if(generation!==expectedGeneration){if(session?.user?.id===latest.account){retryDeferred=true;queue({immediate:true});}return;}if(!navigator.onLine){retryDeferred=true;statusChanged('Saved in this browser. Waiting for an internet connection to sync.');return;}if(U.editing()){retryDeferred=true;statusChanged('Saved locally. Sync resumes when editing is closed.');return;}if(busy){retryDeferred=true;pendingNotice=true;statusChanged('Saved locally. Sync resumes after the current operation.');return;}retryDeferred=false;return sync({fromRetry:true}).catch(()=>{});},delay);
  statusChanged(`${error?.message||'Household sync failed.'} Retrying in ${Math.ceil(delay/1000)} seconds.`,true);
 }
@@ -212,6 +212,7 @@ async function sync({fromRetry=false,fromQueue=false}={}){
  const initial=U.getBoard().features.browserSync;if(busy){pendingNotice=true;return;}if(U.editing()||!navigator.onLine)return;if(!approved(initial))return;
  if(fromQueue&&retryAttempt>=syncRetryDelays.length&&!retryDeferred)return;
  if(!fromRetry&&!fromQueue&&retryAttempt>=syncRetryDelays.length)retryAttempt=0;
+ if(fromRetry||(fromQueue&&retryDeferred))retryAttempt=Math.min(retryAttempt+1,syncRetryDelays.length);
  retryDeferred=false;
  const target=alignRetryTarget(initial),retryGeneration=generation;clearTimeout(timer);timer=null;clearTimeout(retryTimer);retryTimer=null;syncAttemptActive=true;
  try{return await run(async()=>{
