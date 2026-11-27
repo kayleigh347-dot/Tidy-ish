@@ -107,3 +107,28 @@ test('ordinary Undo still removes its own completion and timing record',async()=
  assert.equal(undone.payload.wins.length,0);
  assert.deepEqual(S.importRaw(undone.payload).features.questTimings,[]);
 });
+
+test('accept keeps an incoming newer subtask completion identity',()=>{
+ const board=M.board(),task=M.task({id:'accept-subtask-task',title:'Reset the room',children:[M.child({id:'accept-subtask-child',title:'Put the cushions back'})]});M.add(board,task);M.finish(board,task.id,true);
+ const stale=M.clone(board),remote=M.clone(board);M.finish(remote,task.id,false);M.finish(remote,task.id,true);
+ const staleId=stale.tasks[0].children[0]._winId,newId=remote.tasks[0].children[0]._winId;
+ assert.notEqual(newId,staleId);
+ const accepted=S.accept(stale,S.project(remote,{},'owner'),{native:S.snapshot(stale),hidden:[]});
+ assert.equal(accepted.tasks[0].children[0]._winId,newId);
+});
+
+test('reconcile ignores stale Undo across a newer completion while keeping unrelated edits',()=>{
+ const base=M.board(),task=M.task({id:'reconcile-subtask-task',title:'Reset the room',children:[M.child({id:'reconcile-subtask-child',title:'Put the cushions back'})]});M.add(base,task);M.finish(base,task.id,true);
+ const current=M.clone(base);M.finish(current,task.id,false);current.tasks[0].notes='Keep this offline note';
+ const incoming=M.clone(base);M.finish(incoming,task.id,false);M.finish(incoming,task.id,true);
+ const latestWin=incoming.features.wins.at(-1),latestChildId=incoming.tasks[0].children[0]._winId;
+ incoming.features.questTimings.push({id:'reconcile-new-timing',taskId:task.children[0].id,owner:'owner',kind:'valid',durationMs:60000,at:'2026-11-27T08:00:00.000Z',completionWinIds:[latestWin.id]});
+ const merged=S.reconcile(base,current,incoming);
+ assert.equal(merged.tasks[0].done,true);
+ assert.equal(merged.tasks[0].children[0].done,true);
+ assert.equal(merged.tasks[0].children[0]._winId,latestChildId);
+ assert.deepEqual(merged.tasks[0]._completionIds.map(w=>w.id),incoming.tasks[0]._completionIds.map(w=>w.id));
+ assert.equal(merged.tasks[0].notes,'Keep this offline note');
+ assert.equal(merged.features.wins.at(-1).id,latestWin.id);
+ assert.deepEqual(merged.features.questTimings.map(x=>x.id),['reconcile-new-timing']);
+});
