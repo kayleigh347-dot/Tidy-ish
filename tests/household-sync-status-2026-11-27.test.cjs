@@ -21,14 +21,15 @@ function fixture(initialBoard,{online=false}={}){
 function syncState(board,base){return {account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};}
 
 test('a nested child Undo marker targets only the removed win and preserves a concurrently completed sibling',async()=>{
- const original=M.board(),task=M.task({id:'child-undo-parent',title:'Reset the room',children:[M.child({id:'child-undo-a',title:'Wipe the shelf'}),M.child({id:'child-undo-grandchild',parentId:'child-undo-a',title:'Dust the books'}),M.child({id:'child-undo-b',title:'Put the books back'})]});M.add(original,task);
+ const original=M.board(),earlier=M.task({id:'nested-undo-earlier-task',title:'File the mail'}),task=M.task({id:'child-undo-parent',title:'Reset the room',children:[M.child({id:'child-undo-a',title:'Wipe the shelf'}),M.child({id:'child-undo-grandchild',parentId:'child-undo-a',title:'Dust the books'}),M.child({id:'child-undo-b',title:'Put the books back'})]});M.add(original,earlier);M.finish(original,earlier.id,true);const earlierWin=original.tasks[0]._completionIds[0];original.features.questTimings.push({id:'nested-undo-earlier-timing',taskId:earlier.id,owner:'owner',kind:'valid',durationMs:25000,at:'2026-11-27T09:10:00.000Z',completionWinIds:[earlierWin]});M.add(original,task);
  const base=S.project(original,{},'owner'),local=M.clone(original);local.features.browserSync=syncState(local,base);
  M.completeChild(local,task.id,'child-undo-grandchild',true);
- const acknowledgedCandidate=S.project(local,base,'owner'),targetWin=local.tasks[0].children[1]._winId;
- const remoteDevice=S.importRaw(acknowledgedCandidate);M.completeChild(remoteDevice,task.id,'child-undo-b',true);
+ const targetWin=local.tasks.find(row=>row.id===task.id).children.find(row=>row.id==='child-undo-grandchild')._winId;local.features.questTimings.push({id:'nested-undo-target-timing',taskId:'child-undo-grandchild',owner:'owner',kind:'valid',durationMs:35000,at:'2026-11-27T09:11:00.000Z',completionWinIds:[targetWin]});
+ const acknowledgedCandidate=S.project(local,base,'owner'),remoteDevice=S.importRaw(acknowledgedCandidate);M.completeChild(remoteDevice,task.id,'child-undo-b',true);const siblingWin=remoteDevice.tasks.find(row=>row.id===task.id).children.find(row=>row.id==='child-undo-b')._winId;remoteDevice.features.questTimings.push({id:'nested-undo-sibling-timing',taskId:'child-undo-b',owner:'owner',kind:'valid',durationMs:40000,at:'2026-11-27T09:12:00.000Z',completionWinIds:[siblingWin]});
  const remote=S.project(remoteDevice,acknowledgedCandidate,'owner');
  const completed=M.clone(local),undone=M.clone(local);M.completeChild(undone,task.id,'child-undo-grandchild',false);S.transition(completed,undone);
  assert.deepEqual(undone.features.browserSync.pendingUndos[0].winIds,[targetWin]);
+ assert.deepEqual(undone.features.browserSync.pendingUndos[0].settingIds,['tidy-timing:nested-undo-target-timing']);
  const result=await S.synchronize(undone,async house=>({house,account:'owner',payload:remote}),async()=>true);
  assert.equal(result.conflicts.length,0);
  const rows=new Map(result.payload.tasks.map(row=>[row.id,row]));
@@ -36,22 +37,32 @@ test('a nested child Undo marker targets only the removed win and preserves a co
  assert.equal(rows.get('child-undo-a').done,false,'the nested parent is restored to incomplete');
  assert.equal(rows.get('child-undo-grandchild').done,false,'the undone nested child is restored to incomplete');
  assert.equal(rows.get('child-undo-b').done,true,'the sibling completion remains intact');
- assert.deepEqual(result.payload.wins.map(row=>row.id),[remote.wins.find(row=>row.taskId==='child-undo-b').id]);
+ assert.deepEqual(result.payload.wins.map(row=>row.id),[earlierWin,siblingWin]);
+ assert.deepEqual(S.importRaw(result.payload).features.questTimings.map(row=>row.id),['nested-undo-earlier-timing','nested-undo-sibling-timing']);
 });
 
-test('parent Undo targets only its newly added wins and keeps an earlier completed subtask',()=>{
+test('parent Undo synchronizes its exact wins and preserves an earlier subtask completion and timing',async()=>{
  const board=M.board(),task=M.task({id:'parent-undo-root',title:'Reset the hall',children:[M.child({id:'parent-undo-kept',title:'Hang coats'}),M.child({id:'parent-undo-new',title:'Clear the bench'})]});M.add(board,task);
- const base=S.project(board,{},'owner');board.features.browserSync=syncState(board,base);
  M.completeChild(board,task.id,'parent-undo-kept',true);
- const keptWin=board.tasks[0].children[0]._winId;
- M.finish(board,task.id,true);const completed=M.clone(board),removedWins=board.tasks[0]._completionIds.slice();
+ const keptWin=board.tasks[0].children[0]._winId;board.features.questTimings.push({id:'parent-undo-earlier-timing',taskId:'parent-undo-kept',owner:'owner',kind:'valid',durationMs:28000,at:'2026-11-27T09:13:00.000Z',completionWinIds:[keptWin]});
+ const base=S.project(board,{},'owner');board.features.browserSync=syncState(board,base);
+ M.finish(board,task.id,true);const removedWins=board.tasks[0]._completionIds.slice();board.features.questTimings.push({id:'parent-undo-target-timing',taskId:'parent-undo-new',owner:'owner',kind:'valid',durationMs:32000,at:'2026-11-27T09:14:00.000Z',completionWinIds:removedWins});const completed=M.clone(board),remote=S.project(completed,base,'owner');
  M.finish(board,task.id,false);S.transition(completed,board);
  const marker=board.features.browserSync.pendingUndos[0];
  assert.deepEqual(marker.winIds,removedWins);
  assert.equal(marker.winIds.includes(keptWin),false,'the pre-existing subtask win is not marked for removal');
+ assert.deepEqual(marker.settingIds,['tidy-timing:parent-undo-target-timing']);
  assert.equal(board.features.wins.some(row=>row.id===keptWin),true,'the earlier completion remains in local history');
  assert.equal(board.tasks[0].children[0].done,true,'Undo restores the completed subtask state');
  assert.equal(board.tasks[0].children[1].done,false);
+ const result=await S.synchronize(board,async house=>({house,account:'owner',payload:remote}),async()=>true);
+ assert.equal(result.conflicts.length,0);
+ const rows=new Map(result.payload.tasks.map(row=>[row.id,row]));
+ assert.equal(rows.get(task.id).done,false);
+ assert.equal(rows.get('parent-undo-kept').done,true);
+ assert.equal(rows.get('parent-undo-new').done,false);
+ assert.deepEqual(result.payload.wins.map(row=>row.id),[keptWin]);
+ assert.deepEqual(S.importRaw(result.payload).features.questTimings.map(row=>row.id),['parent-undo-earlier-timing']);
 });
 
 test('ordinary reactivation keeps completion history and does not create an Undo marker',()=>{
