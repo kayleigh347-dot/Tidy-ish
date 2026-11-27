@@ -3,8 +3,9 @@
 const U=window.TidyUI,M=window.TidyModel,S=window.TidySharedModel;
 const storageCodec=window.TidyStorageCodec;
 const SUPABASE_URL='https://thviqhojcjrmqurhdkql.supabase.co',PUBLIC_KEY='sb_publishable_ziQesp5o-pHIXINUMMdmTA_3nDFSVZr',AUTH_KEY='tidyish-html-v023-auth';
-let liveChannel=null,liveHouseKey="",liveSubscribed=false,pendingNotice=false,remoteSave=false;
-let client=null,loading=null,session=null,houses=[],members=[],newMembers=[],people=[],busy=false,status='Not connected. Changes are saved in this browser.',statusError=false,timer=null,invite='',conflicts=[],generation=0;
+let liveChannel=null,liveHouseKey="",liveSubscribed=false,pendingNotice=false,remoteSave=false,syncAttemptActive=false;
+let client=null,loading=null,session=null,houses=[],members=[],newMembers=[],people=[],busy=false,status='Not connected. Changes are saved in this browser.',statusError=false,timer=null,retryTimer=null,retryAttempt=0,retryTarget='',invite='',conflicts=[],generation=0;
+const syncRetryDelays=[2000,5000,15000,30000,60000];
 // Invitation codes are issued by Supabase. A link only transports an existing code;
 // visiting it never grants access or imports a household automatically.
 const PENDING_INVITE_KEY='tidyish-v023-pending-invite'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':'');
@@ -101,7 +102,7 @@ function panel(){
  const options=houses.map(h=>[h.id,h.id===state?.house&&savedName?savedName:h.label]);
  return card(`<h2>Connected household</h2><p class="small" role="status">${esc(displayStatus())}</p>${busy?'<p class="gold small">Working…</p>':''}${!user?`${pendingInvite?'<p class="small">Household invitation received. Sign in first; joining is a separate choice.</p>':''}<form id="house-signin">${field('Email used for your household','email','','email','required autocomplete="email"')}<button ${busy?'disabled':''}>Send sign-in link</button></form><p class="small">Open the newest email link in this browser. The local preview address must be permitted in Supabase’s redirect URLs.</p>`:`<p class="small">${esc(user.email)}</p>`}<div class="row">${btn('Refresh households','house-refresh','','',busy?'disabled':'')}${user?btn('Sign out','house-signout','','ghost',busy?'disabled':''):''}</div>${houses.length?`<form id="house-select">${U.select('Household','house',options,state?.house||user?.id)}<button ${busy?'disabled':''}>Preview household</button></form>`:''}${state?`<div class="row spread"><span class="small">Connected: ${esc(savedName||houses.find(h=>h.id===state.house)?.label||state.house)}</span>${user?btn('Rename household','house-rename','','ghost',busy?'disabled':''):''}</div>${!approved(state)?'<p class="small">Automatic uploads are paused until you explicitly enable sync for this household.</p>':''}${btn(approved(state)?'Refresh now':'Enable sync for this household','house-sync','','',busy?'disabled':'')}`:''}${user?card(`<h3>Start Fresh Household</h3><p class="small">Create a completely separate household using the tasks and completion history in THIS browser. Your old household remains unchanged. A one-time Supabase setup is needed.</p>${btn('Start Fresh Household','house-fresh','','',busy?'disabled':'')}`):''}${user?detail('Share or join a house',`<div class="row">${btn('Create invitation link','house-invite')}${btn('Cancel unused invite','house-cancel-invite','','ghost')}</div>${invite?`<p class="gold">Invitation code: ${esc(invite)}</p><label class="field">Invitation link<input id="house-invite-link" type="text" readonly value="${esc(inviteLink(invite))}" aria-label="Invitation link"></label>${btn('Copy invitation link','house-copy-invite','','ghost')}<p class="small">Share privately. The recipient must sign in and choose Join household.</p>`:''}${pendingInvite?'<p class="small">Invitation ready. Joining will let you preview the shared household before opening it.</p>':''}<form id="house-join">${field('Invitation code','code',pendingInvite,'text','required autocomplete="off"')}<button ${busy?'disabled':''}>Join household</button></form>${(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).length?'<h3>Members of selected household</h3>'+(state?.kind==='v2'?newMembers.filter(m=>m.houseId===state.house):members).map(p=>`<p class="small">${esc(p.email)} ${btn('Remove access','house-remove',p.id,'ghost')}</p>`).join(''):''}`,!!pendingInvite):''}`);
 }
-async function run(work){if(busy)return;busy=true;U.onSyncStatus();try{return await work();}catch(e){statusChanged(e.message,true);U.notice(e.message);throw e;}finally{busy=false;U.onSyncStatus();if(pendingNotice){pendingNotice=false;queue();}}}
+async function run(work){if(busy)return;busy=true;U.onSyncStatus();try{return await work();}catch(e){statusChanged(e.message,true);if(!isRetryableSyncError(e)||retryAttempt===0)U.notice(e.message);throw e;}finally{busy=false;U.onSyncStatus();if(pendingNotice&&!syncAttemptActive){pendingNotice=false;queue();}}}
 function cacheKey(account,house){return 'tidyish-html-v023-house:'+account+'/'+house;}
 function readHouseCache(key){const raw=localStorage.getItem(key);return raw?(storageCodec?.decode?storageCodec.decode(raw):JSON.parse(raw)):null;}
 function writeHouseCache(key,board){localStorage.setItem(key,storageCodec?.encode?storageCodec.encode(board):JSON.stringify(board));}
@@ -114,7 +115,7 @@ function displayStatus(){
  if(hasPendingChanges(board,state))return navigator.onLine?'Saved in this browser. Waiting to sync with the household.':'Saved in this browser. Waiting for an internet connection to sync.';
  return status==='Not connected. Changes are saved in this browser.'?'No local changes waiting to sync.':status;
 }
-function stageError(stage,error){return Error(`Sync error: ${stage} failed. Your local changes remain saved in this browser. ${error?.message||String(error)}`);}
+function stageError(stage,error){const pending=hasPendingChanges(),wrapped=Error(`Sync error: ${stage} failed.${pending?' Your local changes remain saved in this browser.':' No local changes were sent.'} ${error?.message||String(error)}`);if(error&&typeof error==='object')wrapped.cause=error;return wrapped;}
 function approve(state){if(!state?.account||!state?.house)throw Error('Choose a household before enabling sync.');localStorage.setItem('tidyish-html-v023-sync-approved:'+state.account+'/'+state.house,'yes');}
 async function preview(house){const remote=await load(house),incoming=S.importRaw(remote.payload),current=U.getBoard(),state=current.features.browserSync;updatePeople(remote.payload,remote.account,house);let chosen=current,mode='merge';if(houses.find(h=>h.id===house)?.kind==='v2'&&state?.house!==house){chosen=incoming;mode='switch';}else if(state&&(state.account!==remote.account||state.house!==house)){const saved=readHouseCache(cacheKey(remote.account,house));chosen=saved?M.normalize(saved):incoming;mode='switch';}const added=incoming.tasks.filter(t=>!chosen.tasks.some(x=>x.id===t.id)).length;const title=incoming.features.householdName||houses.find(h=>h.id===house)?.label||'Household';U.dialog('Connect household',`<h3>${esc(title)}</h3><p>${incoming.rooms.length} rooms · ${incoming.tasks.length} task families · ${incoming.features.laundry.filter(l=>l.step).length} active laundry loads.</p><p class="small">${mode==='switch'?'Your current household is kept in a separate browser copy. This opens the selected household.':`${added} household task families will be added. Your local tasks, timers, attachments and progress are kept. The newest saved changes sync automatically; existing history is preserved.`}</p><p class="small">${incoming.tasks.filter(M.repeat).length} existing recurring families are preserved. Calendar and Schedule editing remain for later.</p>`,()=>{if(busy)throw Error('Wait for the current operation to finish.');const latest=U.getBoard(),old=latest.features.browserSync;if(old)writeHouseCache(cacheKey(old.account,old.house),latest);else if(!localStorage.getItem(U.storageKey+'-before-first-connection'))writeHouseCache(U.storageKey+'-before-first-connection',latest);let next=mode==='switch'?M.clone(chosen):M.merge(latest,incoming);if(mode==='switch'&&chosen.features.browserSync?.account===remote.account&&chosen.features.browserSync.house===house){/* Preserve the cached merge base and pending changes. */}else next.features.browserSync={account:remote.account,house,kind:houses.find(h=>h.id===house)?.kind||'legacy',base:M.clone(remote.payload),native:S.snapshot(incoming),initial:true,hidden:[],choices:{},conflicts:[],retired:[]};next.features.connectedHouse=house;U.acceptSync(next);approve(next.features.browserSync);generation++;listenForHouseholdChanges();conflicts=[];U.closeDialog(true);statusChanged('Household connected. Synchronising saved changes.');queue();},{saveLabel:'Connect this household'});}
 /* Realtime is only a tiny "board changed" signal, never a task payload.
@@ -153,12 +154,29 @@ function announceSavedHousehold(house){
  if(!liveSubscribed||!liveChannel||U.getBoard().features.browserSync?.house!==house)return;
  Promise.resolve(liveChannel.send({type:'broadcast',event:'board-changed',payload:{house}})).catch(()=>{});
 }
-function queue(){
- clearTimeout(timer);const state=U.getBoard().features.browserSync;
+function syncTarget(state=U.getBoard().features.browserSync){return state?.account&&state?.house?`${state.account}\u0000${state.house}`:'';}
+function alignRetryTarget(state){const target=syncTarget(state);if(target!==retryTarget){clearTimeout(retryTimer);retryTimer=null;retryAttempt=0;retryTarget=target;}return target;}
+function isRetryableSyncError(error){
+ const seen=new Set();for(let current=error;current&&!seen.has(current);current=current.cause){seen.add(current);const statusCode=Number(current.status??current.statusCode);if([408,425,429,500,502,503,504].includes(statusCode))return true;const code=String(current.code||'');if(/^E(?:CONN|HOST|NET|TIMEDOUT|PIPE)/i.test(code))return true;const message=String(current.message||current);if(/another device is updating this house|failed to fetch|networkerror|network request failed|load failed|connection (?:reset|refused|closed)|timed?\s*out|timeout/i.test(message))return true;}return false;
+}
+function scheduleSyncRetry(state,error,expectedGeneration){
+ const target=alignRetryTarget(state),current=U.getBoard().features.browserSync;if(!target||!approved(state)||generation!==expectedGeneration||syncTarget(current)!==target)return;
+ if(!isRetryableSyncError(error)){retryAttempt=0;return;}
+ if(retryTimer)return;
+ if(retryAttempt>=syncRetryDelays.length){const pending=hasPendingChanges();statusChanged(`${error?.message||'Household sync failed.'} Automatic retries stopped after ${syncRetryDelays.length} attempts.${pending?' Pending changes remain saved in this browser; use Refresh now to retry.':' Use Refresh now to check again.'}`,true);return;}
+ const delay=syncRetryDelays[retryAttempt++];
+ retryTimer=setTimeout(()=>{retryTimer=null;const latest=U.getBoard().features.browserSync;if(syncTarget(latest)!==target||!approved(latest))return;if(generation!==expectedGeneration){if(session?.user?.id===latest.account)queue({immediate:true});return;}if(!navigator.onLine){statusChanged('Saved in this browser. Waiting for an internet connection to sync.');return;}if(U.editing())return;return sync({fromRetry:true}).catch(()=>{});},delay);
+ statusChanged(`${error?.message||'Household sync failed.'} Retrying in ${Math.ceil(delay/1000)} seconds.`,true);
+}
+function queue({immediate=false}={}){
+ clearTimeout(timer);timer=null;const state=U.getBoard().features.browserSync;alignRetryTarget(state);
  if(!approved(state))return;
+ if(!retryTimer&&retryAttempt>=syncRetryDelays.length)retryAttempt=0;
  if(hasPendingChanges(U.getBoard(),state))statusChanged(navigator.onLine?'Saved in this browser. Waiting to sync with the household.':'Saved in this browser. Waiting for an internet connection to sync.');
  listenForHouseholdChanges();
- timer=setTimeout(()=>sync().catch(()=>{}),900);
+ if(busy){pendingNotice=true;return;}
+ if(retryTimer)return;
+ timer=setTimeout(()=>{timer=null;return sync().catch(()=>{});},immediate?0:900);
 }
 const reconcile=S.reconcile;
 // Every remote deletion must be traceable to a locally removed row from the
@@ -176,10 +194,11 @@ function protectRemoteRows(remote,payload,state,local){
 }
 function localSnapshot(b){const out=M.clone(b);delete out.features.browserSync;return out;}
 
-async function sync(){
- if(busy||U.editing()||!navigator.onLine)return;
- const initial=U.getBoard().features.browserSync;if(!approved(initial))return;
- return run(async()=>{
+async function sync({fromRetry=false}={}){
+ const initial=U.getBoard().features.browserSync;if(busy){pendingNotice=true;return;}if(U.editing()||!navigator.onLine)return;if(!approved(initial))return;
+ if(!fromRetry&&retryAttempt>=syncRetryDelays.length)retryAttempt=0;
+ const target=alignRetryTarget(initial),retryGeneration=generation;clearTimeout(timer);timer=null;clearTimeout(retryTimer);retryTimer=null;syncAttemptActive=true;
+ try{return await run(async()=>{
   const user=await verified();
   if(user.id!==initial.account)throw Error('This browser board belongs to a different account. Its saved work is preserved. Choose the matching household.');
   const runGeneration=generation,snapshot=M.clone(U.getBoard()),state=snapshot.features.browserSync;
@@ -214,7 +233,7 @@ async function sync(){
   statusChanged('Synced at '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+'. Changes share with this household.');
   if(remoteSave)announceSavedHousehold(state.house);
   if(!S.equal(localSnapshot(snapshot),currentSnapshot))queue();
- });
+ });retryAttempt=0;}catch(error){scheduleSyncRetry(initial,error,retryGeneration);throw error;}finally{syncAttemptActive=false;if(pendingNotice){pendingNotice=false;queue();}if(syncTarget(U.getBoard().features.browserSync)!==target)alignRetryTarget(U.getBoard().features.browserSync);}
 }
 
 async function startFreshHousehold(){
@@ -307,5 +326,5 @@ const actions={
  'house-remove':el=>U.confirmDialog('Remove household access?','This removes this member’s access to your house. Previously downloaded copies remain on their device.',()=>{run(async()=>{const house=U.getBoard().features.browserSync;if(house?.kind==='v2')await callNew('remove-member',{p_house_id:house.house,target_member:el.dataset.id});else await call('remove-member',{target_member:el.dataset.id});await refreshHouses();statusChanged('Member access removed.')}).catch(()=>{});},'Remove access'),
 };
 async function submit(form,fd){if(form.id==='house-signin')return run(async()=>{const db=await init(),email=String(fd.get('email')).trim(),redirect=new URL('index.html',location.href).href,{error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:redirect,shouldCreateUser:false}});if(error)throw error;statusChanged('Check your email and open the newest sign-in link in this browser.');});if(form.id==='house-select')return run(()=>preview(String(fd.get('house'))));if(form.id==='house-join')return run(async()=>{const code=String(fd.get('code')).trim();if(!code)throw Error('Paste an invitation code.');let data;try{data=await callNew('join',{invite_code:code});}catch(e){if(!/Invite expired or invalid/i.test(e.message))throw e;data=await call('join',{invite_code:code});}await refreshHouses();clearPendingInvite();statusChanged('Invitation accepted. Preview the shared house before opening it.');if(data.houseId)await preview(data.houseId);});}
-const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{listenForHouseholdChanges();queue();});window.addEventListener('offline',()=>{if(hasPendingChanges()&&approved(U.getBoard().features.browserSync))statusChanged(displayStatus());});document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message,true));if(pendingInvite)U.navigate('settings',undefined,'household');U.onSyncStatus();
+const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{clearTimeout(retryTimer);retryTimer=null;retryAttempt=0;listenForHouseholdChanges();queue({immediate:true});});window.addEventListener('offline',()=>{if(hasPendingChanges()&&approved(U.getBoard().features.browserSync))statusChanged(displayStatus());});document.getElementById('editor')?.addEventListener('close',()=>queue({immediate:true}));document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message,true));if(pendingInvite)U.navigate('settings',undefined,'household');U.onSyncStatus();
 })();
