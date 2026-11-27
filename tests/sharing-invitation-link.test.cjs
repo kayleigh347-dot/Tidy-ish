@@ -167,8 +167,8 @@ test('layout release advances app version and preserves the invitation-safe shar
  assert.ok(html.includes('addons/tidyish-daily-log/addon.css?v=20261112-connected1"'),'Protected asset: addons/tidyish-daily-log/addon.css');
  assert.ok(html.includes('js/task-data.js?v=20261104-timer-task-title1-management1"'),'Protected asset: js/task-data.js');
  assert.ok(html.includes('js/daily-log-host.js?v=20261114-stage2"'),'Protected asset: js/daily-log-host.js');
- assert.ok(html.includes('js/sharing-model.js?v=20261112-connected1-interface1-seasonalshare1-christmasb2a1-christmasb3a1"'),'Protected asset: js/sharing-model.js');
- assert.ok(html.includes('js/sharing.js?v=20261115-invite-link-qa1-interface1-seasonalshare1"'),'Protected asset: js/sharing.js');
+ assert.ok(html.includes('js/sharing-model.js?v=20261112-connected1-interface1-seasonalshare1-christmasb2a1-christmasb3a1-20261127-syncstatus-staleundo1"'),'Protected asset: js/sharing-model.js');
+ assert.ok(html.includes('js/sharing.js?v=20261115-invite-link-qa1-interface1-seasonalshare1-20261127-syncstatus1"'),'Protected asset: js/sharing.js');
 });
 
 test('invite survives an email redirect reload in the same browser tab',()=>{

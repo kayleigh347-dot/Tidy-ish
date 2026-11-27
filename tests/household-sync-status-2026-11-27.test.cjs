@@ -72,19 +72,38 @@ test('household list, board read and board save errors identify their stage',asy
 });
 
 test('stale Undo does not remove a remote re-completion win',async()=>{
- const original=M.board(),task=M.task({id:'sync-undo-task',title:'Clean the counter'});M.add(original,task);
+ const original=M.board(),task=M.task({id:'sync-undo-task',title:'Clean the counter',children:[M.child({id:'sync-undo-child',title:'Wipe the counter'})]});M.add(original,task);
  const originalRaw=S.project(original,{},'owner');
- const a=M.clone(original);a.features.browserSync=syncState(a,originalRaw);M.finish(a,task.id,true);
+ const timing=(b,id,durationMs)=>b.features.questTimings.push({id,taskId:task.id,owner:'owner',kind:'valid',durationMs,at:`2026-11-27T07:00:${id.endsWith('new')?'02':'01'}.000Z`,completionWinIds:b.tasks[0]._completionIds.slice()});
+ const a=M.clone(original);a.features.browserSync=syncState(a,originalRaw);M.finish(a,task.id,true);timing(a,'timing-old',45000);
  let remote;
  const first=await S.synchronize(a,async()=>({house:'house',account:'owner',payload:originalRaw}),async(_r,payload)=>{remote=payload;return true;});
  let b=M.clone(original);b.features.browserSync=syncState(b,originalRaw);
  const received=await S.synchronize(b,async()=>({house:'house',account:'owner',payload:remote}),async()=>{assert.fail('unchanged member should not upload');});
  b=received.accepted;M.finish(b,task.id,false);
- const aAccepted=first.accepted;M.finish(aAccepted,task.id,false);M.finish(aAccepted,task.id,true);
+ const aAccepted=first.accepted;M.finish(aAccepted,task.id,false);M.finish(aAccepted,task.id,true);timing(aAccepted,'timing-new',90000);
  const second=await S.synchronize(aAccepted,async()=>({house:'house',account:'owner',payload:remote}),async(_r,payload)=>{remote=payload;return true;});
  const undone=await S.synchronize(b,async()=>({house:'house',account:'owner',payload:remote}),async(_r,payload)=>{remote=payload;return true;});
  assert.equal(undone.conflicts.length,0);
  assert.equal(undone.payload.wins.length,1);
  assert.equal(undone.payload.wins[0].id,second.payload.wins[0].id);
- assert.equal(undone.payload.tasks.find(t=>t.id===task.id).done,true);
+ assert.equal(undone.payload.wins[0].points,second.payload.wins[0].points);
+ assert.deepEqual(S.importRaw(undone.payload).features.questTimings.map(x=>x.id),['timing-new']);
+ const mergedTask=undone.payload.tasks.find(t=>t.id===task.id),mergedChild=undone.payload.tasks.find(t=>t.id==='sync-undo-child');
+ assert.equal(mergedTask.done,true);
+ assert.equal(mergedTask.completionUndo.winId,second.payload.tasks.find(t=>t.id===task.id).completionUndo.winId);
+ assert.equal(mergedChild.done,true);
+ assert.equal(mergedChild.completionUndo.winId,second.payload.tasks.find(t=>t.id==='sync-undo-child').completionUndo.winId);
+});
+
+test('ordinary Undo still removes its own completion and timing record',async()=>{
+ const board=M.board(),task=M.task({id:'ordinary-sync-undo',title:'Wipe the side table'});M.add(board,task);
+ const base=S.project(board,{},'owner'),local=M.clone(board);local.features.browserSync=syncState(local,base);
+ M.finish(local,task.id,true);local.features.questTimings.push({id:'ordinary-undo-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:30000,at:'2026-11-27T07:00:00.000Z',completionWinIds:local.tasks[0]._completionIds.slice()});
+ const completed=await S.synchronize(local,async house=>({house,account:'owner',payload:base}),async()=>true);
+ const current=completed.accepted;M.finish(current,task.id,false);
+ const undone=await S.synchronize(current,async house=>({house,account:'owner',payload:completed.payload}),async()=>true);
+ assert.equal(undone.payload.tasks.find(t=>t.id===task.id).done,false);
+ assert.equal(undone.payload.wins.length,0);
+ assert.deepEqual(S.importRaw(undone.payload).features.questTimings,[]);
 });
