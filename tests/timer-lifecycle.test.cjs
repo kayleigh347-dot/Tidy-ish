@@ -47,7 +47,7 @@ test('Focus break integration has current caches, cancels its panel and has no o
  const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
  assert.match(html,/js\/focus-break-timer\.js\?v=/);
  assert.match(html,/js\/quest-time-core\.js\?v=3-focusbreak1-elapsedentry1/);
- assert.match(html,/js\/app\.js\?v=[^\"]*focusbreak2-elapsedentry1/);
+ assert.match(html,/js\/app\.js\?v=[^\"]*focusbreak2-elapsedentry1-doingcollapse1/);
  assert.doesNotMatch(app,/discardExpiredTaskTimers|hasExpiredTaskTimer|timerExpirySyncPending/);
  assert.match(app,/TIME\.focusQuestCompleted\(board,next,route,Q\?\.get\?\.\(\)\)/);
  assert.match(app,/focusBreakTimer\?\.cancelIfTaskUndone\(next\)/);

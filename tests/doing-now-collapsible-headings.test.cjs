@@ -46,7 +46,7 @@ const action=(name)=>{
 };
 const ids=html=>Array.from(html.matchAll(/data-task-id="([^"]+)"/g),m=>m[1]);
 
-test('Doing Now Room and Seasonal headings collapse independently without mutating task order or state',()=>{
+test('Doing Now Room and Seasonal headings collapse independently without mutating task order or route',()=>{
  const original=JSON.stringify(tasks);renders=0;
  const initial=ctx.doingPage();
  assert.match(initial,/data-action="collapse" data-id="bedroom"/);
@@ -57,22 +57,32 @@ test('Doing Now Room and Seasonal headings collapse independently without mutati
 
  const roomCollapse=action('collapse'),seasonalCollapse=action('doing-collapse-seasonal');
  roomCollapse({dataset:{id:'bedroom'}});
- ctx.route='doing';
+ assert.equal(ctx.route,'doing','collapsing must not navigate away from Doing Now');
  const roomClosed=ctx.doingPage();
  assert.deepEqual(ids(roomClosed),['tree','lights']);
  assert.match(roomClosed,/data-action="collapse" data-id="bedroom"[^>]*aria-expanded="false"/);
  assert.deepEqual([...ctx.collapsed],[],'Doing Now collapse must not alter Room collapse state');
 
+ roomCollapse({dataset:{id:'bedroom'}});
+ const roomReopened=ctx.doingPage();
+ assert.deepEqual(ids(roomReopened),['tree','lights','bed']);
+ assert.match(roomReopened,/data-action="collapse" data-id="bedroom"[^>]*aria-expanded="true"/);
+ assert.equal(ctx.route,'doing','reopening must remain on Doing Now');
+
  seasonalCollapse({dataset:{id:'christmas'}});
- const bothClosed=ctx.doingPage();
- assert.deepEqual(ids(bothClosed),[]);
- assert.match(bothClosed,/data-action="doing-collapse-seasonal" data-id="christmas"[^>]*aria-expanded="false"/);
- assert.deepEqual([...ctx.doingCollapsed].sort(),['room:bedroom','seasonal:christmas']);
+ const seasonalClosed=ctx.doingPage();
+ assert.deepEqual(ids(seasonalClosed),['bed']);
+ assert.match(seasonalClosed,/data-action="doing-collapse-seasonal" data-id="christmas"[^>]*aria-expanded="false"/);
+ assert.match(seasonalClosed,/data-action="collapse" data-id="bedroom"[^>]*aria-expanded="true"/);
+ assert.deepEqual([...ctx.doingCollapsed],['seasonal:christmas']);
+ assert.equal(ctx.route,'doing','collapsing Seasonal must remain on Doing Now');
  assert.equal(JSON.stringify(tasks),original);
 
  seasonalCollapse({dataset:{id:'christmas'}});
  const reopened=ctx.doingPage();
- assert.deepEqual(ids(reopened),['tree','lights']);
+ assert.deepEqual(ids(reopened),['tree','lights','bed']);
+ assert.deepEqual([...ctx.doingCollapsed],[]);
+ assert.equal(ctx.route,'doing','reopening Seasonal must remain on Doing Now');
  assert.deepEqual(JSON.stringify(tasks),original);
- assert.equal(renders,3);
+ assert.equal(renders,4);
 });
