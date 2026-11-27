@@ -127,8 +127,29 @@ test('reconcile ignores stale Undo across a newer completion while keeping unrel
  assert.equal(merged.tasks[0].done,true);
  assert.equal(merged.tasks[0].children[0].done,true);
  assert.equal(merged.tasks[0].children[0]._winId,latestChildId);
- assert.deepEqual(merged.tasks[0]._completionIds.map(w=>w.id),incoming.tasks[0]._completionIds.map(w=>w.id));
+ assert.deepEqual(merged.tasks[0]._completionIds,incoming.tasks[0]._completionIds);
+ assert.ok(merged.tasks[0]._completionIds.includes(latestChildId));
  assert.equal(merged.tasks[0].notes,'Keep this offline note');
  assert.equal(merged.features.wins.at(-1).id,latestWin.id);
  assert.deepEqual(merged.features.questTimings.map(x=>x.id),['reconcile-new-timing']);
+});
+
+test('stale Undo preserves a newer completion for a simple task',async()=>{
+ const original=M.board(),task=M.task({id:'simple-sync-undo',title:'Wipe the table'});M.add(original,task);
+ const base=S.project(original,{},'owner'),first=M.clone(original);first.features.browserSync=syncState(first,base);M.finish(first,task.id,true);
+ let remote;
+ const firstSync=await S.synchronize(first,async house=>({house,account:'owner',payload:base}),async(_r,payload)=>{remote=payload;return true;});
+ const secondDevice=M.clone(original);secondDevice.features.browserSync=syncState(secondDevice,base);
+ const received=await S.synchronize(secondDevice,async house=>({house,account:'owner',payload:remote}),async()=>{assert.fail('unchanged device should not upload');});
+ M.finish(received.accepted,task.id,false);
+ const newer=firstSync.accepted;M.finish(newer,task.id,false);M.finish(newer,task.id,true);
+ newer.features.questTimings.push({id:'simple-new-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:45000,at:'2026-11-27T08:00:01.000Z',completionWinIds:newer.tasks[0]._completionIds.slice()});
+ const recompleted=await S.synchronize(newer,async house=>({house,account:'owner',payload:remote}),async(_r,payload)=>{remote=payload;return true;});
+ const staleUndo=await S.synchronize(received.accepted,async house=>({house,account:'owner',payload:remote}),async(_r,payload)=>{remote=payload;return true;});
+ const merged=staleUndo.payload.tasks.find(row=>row.id===task.id);
+ assert.equal(merged.done,true);
+ assert.equal(merged.completionUndo.winId,recompleted.payload.tasks.find(row=>row.id===task.id).completionUndo.winId);
+ assert.equal(staleUndo.payload.wins.length,1);
+ assert.equal(staleUndo.payload.wins[0].id,recompleted.payload.wins[0].id);
+ assert.deepEqual(S.importRaw(staleUndo.payload).features.questTimings.map(row=>row.id),['simple-new-timing']);
 });
