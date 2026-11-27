@@ -8,11 +8,11 @@ globalThis.TidyQuestFocus=Q;
 const DAY='2026-11-01';
 
 function setup(now=Date.now()){
- const board=M.board(),values=new Map(),dialogs=[];let counter=0;
+ const board=M.board(),values=new Map(),dialogs=[];let counter=0,leaveForLaterCalls=0;
  delete require.cache[require.resolve('../js/quest-focus-ui.js')];
  const UI=require('../js/quest-focus-ui.js');
- const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>[],isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},openFocus:()=>{}};
- UI.init(api);return {board,UI,dialogs};
+ const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>[],isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},leaveForLater:()=>{leaveForLaterCalls++;},openFocus:()=>{}};
+ UI.init(api);return {board,UI,dialogs,values,leaveForLaterCalls:()=>leaveForLaterCalls};
 }
 const click=(UI,action,id='')=>UI.handle({dataset:{action,id,direction:'-1'}});
 
@@ -94,7 +94,7 @@ test('Start new Room Focus from a saved active session offers Clear the Way and 
  assert.equal(board.tasks[0],task);
 });
 
-test('Resume and Change tasks keep their existing saved Focus behaviour',()=>{
+test('Resume and Edit keep their existing saved Focus behaviour',()=>{
  const {board,UI,dialogs}=setup(),task=M.task({id:'focus-saved-resume',title:'Original Focus task',room:'kitchen'});board.tasks.push(task);
  UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-accepted');
  UI.enter(board,'kitchen','focus');
@@ -109,6 +109,24 @@ test('Resume and Change tasks keep their existing saved Focus behaviour',()=>{
  assert.equal(dialogs.length,after,'Change tasks must not display a new-session prompt');
  assert.equal(UI.get().phase,'pick');
  assert.deepEqual(UI.get().questIds,[task.id]);
+});
+
+test('resume summary names a current task only when its timer is recorded and follows saved order',()=>{
+ const {board,UI,dialogs}=setup(),current=M.task({id:'focus-summary-current',title:'Kitchen reset',room:'kitchen'}),next=M.task({id:'focus-summary-next',title:'Vacuum floor',room:'kitchen'});
+ current.children.push({id:'focus-summary-child',title:'Wipe behind toaster',startedAt:0,done:false});board.tasks.push(current,next);
+ UI.enter(board,'kitchen','focus');UI.pick(current.id);UI.pick(next.id);click(UI,'quest-accepted');UI.enter(board,'kitchen','focus');
+ assert.match(dialogs.at(-1).body,/Your saved Focus is ready/);assert.doesNotMatch(dialogs.at(-1).body,/You were doing/);
+ current.children[0].startedAt=Date.now();UI.enter(board,'kitchen','focus');
+ assert.match(dialogs.at(-1).body,/You were doing <strong>Kitchen reset · Wipe behind toaster<\/strong>; next: <strong>Vacuum floor<\/strong>/);
+});
+
+test('Leave for later preserves saved Focus and returns through the app callback',()=>{
+ const {board,UI,dialogs,values,leaveForLaterCalls}=setup(),task=M.task({id:'focus-leave-later',title:'Fold laundry',room:'kitchen'});board.tasks.push(task);
+ UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-accepted');UI.enter(board,'kitchen','focus');
+ assert.match(dialogs.at(-1).body,/data-action="quest-leave-later"[^>]*>Leave for later<\/button>/);
+ const savedBefore=[...values.entries()];click(UI,'quest-leave-later');
+ assert.equal(leaveForLaterCalls(),1);assert.deepEqual([...values.entries()],savedBefore);assert.equal(UI.get().phase,'active');
+ const app=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');assert.match(app,/leaveForLater:\(\)=>\{const current=Q\?\.get\(\);navigate\(current\?\.scope==='doing'\?'doing':'room',current\?\.room\|\|roomId\);\}/);
 });
 
 test('Start new Doing Now Focus does not offer a room-only Clear the Way prompt',()=>{
@@ -139,7 +157,7 @@ test('Restarting an unfinished Clear the Way routine keeps the original routine 
 test('resuming Focus lists saved tasks and changing selection replaces only Focus membership',()=>{
  const {board,UI,dialogs}=setup(),oldTask=M.task({id:'focus-old',title:'Existing task',room:'kitchen',doing:true}),newTask=M.task({id:'focus-new',title:'New task',room:'kitchen'});board.tasks.push(oldTask,newTask);
  UI.enter(board,'kitchen','focus');UI.pick(oldTask.id);click(UI,'quest-go');click(UI,'quest-accepted');UI.enter(board,'kitchen','focus');
- assert.match(dialogs.at(-1).body,/Existing task/);assert.match(dialogs.at(-1).body,/Change tasks/);assert.match(dialogs.at(-1).body,/Resume Focus/);
+ assert.match(dialogs.at(-1).body,/Existing task/);assert.match(dialogs.at(-1).body,/>Edit<\/button>/);assert.match(dialogs.at(-1).body,/Resume Focus/);
  click(UI,'quest-fresh-change');assert.equal(UI.get().phase,'pick');assert.deepEqual(UI.get().questIds,[oldTask.id]);
  UI.change({target:{dataset:{questSelect:oldTask.id}}});UI.change({target:{dataset:{questSelect:newTask.id}}});click(UI,'quest-go');click(UI,'quest-accepted');
  assert.deepEqual(UI.get().startedIds,[newTask.id]);assert.equal(oldTask.doing,true);assert.equal(board.tasks.length,2);
