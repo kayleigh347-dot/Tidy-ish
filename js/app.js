@@ -1183,7 +1183,6 @@ function commitTimed(id,cid,kind,note,distractionRaw=null){
 const alarmSignals=new Set();
 function focusBreakPanel(){const state=focusBreakTimer?.peek(Date.now());if(state?.state!=='running')return '';return '<section class="quest-sheet focus-break-timer" data-focus-break><p>Five-minute Focus break · <strong data-focus-break-clock>'+TIME.format(state.remainingMs)+'</strong></p>'+button('Stop break timer','focus-break-stop','','ghost')+'</section>';}
 function updateClocks(){
- // Expiry is local cleanup, not a newer household edit; keep the prior stamp so merge protects newer member work.
  const now=Date.now();
  const breakState=focusBreakTimer?.check(now);if(breakState?.state==='due'){if(F().sound)playTimerAlert(false,'focus-break');notice('Your five-minute Focus break is over.');document.querySelector('[data-focus-break]')?.remove();}
  const breakFace=$('[data-focus-break-clock]'),breakView=focusBreakTimer?.peek(now);if(breakFace&&breakView?.state==='running')breakFace.textContent=TIME.format(breakView.remainingMs);

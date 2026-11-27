@@ -70,6 +70,10 @@ test('Failed persistence does not replace the board', () => {
   const context = {
     board: original,
     M: { clone: x => JSON.parse(JSON.stringify(x)) },
+    TIME: { focusQuestCompleted: () => false, focusQuestCompletionId: () => '' },
+    Q: { get: () => null },
+    route: 'room',
+    focusBreakTimer: { cancelIfTaskUndone() {}, start() {} },
     stampTaskEdits() {},
     persist() { throw Error('Simulated storage failure'); },
     render() {},

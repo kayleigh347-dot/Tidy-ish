@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const M=require('../js/model.js'),L=require('../js/quest-library.js'),SM=require('../js/sharing-model.js'),TSC=require('../js/local-storage-codec.js');
+const Time=require('../js/quest-time-core.js');
 const source=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
 const line=prefix=>{const result=source.split('\n').find(s=>s.trimStart().startsWith(prefix));assert.ok(result,prefix);return result.trim();};
 const handlers=['library-save-custom','save-template','data-one-off-toggle'];
@@ -8,7 +9,7 @@ const raw=()=>({tasks:[],side:[],rooms:[],wins:[],settings:[],homeless:[],sideTa
 const snap=x=>JSON.stringify(x);
 function harness(shared=false){
  let dialog,stored;
- const c={M,L,CW:require('../js/custom-warnings.js'),window:{},board:M.board(),route:'room',roomId:'kitchen',tab:'active',sideTab:'all',taskTitleSuggestionState:null,
+ const c={M,L,CW:require('../js/custom-warnings.js'),TIME:Time,Q:{get:()=>null},focusBreakTimer:{cancelIfTaskUndone(){},start(){}},window:{},board:M.board(),route:'room',roomId:'kitchen',tab:'active',sideTab:'all',taskTitleSuggestionState:null,
  esc:x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'),sideChoices:()=>[['all','All'],['organisation','Organisation']],
  closeDialog(){},notice(){},showDialogSaveError:msg=>{throw Error(msg);},render(){},stampTaskEdits(){},
  dialog:(heading,html,save,opts)=>{dialog={heading,html,save,opts};},F:()=>c.board.features,rooms:()=>c.board.rooms,

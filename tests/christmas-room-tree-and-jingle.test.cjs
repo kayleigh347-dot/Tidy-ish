@@ -1,6 +1,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const M=require('../js/model.js'),SW=require('../js/seasonal-workflow.js'),Theme=require('../js/seasonal-theme.js');
+const Time=require('../js/quest-time-core.js');
 const root=require('node:path').resolve(__dirname,'..'),source=fs.readFileSync(require.resolve('../js/app.js'),'utf8');
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function christmasBoard(){const draft={...SW.preset('christmas','2026-12-25'),preset:'christmas',recurrence:'annual',dateRule:'fixed',leapPolicy:'reject',annualEnabled:true,tasksEnabled:true,decorationsEnabled:true,celebrated:false};return SW.create(M.board(),draft);}
@@ -45,7 +46,7 @@ test('Christmas jingle plays locally only during Christmas with sound enabled, w
  assert.ok(start>=0&&end>start,'Christmas audio helpers and change() should be defined together');
  FakeAudio.played=[];
  const board=christmasBoard(),linkedId=board.features.occasionOccurrences[0].taskLinks[0].taskId;board.features.sound=true;
- const bodyClasses=new Set(),ctx={board,SW,M:{clone:M.clone,date:()=> '2026-11-27'},F:()=>ctx.board.features,Audio:FakeAudio,christmasJingle:null,christmasJinglePending:false,seasonalDisplay:{decorations:true,animation:true},window:{TidySharing:{transition(){},queue(){}}},document:{hidden:false,body:{classList:{add:x=>bodyClasses.add(x),remove:x=>bodyClasses.delete(x)},get offsetWidth(){return 1;}}},asset:p=>'sounds/'+p.replace(/^audio\//,''),soundVolume:.12,setTimeout(){},stampTaskEdits(){},persist(next){ctx.board=next;},render(){},showDialogSaveError(){},notice(){},storageError:'',route:'room'};
+ const bodyClasses=new Set(),ctx={board,SW,M:{clone:M.clone,date:()=> '2026-11-27'},F:()=>ctx.board.features,Audio:FakeAudio,christmasJingle:null,christmasJinglePending:false,seasonalDisplay:{decorations:true,animation:true},window:{TidySharing:{transition(){},queue(){}}},document:{hidden:false,body:{classList:{add:x=>bodyClasses.add(x),remove:x=>bodyClasses.delete(x)},get offsetWidth(){return 1;}}},asset:p=>'sounds/'+p.replace(/^audio\//,''),soundVolume:.12,setTimeout(){},stampTaskEdits(){},persist(next){ctx.board=next;},render(){},showDialogSaveError(){},notice(){},storageError:'',route:'room',TIME:Time,Q:{get:()=>null},focusBreakTimer:{cancelIfTaskUndone(){},start(){}}};
  vm.runInNewContext(code+';this.audioApi={playChristmasJingle,stopChristmasJingle,change};',ctx);
  const {playChristmasJingle,stopChristmasJingle,change}=ctx.audioApi;
  assert.equal(playChristmasJingle(),true);assert.equal(FakeAudio.played.length,1);
