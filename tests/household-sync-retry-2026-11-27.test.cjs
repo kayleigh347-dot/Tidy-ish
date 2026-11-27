@@ -5,6 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const M=require('../js/model.js');
 const S=require('../js/sharing-model.js');
+const Codec=require('../js/local-storage-codec.js');
 
 const source=fs.readFileSync(path.join(__dirname,'../js/sharing.js'),'utf8');
 function fixture(initialBoard,{online=true,editing=false}={}){
@@ -14,17 +15,17 @@ function fixture(initialBoard,{online=true,editing=false}={}){
  const ui={getBoard:()=>board,acceptSync:next=>{board=next;},onSyncStatus(){},notice(){},editing:()=>isEditing,button:(label,action)=>`<button data-action="${action}">${label}</button>`,field:(label,name)=>`<label>${label}<input name="${name}"></label>`,card:x=>x,detail:(title,body)=>`<details>${title}${body}</details>`,select:()=>'<select></select>',esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),storageKey:'qa'};
  const mapStore={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
  if(board.features.browserSync)storage.set('tidyish-html-v023-sync-approved:'+board.features.browserSync.account+'/'+board.features.browserSync.house,'yes');
- const ctx={URL,URLSearchParams,sessionStorage:mapStore,localStorage:mapStore,location:{href:'https://example.test/index.html',protocol:'https:',search:''},navigator:{onLine:online},document:{addEventListener:(n,fn)=>{listeners['document:'+n]=fn;},hidden:false,getElementById:id=>id==='editor'?editor:null},Event:class{},setTimeout(fn,ms=0){const id=nextTimer++;scheduledDelays.push(ms);timers.set(id,{fn,at:now+ms,ms});return id;},clearTimeout(id){timers.delete(id);},window:{TidyUI:ui,TidyModel:M,TidySharedModel:S,TidyStorageCodec:null,dispatchEvent(){},addEventListener:(n,fn)=>{listeners[n]=fn;},history:{state:{},replaceState(){}}}};
- const hooked=source.replace('const api={','window.__testStatus=()=>status;window.__setSession=(person,db)=>{session={user:person};client=db;};\nconst api={');
+ const ctx={URL,URLSearchParams,sessionStorage:mapStore,localStorage:mapStore,location:{href:'https://example.test/index.html',protocol:'https:',search:''},navigator:{onLine:online},document:{addEventListener:(n,fn)=>{listeners['document:'+n]=fn;},hidden:false,getElementById:id=>id==='editor'?editor:null},Event:class{},setTimeout(fn,ms=0){const id=nextTimer++;scheduledDelays.push(ms);timers.set(id,{fn,at:now+ms,ms});return id;},clearTimeout(id){timers.delete(id);},window:{TidyUI:ui,TidyModel:M,TidySharedModel:S,TidyStorageCodec:Codec,dispatchEvent(){},addEventListener:(n,fn)=>{listeners[n]=fn;},history:{state:{},replaceState(){}}}};
+ const hooked=source.replace('const api={','window.__testStatus=()=>status;window.__testPending=()=>hasPendingChanges();window.__setSession=(person,db)=>{session={user:person};client=db;};\nconst api={');
  vm.runInNewContext(hooked,ctx,{filename:'sharing.js'});
  async function advance(ms){const end=now+ms;let runs=0;while(true){const item=[...timers.entries()].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!item)break;if(++runs>100)throw Error('Timer loop exceeded test bound.');const [id,t]=item;timers.delete(id);now=t.at;await t.fn();}now=end;}
  function closeEditor(){isEditing=false;dialogListeners.close?.();}
- return {api:ctx.window.TidySharing,ctx,timers,scheduledDelays,listeners,storage,advance,closeEditor,status:()=>ctx.window.__testStatus(),setSession:(person,db)=>ctx.window.__setSession(person,db),setEditing:value=>{isEditing=value;},setOnline:value=>{ctx.navigator.onLine=value;}};
+ return {api:ctx.window.TidySharing,ctx,timers,scheduledDelays,listeners,storage,advance,closeEditor,status:()=>ctx.window.__testStatus(),hasPending:()=>ctx.window.__testPending(),getBoard:()=>board,setBoard:next=>{board=next;},setSession:(person,db)=>ctx.window.__setSession(person,db),setEditing:value=>{isEditing=value;},setOnline:value=>{ctx.navigator.onLine=value;}};
 }
 function pendingBoard(){const board=M.board(),task=M.task({id:'retry-task',title:'Wipe the table'});M.add(board,task);const base=S.project(board,{},'owner');board.features.browserSync={account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};board.tasks[0].title='Wipe the whole table';return {board,base};}
 async function reachFinalRetry(app,client){await assert.rejects(app.api.sync(),/shared board read failed/);await app.advance(52000);assert.equal(client.readCount,5);assert.deepEqual([...app.timers.values()].map(t=>t.ms),[60000]);}
 async function verifyManualRefreshAfterFinalRetry(app,client){const before=client.readCount;app.api.queue({immediate:true});app.listeners.online();await app.advance(120000);assert.equal(client.readCount,before,'automatic events stay stopped after the deferred final retry actually runs');await assert.rejects(app.api.actions['house-sync'](),/shared board read failed/);assert.equal(client.readCount,before+1);assert.deepEqual([...app.timers.values()].map(t=>t.ms),[2000]);}
-function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={}}={}){
+function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={},getPayload,getRevision,onSave}={}){
  let activeReads=0,maxConcurrentReads=0,readCount=0,saveCount=0;
  const savedPayloads=[];
  return {
@@ -33,7 +34,7 @@ function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={}}={}){
    const rpcError=rpcErrors[`${name}:${args.action}`];if(rpcError)return {data:null,error:rpcError};
    if(args.action==='list'&&name==='mission_house_sharing')return {data:{houses:[{id:'house',label:'House'}],members:[]},error:null};
    if(args.action==='list'&&name==='tidyish_household_v2')return {data:{houses:[],members:[]},error:null};
-   if(name==='save_shared_mission_board'||name==='save_mission_board'){saveCount++;if(casFailures>0){casFailures--;return {data:false,error:null};}savedPayloads.push(args.new_payload);return {data:true,error:null};}
+   if(name==='save_shared_mission_board'||name==='save_mission_board'){saveCount++;if(casFailures>0){casFailures--;return {data:false,error:null};}savedPayloads.push(args.new_payload);if(onSave)return onSave(args.new_payload,saveCount);return {data:true,error:null};}
    return {data:true,error:null};
   },
   from(){
@@ -41,7 +42,7 @@ function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={}}={}){
     return {eq(){
      return {maybeSingle:async()=>{
       readCount++;activeReads++;maxConcurrentReads=Math.max(maxConcurrentReads,activeReads);
-      try{if(read)await read(readCount);return {data:{payload:remote,revision:1},error:null};}
+      try{if(read)await read(readCount);return {data:{payload:getPayload?getPayload():remote,revision:getRevision?getRevision():1},error:null};}
       finally{activeReads--;}
      }};
     }};
@@ -61,6 +62,42 @@ test('transient network failure retries with bounded backoff and then syncs pend
  assert.equal(client.savedPayloads[0].tasks[0].text,'Wipe the table and the sides');
  assert.match(app.api.panel(),/Synced at \d{2}:\d{2}/);
  assert.equal(app.timers.size,0);
+});
+
+test('sharing.js retries a lost Undo acknowledgement after codec reload and clears only on success',async()=>{
+ const local=M.board(),task=M.task({id:'lost-ack-integration-task',title:'Reset the kitchen'});M.add(local,task);
+ const base=S.project(local,{},'owner');local.features.browserSync={account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(local),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};M.finish(local,task.id,true);
+ const winIds=local.tasks.find(row=>row.id===task.id)._completionIds.slice();local.features.questTimings.push({id:'lost-ack-integration-timing',taskId:task.id,owner:'owner',kind:'valid',durationMs:30000,at:'2026-11-27T09:04:00.000Z',completionWinIds:winIds});
+ let remote=M.clone(base),revision=1;
+ const app=fixture(local),client=mockClient({remote:base,getPayload:()=>remote,getRevision:()=>revision,onSave:(payload,count)=>{remote=M.clone(payload);revision++;return count<=2?{data:null,error:new TypeError(count===1?'Completion acknowledgement lost':'Undo acknowledgement lost')}:{data:true,error:null};}});
+ app.setSession({id:'owner'},client);
+ await assert.rejects(app.api.sync(),/Completion acknowledgement lost/);
+ const completed=app.getBoard(),undone=M.clone(completed);M.finish(undone,task.id,false);S.transition(completed,undone);
+ const stored=Codec.encode(undone),reloaded=M.normalize(Codec.decode(stored));app.setBoard(reloaded);
+ assert.equal(reloaded.features.browserSync.pendingUndos.length,1,'the validated Undo marker survives real storage serialization and normalization');
+ assert.equal(app.hasPending(),true,'an unacknowledged Undo remains visibly pending after reload');
+
+ const payload=S.outgoing(reloaded,reloaded.features.browserSync),remoteWithOtherWin=M.clone(remote);
+ remoteWithOtherWin.wins.push({...M.clone(remote.wins[0]),id:'unrelated-remote-win'});
+ assert.throws(()=>app.api._protectRemoteRows(remoteWithOtherWin,payload,reloaded.features.browserSync,reloaded),/unrelated-remote-win/,'a different unbased win stays protected');
+ const remoteWithOtherTiming=M.clone(remote);
+ remoteWithOtherTiming.settings.push({id:'tidy-timing:unrelated-remote-timing',timing:{id:'unrelated-remote-timing',taskId:task.id,completionWinIds:['unrelated-remote-win']}});
+ assert.throws(()=>app.api._protectRemoteRows(remoteWithOtherTiming,payload,reloaded.features.browserSync,reloaded),/unrelated-remote-timing/,'a different unbased timing row stays protected');
+ const malformedState=M.clone(reloaded.features.browserSync);malformedState.pendingUndos[0].rows=[];
+ assert.throws(()=>app.api._protectRemoteRows(remote,payload,malformedState,reloaded),/Safety stop: shared wins record/,'an incomplete marker cannot authorize deletion');
+
+ await assert.rejects(app.api.sync(),/Undo acknowledgement lost/);
+ assert.equal(app.getBoard().features.browserSync.pendingUndos.length,1,'a save with a lost response retains the Undo marker');
+ assert.equal(app.hasPending(),true);
+ assert.equal(remote.wins.some(row=>winIds.includes(row.id)),false,'the server accepted removal of the exact pending-Undo wins');
+ assert.deepEqual(S.importRaw(remote).features.questTimings,[],'the server accepted removal of the linked timing row');
+
+ await app.api.sync();
+ assert.equal(client.saveCount,2,'the final no-op read clears the marker without a redundant save');
+ assert.equal(app.getBoard().features.browserSync.pendingUndos.length,0,'a successful read of the already-undone server state clears the marker');
+ assert.equal(app.hasPending(),false,'no changes remain pending after acknowledgement');
+ assert.equal(remote.wins.some(row=>winIds.includes(row.id)),false);
+ assert.deepEqual(S.importRaw(remote).features.questTimings,[]);
 });
 
 test('CAS exhaustion gets a bounded retry instead of dropping the pending edit',async()=>{

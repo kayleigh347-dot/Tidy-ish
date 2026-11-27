@@ -118,7 +118,7 @@ function readHouseCache(key){const raw=localStorage.getItem(key);return raw?(sto
 function writeHouseCache(key,board){localStorage.setItem(key,storageCodec?.encode?storageCodec.encode(board):JSON.stringify(board));}
 // A previously saved browserSync state alone must never auto-enable cloud writes.
 function approved(state){if(!state?.account||!state?.house)return false;try{return localStorage.getItem('tidyish-html-v023-sync-approved:'+state.account+'/'+state.house)==='yes';}catch{return false;}}
-function hasPendingChanges(board=U.getBoard(),state=board.features.browserSync){if(!state)return false;try{return !S.equal(S.outgoing(board,state),state.base||{});}catch{return true;}}
+function hasPendingChanges(board=U.getBoard(),state=board.features.browserSync){if(!state)return false;if((state.pendingUndos||[]).length)return true;try{return !S.equal(S.outgoing(board,state),state.base||{});}catch{return true;}}
 function displayStatus(){
  const board=U.getBoard(),state=board.features.browserSync;
  if(!state||!approved(state)||busy||statusError)return status;
@@ -196,12 +196,45 @@ const reconcile=S.reconcile;
 // Every remote deletion must be traceable to a locally removed row from the
 // previously seen base. This detects accidental truncation by a new serializer.
 function protectRemoteRows(remote,payload,state,local){
+ const validPendingUndo=undo=>{
+  if(!Array.isArray(undo?.winIds)||!undo.winIds.length||undo.winIds.some(id=>typeof id!=='string'||!id.trim()||id.trim()!==id)||new Set(undo.winIds).size!==undo.winIds.length)return false;
+  if(!Array.isArray(undo.taskIds)||!undo.taskIds.length||undo.taskIds.some(id=>typeof id!=='string'||!id.trim()||id.trim()!==id)||new Set(undo.taskIds).size!==undo.taskIds.length)return false;
+  if(!Array.isArray(undo.rows)||!undo.rows.length||!Array.isArray(undo.settingIds))return false;
+  const winIds=new Set(undo.winIds),taskIds=new Set(undo.taskIds),rowIds=new Set(undo.rows.map(row=>row?.id));
+  if(rowIds.size!==undo.rows.length||rowIds.size!==taskIds.size||undo.taskIds.some(id=>!rowIds.has(id)))return false;
+  if(undo.rows.some(row=>{
+   if(!row||typeof row.id!=='string'||(row.completionUndo?.winId&&winIds.has(row.completionUndo.winId)))return true;
+   if(row.htmlCompletionIds!=null&&(!Array.isArray(row.htmlCompletionIds)||row.htmlCompletionIds.some(id=>winIds.has(id))))return true;
+   return false;
+  }))return false;
+  if(new Set(undo.settingIds).size!==undo.settingIds.length||undo.settingIds.some(id=>typeof id!=='string'||!id.startsWith('tidy-timing:')||!id.slice(12).trim()))return false;
+  const baselineWins=new Set((state.base?.wins||[]).map(row=>row.id));
+  return !undo.winIds.some(id=>baselineWins.has(id));
+ };
+ const pendingUndoAllows=(collection,row)=>{
+  for(const undo of state.pendingUndos||[]){
+   if(!validPendingUndo(undo))continue;
+   const winIds=new Set(undo.winIds),taskIds=new Set(undo.taskIds);
+   if(collection==='wins'&&winIds.has(row.id)&&(taskIds.has(row.taskId)||taskIds.has(row.rootTaskId)))return true;
+   if(collection!=='settings'||!undo.settingIds.includes(row.id)||row.id!=='tidy-timing:'+row.timing?.id)continue;
+   const completionIds=row.timing?.completionWinIds;
+   if(!Array.isArray(completionIds)||!completionIds.length||completionIds.some(id=>!winIds.has(id)))continue;
+   const localTaskIds=new Set();
+   for(const task of local.tasks||[]){
+    if(taskIds.has(task.id)||taskIds.has(task._sharedId))localTaskIds.add(task.id);
+    for(const child of task.children||[])if(taskIds.has(child.id)||taskIds.has(child._sharedId))localTaskIds.add(child.id);
+   }
+   if(localTaskIds.has(row.timing.taskId))return true;
+  }
+  return false;
+ };
  for(const collection of S.collections){
   const oldRows=remote[collection]||[],nextIds=new Set((payload[collection]||[]).map(r=>r.id));
   const known=new Set((state.base?.[collection]||[]).map(r=>r.id));
   const current=new Set((S.project(local,state.base,state.account)[collection]||[]).map(r=>r.id));
   for(const row of oldRows){
    if(nextIds.has(row.id))continue;
+   if(!known.has(row.id)&&!current.has(row.id)&&pendingUndoAllows(collection,row))continue;
    if(!known.has(row.id)||current.has(row.id))throw Error('Safety stop: shared '+collection+' record '+row.id+' would disappear without a confirmed local deletion. Nothing was uploaded.');
   }
  }
