@@ -123,6 +123,6 @@ test('new care tasks inherit the selected category or require a choice from All;
 });
 
 test('app and care-system cache keys advance for the care category UI',()=>{
- assert.match(html,/js\/app\.js\?v=[^"]+-petcaretabs1"/);
+ assert.match(html,/js\/app\.js\?v=[^"]+-petcaretabs1-littleoftenlayout1"/);
  assert.match(html,/js\/care-system\.js\?v=[^"]+-petcaretabs1"/);
 });
