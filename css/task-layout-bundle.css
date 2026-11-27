@@ -3,6 +3,8 @@
  --compact-side:52px;--compact-complete:58px;
  box-sizing:border-box;margin:5px 0;padding:5px 6px;border-radius:12px;
 }
+#app .task.compact-task-card.has-subtasks{padding-top:26px}
+#app .task.compact-task-card.has-subtasks::after{display:none}
 #app .task.compact-task-card > .room-task-main{
  display:grid;grid-template-columns:var(--compact-side) minmax(0,1fr) var(--compact-complete);grid-template-rows:auto;
  gap:5px;align-items:center;min-width:0;
@@ -18,11 +20,11 @@
 #app .task.compact-task-card .compact-focus-done > .compact-task-center{grid-column:1}
 #app .task.compact-task-card .compact-task-center > .task-title{
  grid-column:1;grid-row:1;justify-self:stretch;
- width:100%;min-width:0;min-height:32px;margin:0;padding:0;font-size:1.02rem;line-height:1.12;
+ width:100%;min-width:0;min-height:32px;margin:0;padding:0;font-size:1.08rem;line-height:1.12;
  white-space:normal;overflow-wrap:anywhere;text-align:left;
 }
 #app .task.compact-task-card .compact-task-center > .task-title > .small{font-size:.72rem;white-space:normal}
-#app .task.compact-task-card:not(.focus-active-card) .compact-task-center > .task-title > .room-subtask-count{color:#21012a;background:#f8c662;border-radius:5px;padding:1px 4px;white-space:nowrap;font-weight:750}
+#app .task.compact-task-card .compact-task-center > .task-title > .room-subtask-count{position:absolute;top:5px;right:7px;z-index:2;color:#21012a;background:#f8c662;border-radius:5px;padding:1px 4px;white-space:nowrap;font-weight:750}
 #app .task.compact-task-card:not(.focus-active-card) .room-expand-indicator{color:#f8c662;font-size:.85em}
 #app .task.compact-task-card:not(.focus-active-card) .compact-task-actions{width:100%;max-width:260px;justify-self:center}
 #app .task.compact-task-card:not(.focus-active-card) .compact-task-actions > button:focus-visible{outline:2px solid #f8c662;outline-offset:-2px}
@@ -51,6 +53,7 @@
 }
 #app .task.compact-task-card .compact-task-actions .add-subtask{font-size:1rem}
 #app .task.compact-task-card .compact-task-actions .add-subtask::before{background:none;border:0;box-shadow:none}
+#app .task.compact-task-card .compact-task-actions .add-subtask-art{display:block;width:22px;height:22px;max-width:100%;pointer-events:none}
 #app .task.compact-task-card .compact-task-actions .first{--compact-option-face:linear-gradient(135deg,#73b49d,#457d6a);--compact-option-border:#98cdb5}
 #app .task.compact-task-card .compact-task-actions .last{--compact-option-face:linear-gradient(145deg,#b9dbe1,#89b7c2);--compact-option-border:#c8eef1;color:#21012a}
 #app .task.compact-task-card .compact-task-actions .room-task-menu{font-size:1rem}
@@ -80,7 +83,7 @@
  #app .task.compact-task-card > .room-task-main{gap:3px}
  #app .task.compact-task-card .compact-task-actions{gap:2px}
  #app .task.compact-task-card .compact-task-actions > button{font-size:.65rem}
- #app .task.compact-task-card .compact-task-center > .task-title{font-size:.94rem}
+ #app .task.compact-task-card .compact-task-center > .task-title{font-size:1rem}
  #app .task.compact-task-card > .room-task-main > :is(.select-task,.room-complete){font-size:.66rem}
  #app .task.compact-task-card .compact-task-actions .room-task-menu{font-size:.88rem}
 }

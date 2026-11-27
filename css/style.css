@@ -673,7 +673,7 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  size-adjust: 120%;
+  size-adjust: 130%;
 }
 @font-face {
   font-family: "Kayleigh Writing Compact";
@@ -681,11 +681,11 @@ body.task-dragging,body.task-dragging .task{user-select:none;-webkit-user-select
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  size-adjust: 120%;
+  size-adjust: 130%;
 }
 body.kayleigh-writing-active,
 body.kayleigh-writing-active * {
-  -webkit-text-stroke: 0.5px #160b1e;
+  -webkit-text-stroke: 0.8px #160b1e;
   paint-order: stroke fill;
   font-family: "Kayleigh Writing Compact", "Tidy Josefin Sans", "Trebuchet MS", system-ui, sans-serif;
 }

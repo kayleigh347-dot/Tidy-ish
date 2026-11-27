@@ -52,18 +52,19 @@
   min-height:32px;
   margin:0;
   padding:0;
-  font-size:1.02rem;
+  font-size:1.08rem;
   line-height:1.12;
   white-space:normal;
   overflow-wrap:anywhere;
   text-align:left;
 }
 #app .doing-board .task.doing-task .doing-subtask-count{
-  position:static;
-  flex:0 1 auto;
-  align-self:center;
+  position:absolute;
+  top:5px;
+  right:7px;
+  z-index:2;
   min-width:0;
-  max-width:46%;
+  max-width:calc(100% - 14px);
   margin:0;
   padding:2px 4px;
   min-height:0;
@@ -157,7 +158,11 @@
   #app .doing-board .task.doing-task .doing-task-main{gap:3px}
   #app .doing-board .task.doing-task .doing-task-actions{gap:2px}
   #app .doing-board .task.doing-task .doing-task-actions > button{font-size:.65rem}
-  #app .doing-board .task.doing-task .doing-task-title{font-size:.94rem}
+  #app .doing-board .task.doing-task .doing-task-title{font-size:1rem}
   #app .doing-board .task.doing-task .doing-select,#app .doing-board .task.doing-task .doing-complete{font-size:.66rem}
   #app .doing-board .task.doing-task .doing-task-actions .doing-more{font-size:.88rem}
+}
+#app .doing-board .task.doing-task.has-subtasks{padding-top:26px}
+@media(max-width:350px){
+  #app .doing-board .task.doing-task.has-subtasks .doing-subtask-count{top:4px;right:5px}
 }
