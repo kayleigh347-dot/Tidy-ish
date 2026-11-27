@@ -47,7 +47,7 @@ let board,storageError='',storageWarning='',lastSaved='',route='home',roomId='ki
 let taskTitleSuggestionState=null,taskTitleSuggestionTimer=null;
 const SOUND_VOLUME_KEY=KEY+'-focus-volume',TIMER_ALARM_TONE_KEY=KEY+'-timer-alarm-tone',TIMER_ALARM_CACHE_VERSION='20261127-timer-alarm1';
 let timerAlarmTone='upbeat-rise';
-try{const savedVolume=Number(localStorage.getItem(SOUND_VOLUME_KEY));if(Number.isFinite(savedVolume)&&savedVolume>=0&&savedVolume<=.3)soundVolume=savedVolume;}catch{}
+try{soundVolume=TIMER_ALARM_AUDIO.storedVolume(localStorage.getItem(SOUND_VOLUME_KEY),soundVolume);}catch{}
 try{const savedTone=localStorage.getItem(TIMER_ALARM_TONE_KEY);if(TIMER_ALARM_AUDIO?.TONES.some(t=>t.id===savedTone))timerAlarmTone=savedTone;}catch{}
 const timerAlarmAudio=TIMER_ALARM_AUDIO?.create({AudioCtor:window.Audio,AudioContextCtor:window.AudioContext||window.webkitAudioContext,urlForTone:file=>asset('audio/'+file)+'?v='+TIMER_ALARM_CACHE_VERSION,onError:error=>notice(error?.name==='NotAllowedError'?'The browser blocked timer audio. Preview a tune in Settings and check Sounds is enabled.':'Timer audio could not play. Check Sounds and your browser volume.')});
 if(timerAlarmAudio){timerAlarmAudio.setTone(timerAlarmTone);timerAlarmAudio.setVolume(soundVolume);}
@@ -1409,7 +1409,7 @@ const actions={
  },
  'settings-tab':el=>selectSettingsTab(el.dataset.id),
  'seasonal-display':el=>{try{seasonalDisplay=seasonalTheme.savePreference(localStorage,KEY,el.dataset.id,el.checked);render();}catch(e){el.checked=seasonalDisplay[el.dataset.id];notice('Could not save Seasonal display preference. '+e.message);}},
- setting:el=>{if(!['sound','reduceMotion','pauseWandering'].includes(el.dataset.id))return;const disableSound=el.dataset.id==='sound'&&!el.checked;if(change(b=>b.features[el.dataset.id]=el.checked)&&disableSound){music?.pause();music=null;stopChristmasJingle();}},
+ setting:el=>{if(!['sound','reduceMotion','pauseWandering'].includes(el.dataset.id))return;const disableSound=el.dataset.id==='sound'&&!el.checked;if(change(b=>b.features[el.dataset.id]=el.checked)&&disableSound){music?.pause();music=null;timerAlarmAudio?.stop();stopChristmasJingle();}},
  'rename-room':el=>{const r=room(el.dataset.id);dialog('Rename room',field('Room name','name',r.name,'text','required'),fd=>{const name=String(fd.get('name')).trim();if(!name||board.rooms.some(x=>x.id!==r.id&&x.name.toLowerCase()===name.toLowerCase()))throw Error('Choose a unique room name.');if(change(b=>b.rooms.find(x=>x.id===r.id).name=name))closeDialog(true)})},
  'archive-room':el=>change(b=>{const r=b.rooms.find(r=>r.id===el.dataset.id);r.archived=!r.archived}),
  'room-first':el=>change(b=>{const r=b.rooms.find(r=>r.id===el.dataset.id);b.rooms=[r,...b.rooms.filter(x=>x.id!==r.id)]}),

@@ -76,3 +76,31 @@ test('alarm tone selection and volume reject invalid values safely',()=>{
  alarm.setVolume(4);
  assert.equal(alarm.volume(),1);
 });
+
+test('saved alarm volume uses 12 percent when absent and preserves an explicit zero',()=>{
+ assert.equal(Alarm.storedVolume(null),.12);
+ assert.equal(Alarm.storedVolume(''),.12);
+ assert.equal(Alarm.storedVolume('0'),0);
+ assert.equal(Alarm.storedVolume('.24'),.24);
+ assert.equal(Alarm.storedVolume('not-a-volume'),.12);
+});
+
+test('stopping timer alarms pauses the active sound and drops queued alarms',()=>{
+ const played=[];
+ class FakeAudio{
+  constructor(src){this.src=src;this.events={};this.paused=false;played.push(this);}
+  addEventListener(name,fn){this.events[name]=fn;}
+  play(){return Promise.resolve();}
+  pause(){this.paused=true;}
+ }
+ const alarm=Alarm.create({AudioCtor:FakeAudio,AudioContextCtor:null,urlForTone:file=>'sounds/'+file});
+ assert.equal(alarm.play({key:'task-a'}),true);
+ assert.equal(alarm.play({key:'task-b'}),true);
+ assert.equal(alarm.queued(),1);
+ alarm.stop();
+ assert.equal(played[0].paused,true);
+ assert.equal(alarm.busy(),false);
+ assert.equal(alarm.queued(),0);
+ played[0].events.ended();
+ assert.equal(played.length,1);
+});

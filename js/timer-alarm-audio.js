@@ -6,6 +6,7 @@
   Object.freeze({id:'bright-steps',label:'Bright steps',file:'bright-steps.wav'}),
   Object.freeze({id:'soft-double-tap',label:'Soft double tap',file:'soft-double-tap.wav'})
  ]);
+ function storedVolume(raw,fallback=.12){if(raw===null||raw===undefined||String(raw).trim()==='')return fallback;const n=Number(raw);return Number.isFinite(n)&&n>=0&&n<=.3?n:fallback;}
  function create({AudioCtor=globalThis.Audio,AudioContextCtor=globalThis.AudioContext||globalThis.webkitAudioContext,fetchFn=globalThis.fetch?.bind(globalThis),urlForTone=file=>'sounds/'+file,onError=()=>{}}={}){
   let selected=TONES[0],volume=.12,context=null,current=null;
   const buffers=new Map(),loading=new Map(),activeAudio=new Set();
@@ -66,7 +67,7 @@
    return start(request);
   }
   function stop(){queue.length=0;if(current?.source){try{current.source.stop();}catch{}}if(current?.audio){try{current.audio.pause();}catch{}activeAudio.delete(current.audio);}current=null;}
-  return Object.freeze({tones:TONES,tone:()=>selected,setTone,setVolume,volume:()=>volume,prime,play,stop,busy:()=>!!current,queued:()=>queue.length});
+ return Object.freeze({tones:TONES,storedVolume,tone:()=>selected,setTone,setVolume,volume:()=>volume,prime,play,stop,busy:()=>!!current,queued:()=>queue.length});
  }
- return Object.freeze({TONES,create});
+ return Object.freeze({TONES,storedVolume,create});
 });
