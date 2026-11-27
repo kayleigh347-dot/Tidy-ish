@@ -22,12 +22,13 @@ function fixture(initialBoard,{online=true,editing=false}={}){
  return {api:ctx.window.TidySharing,ctx,timers,scheduledDelays,listeners,storage,advance,closeEditor,status:()=>ctx.window.__testStatus(),setSession:(person,db)=>ctx.window.__setSession(person,db),setEditing:value=>{isEditing=value;}};
 }
 function pendingBoard(){const board=M.board(),task=M.task({id:'retry-task',title:'Wipe the table'});M.add(board,task);const base=S.project(board,{},'owner');board.features.browserSync={account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};board.tasks[0].title='Wipe the whole table';return {board,base};}
-function mockClient({remote,read,casFailures=0,authError=null}={}){
+function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={}}={}){
  let activeReads=0,maxConcurrentReads=0,readCount=0,saveCount=0;
  const savedPayloads=[];
  return {
   auth:{getUser:async()=>authError?{data:null,error:authError}:{data:{user:{id:'owner',email:'owner@example.test'}},error:null}},
   rpc:async(name,args)=>{
+   const rpcError=rpcErrors[`${name}:${args.action}`];if(rpcError)return {data:null,error:rpcError};
    if(args.action==='list'&&name==='mission_house_sharing')return {data:{houses:[{id:'house',label:'House'}],members:[]},error:null};
    if(args.action==='list'&&name==='tidyish_household_v2')return {data:{houses:[],members:[]},error:null};
    if(name==='save_shared_mission_board'||name==='save_mission_board'){saveCount++;if(casFailures>0){casFailures--;return {data:false,error:null};}savedPayloads.push(args.new_payload);return {data:true,error:null};}
@@ -88,6 +89,10 @@ test('transient failures stop after the bounded retry window and keep local edit
  assert.equal(app.timers.size,0);
  assert.equal(board.tasks[0].title,'Wipe the whole table');
  assert.match(app.status(),/pending changes remain saved/i);
+ const attemptsAtExhaustion=client.readCount;
+ app.api.queue({immediate:true});app.listeners.online();await app.advance(120000);
+ assert.equal(client.readCount,attemptsAtExhaustion,'automatic queue and reconnect events do not restart an exhausted retry window');
+ assert.equal(app.timers.size,0);
  await assert.rejects(app.api.actions['house-sync'](),/shared board read failed/);
  assert.deepEqual([...app.timers.values()].map(t=>t.ms),[2000]);
 });
@@ -97,6 +102,22 @@ test('authentication and permission failures do not schedule retries',async()=>{
  await assert.rejects(authApp.api.sync(),/Invalid JWT/);assert.equal(authApp.timers.size,0);assert.equal(auth.readCount,0);
  const permissionBoard=pendingBoard(),permissionApp=fixture(permissionBoard.board),permission=mockClient({remote:permissionBoard.base,read:async()=>{throw Object.assign(Error('Permission denied'),{status:403});}});permissionApp.setSession({id:'owner'},permission);
  await assert.rejects(permissionApp.api.sync(),/Permission denied/);assert.equal(permissionApp.timers.size,0);assert.equal(permission.readCount,1);
+});
+
+test('RPC status and codes survive both wrappers and override retryable message text',async()=>{
+ for(const item of [
+  {name:'mission_house_sharing',code:'42501',status:403,kind:'legacy'},
+  {name:'tidyish_household_v2',code:'PGRST301',status:401,kind:'v2'}
+ ]){
+  const {board,base}=pendingBoard();board.features.browserSync.kind=item.kind;
+  const rpcError=Object.assign(Error('Failed to fetch'),{code:item.code,status:item.status});
+  const app=fixture(board),client=mockClient({remote:base,rpcErrors:{[`${item.name}:list`]:rpcError}});app.setSession({id:'owner'},client);
+  let caught;try{await app.api.sync();}catch(error){caught=error;}
+  assert.ok(caught,`${item.name} failure is surfaced`);
+  assert.equal(caught.cause?.cause?.code,item.code);
+  assert.equal(caught.cause?.cause?.status,item.status);
+  assert.equal(app.timers.size,0,`${item.status} takes precedence over retryable message text`);
+ }
 });
 
 test('pending edits retry after the editor closes',async()=>{
