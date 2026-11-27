@@ -17,7 +17,7 @@ class FakeAudio{
  pause(){this.paused=true;}
 }
 
-test('Christmas decor uses trees in the requested rooms and never shows the gonk',()=>{
+test('Christmas decor keeps the approved Home gonk and adds trees without elf art',()=>{
  const board=christmasBoard();
  for(const id of ['living','master','penny','bathroom']){
   const html=roomHtml(id,board);
@@ -25,13 +25,18 @@ test('Christmas decor uses trees in the requested rooms and never shows the gonk
   assert.match(html,/assets\/seasonal\/christmas\/tree\.webp/);
   assert.match(html,/aria-hidden="true"/);
   assert.match(html,/christmas-costume/);
-  assert.doesNotMatch(html,/gonk\.webp|elf/i);
+  assert.doesNotMatch(html,/elf/i);
  }
  assert.doesNotMatch(roomHtml('kitchen',board),/seasonal-room-tree/);
  assert.doesNotMatch(roomHtml('living',board,'2026-11-27',{decorations:false,animation:true}),/seasonal-room-tree/);
  assert.doesNotMatch(roomHtml('living',board,'2026-11-27',{decorations:false,animation:true}),/christmas-costume/);
- assert.equal(Theme.manifest.christmas.character,'tree.webp');
- assert.doesNotMatch(fs.readFileSync(require.resolve('../css/seasonal-theme.css'),'utf8'),/gonk\.webp/);
+ assert.equal(Theme.manifest.christmas.character,'gonk.webp');
+ assert.equal(Theme.manifest.christmas.tree,'tree.webp');
+ const css=fs.readFileSync(require.resolve('../css/seasonal-theme.css'),'utf8');
+ assert.match(css,/seasonal-christmas-icon\{[^}]*gonk\.webp/);
+ assert.match(css,/christmas-completion-pop::before\{[^}]*snowflake-01\.webp/);
+ assert.match(css,/christmas-completion-pop::after\{content:"✦ ✦ ✦";[^}]*color:#f3d277/);
+ assert.doesNotMatch(css,/elf/i);
 });
 
 test('Christmas jingle plays locally only during Christmas with sound enabled, without overlapping or replaying on redraw',()=>{
