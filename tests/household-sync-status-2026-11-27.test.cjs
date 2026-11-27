@@ -10,13 +10,13 @@ const source=fs.readFileSync(path.join(__dirname,'../js/sharing.js'),'utf8');
 function fixture(initialBoard,{online=false}={}){
  let board=initialBoard;
  const calls={},storage=new Map(),listeners={};
- const ui={getBoard:()=>board,acceptSync:next=>{board=next;},onSyncStatus(){},notice(){},editing:()=>false,button:(label,action)=>`<button data-action="${action}">${label}</button>`,field:(label,name)=>`<label>${label}<input name="${name}"></label>`,card:x=>x,detail:(title,body)=>`<details>${title}${body}</details>`,select:()=>'<select></select>',esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),storageKey:'qa'};
+ const ui={getBoard:()=>board,acceptSync:next=>{board=next;},onSyncStatus(){},notice(){},confirmDialog(title,message,confirm){calls.confirm=confirm;},editing:()=>false,button:(label,action,id='',style='',attrs='')=>`<button data-action="${action}" data-id="${id}" ${attrs}>${label}</button>`,field:(label,name)=>`<label>${label}<input name="${name}"></label>`,card:x=>x,detail:(title,body)=>`<details>${title}${body}</details>`,select:()=>'<select></select>',esc:x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),storageKey:'qa'};
  const mapStore={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
  if(board.features.browserSync)storage.set('tidyish-html-v023-sync-approved:'+board.features.browserSync.account+'/'+board.features.browserSync.house,'yes');
  const ctx={URL,URLSearchParams,sessionStorage:mapStore,localStorage:mapStore,location:{href:'https://example.test/index.html',protocol:'https:',search:''},navigator:{onLine:online},document:{addEventListener(){},hidden:false,getElementById(){return null;}},Event:class{},setTimeout(fn){calls.timer=fn;return 1;},clearTimeout(){delete calls.timer;},window:{TidyUI:ui,TidyModel:M,TidySharedModel:S,TidyStorageCodec:null,dispatchEvent(){},addEventListener:(n,fn)=>{listeners[n]=fn;},history:{state:{},replaceState(){}}}};
- const hooked=source.replace('const api={','window.__testStatus=()=>status;window.__testLoad=load;window.__setSession=(person,db)=>{session={user:person};client=db;};\nconst api={');
+ const hooked=source.replace('const api={','window.__testStatus=()=>status;window.__testLoad=load;window.__testRefreshHouses=refreshHouses;window.__testRoster=()=>({account:rosterAccount,loaded:rosterLoaded,stale:rosterStale,houses:rosterHouses,members:newMembers});window.__setSession=(person,db)=>{session=person?{user:person}:null;client=db;};\nconst api={');
  vm.runInNewContext(hooked,ctx,{filename:'sharing.js'});
- return {api:ctx.window.TidySharing,ctx,calls,storage,listeners,status:()=>ctx.window.__testStatus(),setSession:(person,db)=>ctx.window.__setSession(person,db)};
+ return {api:ctx.window.TidySharing,ctx,calls,storage,listeners,status:()=>ctx.window.__testStatus(),roster:()=>ctx.window.__testRoster(),setSession:(person,db)=>ctx.window.__setSession(person,db),refresh:()=>ctx.window.__testRefreshHouses()};
 }
 function syncState(board,base){return {account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};}
 
@@ -92,13 +92,106 @@ test('offline saved edits stay visible after reload and upload after reconnectio
  assert.match(afterReload.api.panel(),/Synced at \d{2}:\d{2}/);
 });
 
-function mockClient({listError=null,readError=null,saveError=null,remote}={}){
- const savedPayloads=[];
+function v2House(id='house',ownerId='owner'){return {id,label:'Shared home',ownerId};}
+function v2Member(id,email,houseId='house'){return {id,email,houseId};}
+function selectedV2Board(){const board=M.board();board.features.browserSync=syncState(board,{});board.features.browserSync.kind='v2';return board;}
+
+test('a temporary v2 roster failure keeps the last successful same-account roster and disables removals',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
+  {data:{houses:[v2House(),v2House('other-house','other')],members:[v2Member('member-a','a@example.test'),v2Member('member-other','other@example.test','other-house')]},error:null},
+  {data:null,error:{message:'Failed to fetch'}}
+ ]});app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();
+ await assert.rejects(app.refresh(),/Failed to fetch/);
+ const html=app.api.panel();
+ assert.match(html,/a@example\.test/);
+ assert.doesNotMatch(html,/other@example\.test/);
+ assert.match(html,/stale/i);
+ assert.ok(html.indexOf('Household member list is stale')<html.indexOf('<details>'),'the stale state is visible outside the collapsed member details');
+ assert.match(html,/data-action="house-remove"[^>]*disabled/i);
+ app.api.actions['house-remove']({dataset:{id:'member-a'}});
+ assert.equal(app.calls.confirm,undefined,'a stale member cannot open the removal confirmation');
+ assert.equal(app.roster().stale,true);
+ assert.equal(app.roster().members[0].houseId,'house');
+});
+
+test('a first v2 roster failure shows unavailable without inventing member identities',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[{data:null,error:{message:'Failed to fetch'}}]});
+ app.setSession({id:'owner',email:'owner@example.test'},client);
+ await assert.rejects(app.refresh(),/Failed to fetch/);
+ const html=app.api.panel();
+ assert.match(html,/member list unavailable/i);
+ assert.ok(html.indexOf('Household member list unavailable')<html.indexOf('<details>'),'unavailable status is visible outside the collapsed member details');
+ assert.doesNotMatch(html,/a@example\.test/);
+ assert.equal(app.roster().loaded,false);
+ assert.equal(app.roster().stale,false);
+});
+
+test('a legacy household-list failure also marks the retained v2 roster stale',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},legacyLists:[
+  {data:{houses:[],members:[]},error:null},
+  {data:null,error:{message:'Failed to fetch'}}
+ ],v2Lists:[{data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null}]});
+ app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();await assert.rejects(app.refresh(),/Failed to fetch/);
+ assert.equal(app.roster().stale,true);
+ assert.match(app.api.panel(),/Household member list is stale/);
+});
+
+test('a successful retry replaces the stale v2 roster and clears its stale label',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
+  {data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null},
+  {data:null,error:{message:'Failed to fetch'}},
+  {data:{houses:[v2House()],members:[v2Member('member-b','b@example.test')]},error:null}
+ ]});app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();await assert.rejects(app.refresh(),/Failed to fetch/);await app.refresh();
+ const html=app.api.panel();
+ assert.match(html,/b@example\.test/);
+ assert.doesNotMatch(html,/a@example\.test/);
+ assert.doesNotMatch(html,/stale/i);
+ assert.equal(app.roster().stale,false);
+});
+
+test('changing accounts discards the previous account roster before loading the new one',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},userId:'owner',v2Lists:[
+  {data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null},
+  {data:{houses:[v2House('other-house','other')],members:[v2Member('member-b','b@example.test','other-house')]},error:null}
+ ]});app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();client.user.id='other';app.setSession({id:'other',email:'other@example.test'},client);await app.refresh();
+ assert.equal(app.roster().account,'other');
+ assert.deepEqual(app.roster().members.map(member=>member.id),['member-b']);
+ assert.doesNotMatch(app.api.panel(),/a@example\.test/);
+});
+
+test('sign-out clears cached v2 member identities',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[{data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null}]});
+ app.setSession({id:'owner',email:'owner@example.test'},client);await app.refresh();
+ assert.match(app.api.panel(),/a@example\.test/);
+ await app.api.actions['house-signout']();
+ assert.doesNotMatch(app.api.panel(),/a@example\.test/);
+ assert.equal(app.roster().loaded,false);
+});
+
+test('confirmed access removal clears identities if the follow-up roster refresh fails',async()=>{
+ const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
+  {data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null},
+  {data:null,error:{message:'Failed to fetch'}}
+ ]});app.setSession({id:'owner',email:'owner@example.test'},client);
+ await app.refresh();
+ app.api.actions['house-remove']({dataset:{id:'member-a'}});
+ await app.calls.confirm();
+ assert.match(app.api.panel(),/member list unavailable/i);
+ assert.doesNotMatch(app.api.panel(),/a@example\.test/);
+ assert.equal(app.roster().loaded,false);
+});
+
+function mockClient({listError=null,readError=null,saveError=null,remote,v2Lists=null,legacyLists=null,legacyList={houses:[{id:'house',label:'House'}],members:[]},userId='owner'}={}){
+ const savedPayloads=[],user={id:userId,email:`${userId}@example.test`};
  return {
-  auth:{getUser:async()=>({data:{user:{id:'owner',email:'owner@example.test'}},error:null})},
+  user,auth:{getUser:async()=>({data:{user},error:null}),signOut:async()=>({error:null})},
   rpc:async(name,args)=>{
-   if(args.action==='list'&&name==='mission_house_sharing')return listError?{data:null,error:listError}:{data:{houses:[{id:'house',label:'House'}],members:[]},error:null};
-   if(args.action==='list'&&name==='tidyish_household_v2')return {data:{houses:[],members:[]},error:null};
+   if(args.action==='list'&&name==='mission_house_sharing'){if(legacyLists?.length)return legacyLists.shift();return listError?{data:null,error:listError}:{data:legacyList,error:null};}
+   if(args.action==='list'&&name==='tidyish_household_v2')return v2Lists?.length?v2Lists.shift():{data:{houses:[],members:[]},error:null};
    if(name==='save_shared_mission_board'||name==='save_mission_board')savedPayloads.push(args.new_payload);
    return saveError?{data:null,error:saveError}:{data:true,error:null};
   },
