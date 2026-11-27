@@ -31,12 +31,12 @@ test('all saved source Seasonal entries appear once, including future and not-ye
  assert.ok(rows.some(t=>t.nextDue>today));assert.equal(json(b),before);
 });
 test('named events are explicit, generic seasonal work stays neutral, no accidental birthday group',()=>{
- const b=seeded(),groups=OCC.seasonalGroups(b,now),map=new Map(groups.map(g=>[g.id,g.tasks.map(t=>t.title)]));
+ const b=seeded(),groups=OCC.seasonalGroups(b,now),rows=groups.flatMap(g=>g.tasks),map=new Map(groups.map(g=>[g.id,g.tasks.map(t=>t.title)]));
  assert.deepEqual(map.get('christmas').sort(),['Christmas is coming','Pack away Christmas decorations','Christmas present planning'].sort());
  assert.deepEqual(map.get('halloween'),['Halloween planning']);
  assert.deepEqual(map.get('valentines'),["Valentine's Day planning"]);
- assert.ok((map.get('seasonal')||[]).includes('Change to warmer bedding'));
- assert.ok((map.get('seasonal')||[]).includes('Wash and dry winter entrance mats'));
+ const maintenance=['Wash and dry winter entrance mats','Wipe radiators before heating season','Change to warmer bedding','Change to lighter bedding'];
+ for(const title of maintenance){const row=Base.find(x=>x.title===title);assert.ok(row);assert.equal(row.section,'Occasional');assert.ok(!rows.some(t=>t.title===title),'reclassified maintenance is not in the Seasonal projection');}
  assert.equal(map.has('birthdays'),false);
 });
 test('only explicit seasonal metadata qualifies; matching unrelated titles and monthly occasional work do not move',()=>{
@@ -68,23 +68,25 @@ test('Seasonal view shows dated statuses and reuses existing actions; other occa
  const occHtml=c.occasionalLibraryContent();assert.match(occHtml,/not-seasonal/);assert.match(occHtml,/Recommended ordinary/);
  assert.deepEqual(OCC.dueTasks(b,now).map(t=>t.id),due);assert.deepEqual(OCC.staleChecks(b,now).map(x=>x.task.id),checks);assert.equal(json(b),before);
 });
-test('due Seasonal task stays in existing Occasional Essentials and new Seasonal without duplicating records or history',()=>{
- const b=seeded(),task=b.tasks.find(t=>t.title==='Christmas is coming'),unrelated=b.tasks.find(t=>t.title==='Descale kettle');
- assert.ok(task&&unrelated);task.nextDue='2026-11-01';unrelated.nextDue='2026-11-10';
+test('previously saved seasonal maintenance moves to Occasional while celebration IDs, dates, history and Undo stay intact',()=>{
+ const b=seeded(),maintenanceTitles=['Wash and dry winter entrance mats','Wipe radiators before heating season','Change to warmer bedding','Change to lighter bedding'],rows=Base.filter(x=>maintenanceTitles.includes(x.title)),celebration=b.tasks.find(t=>t.title==='Christmas is coming'),unrelated=b.tasks.find(t=>t.title==='Descale kettle');
+ assert.deepEqual(rows.map(x=>x.title).sort(),maintenanceTitles.slice().sort());assert.ok(celebration&&unrelated);
+ const moved=rows.map(row=>{const task=b.tasks.find(t=>t.occasionSourceId===row.id);assert.ok(task);assert.equal(task.id,'tidy-occasional:'+row.id);assert.equal(task.occasionSourceId,row.id);task.section='Seasonal';task.tags=['Seasonal',row.category];task.nextDue=today;return {row,task};}); // emulate existing saved records predating source reclassification
+ celebration.nextDue='2026-11-01';unrelated.nextDue='2026-11-10';
  const prior=json(b),c=renderFixture(b),oldDue=c.occasionalLibraryContent(),season=c.seasonalLibraryContent();
- const action='data-action="occasional-done" data-id="'+task.id+'"';
- assert.ok(oldDue.includes(action),'the existing due list retains the Seasonal task and action');
- assert.ok(season.includes(action),'the new Seasonal list exposes that same saved task ID and action');
- assert.ok(oldDue.includes(unrelated.title),'unrelated occasional job remains in the due list');
- assert.equal(b.tasks.filter(t=>t.id===task.id).length,1);
- assert.equal(json(b),prior,'reading both views does not modify saved data');
- const oldWins=json(b.features.wins),oldDueDate=task.nextDue,w=OCC.complete(b,task.id,M,now);
+ const dueIds=OCC.dueTasks(b,now).map(t=>t.id);
+ for(const {task} of moved){const action='data-action="occasional-done" data-id="'+task.id+'"';assert.ok(oldDue.includes(action),'each old saved maintenance record remains due in Occasional Essentials');assert.ok(!season.includes(task.title),'source provenance removes old saved records from Seasonal despite their saved section value');assert.equal(dueIds.filter(id=>id===task.id).length,1,'each record appears once in the due schedule');}
+ assert.ok(season.includes(celebration.title),'a named celebration remains visible in Seasonal');
+ assert.ok(oldDue.includes(unrelated.title),'unrelated occasional work remains visible');
+ for(const {task} of moved)assert.equal(b.tasks.filter(t=>t.id===task.id).length,1);
+ assert.equal(json(b),prior,'reading both views does not modify household data');
+ const {row,task}=moved[2],action='data-action="occasional-done" data-id="'+task.id+'"',oldWins=json(b.features.wins),oldDueDate=task.nextDue,w=OCC.complete(b,task.id,M,now);
  assert.equal(b.features.wins.filter(x=>x.id===w.id).length,1,'completion is recorded exactly once');
- assert.ok(!c.occasionalLibraryContent().includes(action),'the old due list drops the now-future job normally');
- assert.ok(c.seasonalLibraryContent().includes('data-action="occasional-undo" data-id="'+task.id+'"'));
+ assert.ok(!c.occasionalLibraryContent().includes(action),'completion moves its next due date forward');
+ assert.ok(!c.seasonalLibraryContent().includes(task.title));
  assert.equal(OCC.undo(b,task.id),true);
- assert.equal(task.nextDue,oldDueDate);assert.equal(json(b.features.wins),oldWins);
- assert.ok(c.occasionalLibraryContent().includes(action),'undo restores original due-list visibility');
+ assert.equal(task.id,'tidy-occasional:'+row.id);assert.equal(task.occasionSourceId,row.id);assert.equal(task.nextDue,oldDueDate);assert.equal(json(b.features.wins),oldWins);
+ assert.ok(c.occasionalLibraryContent().includes(action),'Undo restores the original due-list visibility');
  assert.equal(b.tasks.filter(t=>t.id===task.id).length,1);
 });
 test('complete/Undo preserve exact history and schedule; seasonal rendering is read-only after reload',()=>{
@@ -96,6 +98,7 @@ test('complete/Undo preserve exact history and schedule; seasonal rendering is r
 });
 test('four tabs have responsive 44px controls and cache-busted script/css versions',()=>{
  const css=read('css/quest-library.css'),html=read('index.html');
+ assert.match(html,/js\/base-schedule-95\.js\?v=[^"]+-20261127/,'the changed Base Schedule has a fresh cache key');
  assert.match(css,/\.management-page \.library-tabs\{[^}]*repeat\(4,minmax\(0,1fr\)\)/);
  assert.match(css,/@media\(max-width:600px\)\{[^}]*\.management-page \.library-tabs\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/\.management-page \.library-tabs button\{[^}]*min-height:44px/);

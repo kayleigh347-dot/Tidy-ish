@@ -17,6 +17,9 @@ test('existing Quests remain single canonical ID with correct filters',()=>{
 });
 test('optional suggestions require explicit add and cannot import twice',()=>{
  const b=fresh(),id=L.SUGGESTIONS.find(s=>s.title==='Clean toilet').id;
+ const maintenance=['Wash and dry winter entrance mats','Wipe radiators before heating season','Change to warmer bedding','Change to lighter bedding'];
+ for(const title of maintenance){const item=L.SUGGESTIONS.find(s=>s.title===title);assert.ok(item);assert.equal(item.section,'Occasional');assert.ok(L.catalogue(b,{kind:'suggestion',query:title,tag:'Occasional'}).some(x=>x.title===title));}
+ assert.equal(L.catalogue(b,{kind:'suggestion',query:'Christmas is coming',tag:'Seasonal'}).some(x=>x.title==='Christmas is coming'),true);
  assert.equal(L.catalogue(b).some(t=>t.id===id),true);
  assert.equal(b.tasks.length,0);
  const first=L.addSuggestion(b,id,M);assert.equal(first.added,true);
