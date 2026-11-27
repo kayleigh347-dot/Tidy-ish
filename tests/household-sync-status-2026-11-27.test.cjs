@@ -16,7 +16,7 @@ function fixture(initialBoard,{online=false}={}){
  const ctx={URL,URLSearchParams,sessionStorage:mapStore,localStorage:mapStore,location:{href:'https://example.test/index.html',protocol:'https:',search:''},navigator:{onLine:online},document:{addEventListener(){},hidden:false,getElementById(){return null;}},Event:class{},setTimeout(fn){calls.timer=fn;return 1;},clearTimeout(){delete calls.timer;},window:{TidyUI:ui,TidyModel:M,TidySharedModel:S,TidyStorageCodec:null,dispatchEvent(){},addEventListener:(n,fn)=>{listeners[n]=fn;},history:{state:{},replaceState(){}}}};
  const hooked=source.replace('const api={','window.__testStatus=()=>status;window.__testLoad=load;window.__testRefreshHouses=refreshHouses;window.__testRoster=()=>({account:rosterAccount,loaded:rosterLoaded,stale:rosterStale,houses:rosterHouses,members:newMembers});window.__testUpdatePeople=(account,house)=>updatePeople({householdPeople:[]},account,house);window.__setSession=(person,db)=>{session=person?{user:person}:null;client=db;};\nconst api={');
  vm.runInNewContext(hooked,ctx,{filename:'sharing.js'});
- return {api:ctx.window.TidySharing,ctx,calls,storage,listeners,status:()=>ctx.window.__testStatus(),roster:()=>ctx.window.__testRoster(),setSession:(person,db)=>ctx.window.__setSession(person,db),refresh:()=>ctx.window.__testRefreshHouses()};
+ return {api:ctx.window.TidySharing,ctx,calls,storage,listeners,status:()=>ctx.window.__testStatus(),roster:()=>ctx.window.__testRoster(),getBoard:()=>board,setSession:(person,db)=>ctx.window.__setSession(person,db),refresh:()=>ctx.window.__testRefreshHouses()};
 }
 function syncState(board,base){return {account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};}
 
@@ -144,16 +144,22 @@ test('a legacy household-list failure also marks the retained v2 roster stale',a
 });
 
 test('a successful retry replaces the stale v2 roster and clears its stale label',async()=>{
- const app=fixture(selectedV2Board()),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
+ const board=selectedV2Board(),task=M.task({id:'roster-recovery-task',title:'Keep the saved assignment'});M.add(board,task);board.tasks[0].assignedUserId='member-a';board.tasks[0].assigned='A member';
+ const app=fixture(board),client=mockClient({legacyList:{houses:[],members:[]},v2Lists:[
   {data:{houses:[v2House()],members:[v2Member('member-a','a@example.test')]},error:null},
   {data:null,error:{message:'Failed to fetch'}},
   {data:{houses:[v2House()],members:[v2Member('member-b','b@example.test')]},error:null}
  ]});app.setSession({id:'owner',email:'owner@example.test'},client);
- await app.refresh();await assert.rejects(app.refresh(),/Failed to fetch/);await app.refresh();
+ await app.refresh();assert.equal(app.api.people().some(person=>person.id==='member-a'),true,'the current roster supplies fresh assignee choices');
+ await assert.rejects(app.refresh(),/Failed to fetch/);assert.equal(app.api.people().some(person=>person.id==='member-a'),false,'cached names are unavailable while stale');
+ assert.deepEqual([app.getBoard().tasks[0].assignedUserId,app.getBoard().tasks[0].assigned],['member-a','A member']);
+ await app.refresh();
  const html=app.api.panel();
  assert.match(html,/b@example\.test/);
  assert.doesNotMatch(html,/a@example\.test/);
  assert.doesNotMatch(html,/stale/i);
+ assert.equal(app.api.people().some(person=>person.id==='member-b'),true,'a successful refresh restores current assignee choices');
+ assert.deepEqual([app.getBoard().tasks[0].assignedUserId,app.getBoard().tasks[0].assigned],['member-a','A member'],'refresh does not rewrite a saved task assignment');
  assert.equal(app.roster().stale,false);
 });
 
