@@ -84,7 +84,18 @@ test('new care tasks inherit the selected category or require a choice from All;
  submitCareDialog(c,{title:'Water basil',warning:'',type:'daily',group:'aquatic'});
  let created=board.features.careDefinitions.at(-1);
  assert.equal(created.group,'aquatic');
+ const basilId=created.id;
+ const basilWin=CARE.complete(board,basilId,()=> 'stable-basil-win',new Date('2026-11-11T12:00:00Z'));
  assert.match(c.dailyGrindPage(),/Water basil/);
+ c.careEditor(basilId);
+ assert.doesNotMatch(c.lastDialog.body,/<select name="group">/,'editing keeps the existing category');
+ submitCareDialog(c,{title:'Water basil gently',warning:'Check soil',type:'weekly'});
+ created=CARE.rule(basilId,board);
+ assert.equal(created.id,basilId);
+ assert.equal(created.group,'aquatic');
+ assert.equal(created.title,'Water basil gently');
+ assert.equal(CARE.wins(board,basilId)[0].id,basilWin.id);
+ assert.equal(CARE.wins(board,basilId)[0].title,'Water basil');
  c.grindSection='cat';
  c.careEditor();
  assert.doesNotMatch(c.lastDialog.body,/<select name="group">/,'Cat Tray inherits the selected category');
@@ -102,8 +113,16 @@ test('new care tasks inherit the selected category or require a choice from All;
  assert.equal(CARE.undo(board,'cat',catWin.id),false);
  const reloaded=M.normalize(Codec.decode(Codec.encode(board)));
  assert.deepEqual(reloaded.features.careDefinitions,board.features.careDefinitions);
+ const restored=CARE.rule(basilId,reloaded),restoredWin=CARE.wins(reloaded,basilId)[0];
+ assert.equal(restored.id,basilId);
+ assert.equal(restored.group,'aquatic');
+ assert.equal(restored.title,'Water basil gently');
+ assert.equal(restoredWin.id,basilWin.id);
+ assert.equal(restoredWin.title,'Water basil');
+ assert.equal(CARE.undo(reloaded,basilId,basilWin.id),true);
 });
 
-test('app script cache key advances for the care category UI',()=>{
+test('app and care-system cache keys advance for the care category UI',()=>{
  assert.match(html,/js\/app\.js\?v=[^"]+-petcaretabs1"/);
+ assert.match(html,/js\/care-system\.js\?v=[^"]+-petcaretabs1"/);
 });
