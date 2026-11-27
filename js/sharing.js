@@ -4,7 +4,7 @@ const U=window.TidyUI,M=window.TidyModel,S=window.TidySharedModel;
 const storageCodec=window.TidyStorageCodec;
 const SUPABASE_URL='https://thviqhojcjrmqurhdkql.supabase.co',PUBLIC_KEY='sb_publishable_ziQesp5o-pHIXINUMMdmTA_3nDFSVZr',AUTH_KEY='tidyish-html-v023-auth';
 let liveChannel=null,liveHouseKey="",liveSubscribed=false,pendingNotice=false,remoteSave=false,syncAttemptActive=false;
-let client=null,loading=null,session=null,houses=[],members=[],newMembers=[],people=[],busy=false,status='Not connected. Changes are saved in this browser.',statusError=false,timer=null,retryTimer=null,retryAttempt=0,retryTarget='',invite='',conflicts=[],generation=0;
+let client=null,loading=null,session=null,houses=[],members=[],newMembers=[],people=[],busy=false,status='Not connected. Changes are saved in this browser.',statusError=false,timer=null,retryTimer=null,retryAttempt=0,retryTarget='',retryDeferred=false,invite='',conflicts=[],generation=0;
 const syncRetryDelays=[2000,5000,15000,30000,60000];
 // Invitation codes are issued by Supabase. A link only transports an existing code;
 // visiting it never grants access or imports a household automatically.
@@ -165,7 +165,7 @@ function announceSavedHousehold(house){
  Promise.resolve(liveChannel.send({type:'broadcast',event:'board-changed',payload:{house}})).catch(()=>{});
 }
 function syncTarget(state=U.getBoard().features.browserSync){return state?.account&&state?.house?`${state.account}\u0000${state.house}`:'';}
-function alignRetryTarget(state){const target=syncTarget(state);if(target!==retryTarget){clearTimeout(retryTimer);retryTimer=null;retryAttempt=0;retryTarget=target;}return target;}
+function alignRetryTarget(state){const target=syncTarget(state);if(target!==retryTarget){clearTimeout(retryTimer);retryTimer=null;retryAttempt=0;retryDeferred=false;retryTarget=target;}return target;}
 function isAuthenticationOrPermissionFailure(error){
  const seen=new Set();for(let current=error;current&&!seen.has(current);current=current.cause){seen.add(current);const statusCode=Number(current.status??current.statusCode);if([401,403].includes(statusCode))return true;const code=String(current.code||'');if(/^(?:PGRST301|42501|28[A-Z0-9]{3})$/i.test(code))return true;}return false;
 }
@@ -175,17 +175,17 @@ function isRetryableSyncError(error){
 }
 function scheduleSyncRetry(state,error,expectedGeneration){
  const target=alignRetryTarget(state),current=U.getBoard().features.browserSync;if(!target||!approved(state)||generation!==expectedGeneration||syncTarget(current)!==target)return;
- if(!isRetryableSyncError(error)){retryAttempt=0;return;}
+ if(!isRetryableSyncError(error)){retryAttempt=0;retryDeferred=false;return;}
  if(retryTimer)return;
- if(retryAttempt>=syncRetryDelays.length){const pending=hasPendingChanges();statusChanged(`${error?.message||'Household sync failed.'} Automatic retries stopped after ${syncRetryDelays.length} attempts.${pending?' Pending changes remain saved in this browser; use Refresh now to retry.':' Use Refresh now to check again.'}`,true);return;}
+ if(retryAttempt>=syncRetryDelays.length){retryDeferred=false;const pending=hasPendingChanges();statusChanged(`${error?.message||'Household sync failed.'} Automatic retries stopped after ${syncRetryDelays.length} attempts.${pending?' Pending changes remain saved in this browser; use Refresh now to retry.':' Use Refresh now to check again.'}`,true);return;}
  const delay=syncRetryDelays[retryAttempt++];
- retryTimer=setTimeout(()=>{retryTimer=null;const latest=U.getBoard().features.browserSync;if(syncTarget(latest)!==target||!approved(latest))return;if(generation!==expectedGeneration){if(session?.user?.id===latest.account)queue({immediate:true});return;}if(!navigator.onLine){statusChanged('Saved in this browser. Waiting for an internet connection to sync.');return;}if(U.editing())return;return sync({fromRetry:true}).catch(()=>{});},delay);
+ retryTimer=setTimeout(()=>{retryTimer=null;const latest=U.getBoard().features.browserSync;if(syncTarget(latest)!==target||!approved(latest))return;if(generation!==expectedGeneration){if(session?.user?.id===latest.account){retryDeferred=true;queue({immediate:true});}return;}if(!navigator.onLine){retryDeferred=true;statusChanged('Saved in this browser. Waiting for an internet connection to sync.');return;}if(U.editing()){retryDeferred=true;statusChanged('Saved locally. Sync resumes when editing is closed.');return;}if(busy){retryDeferred=true;pendingNotice=true;statusChanged('Saved locally. Sync resumes after the current operation.');return;}retryDeferred=false;return sync({fromRetry:true}).catch(()=>{});},delay);
  statusChanged(`${error?.message||'Household sync failed.'} Retrying in ${Math.ceil(delay/1000)} seconds.`,true);
 }
 function queue({immediate=false}={}){
  clearTimeout(timer);timer=null;const state=U.getBoard().features.browserSync;alignRetryTarget(state);
  if(!approved(state))return;
- if(!retryTimer&&retryAttempt>=syncRetryDelays.length)return;
+ if(!retryTimer&&retryAttempt>=syncRetryDelays.length&&!retryDeferred)return;
  if(hasPendingChanges(U.getBoard(),state))statusChanged(navigator.onLine?'Saved in this browser. Waiting to sync with the household.':'Saved in this browser. Waiting for an internet connection to sync.');
  listenForHouseholdChanges();
  if(busy){pendingNotice=true;return;}
@@ -210,8 +210,9 @@ function localSnapshot(b){const out=M.clone(b);delete out.features.browserSync;r
 
 async function sync({fromRetry=false,fromQueue=false}={}){
  const initial=U.getBoard().features.browserSync;if(busy){pendingNotice=true;return;}if(U.editing()||!navigator.onLine)return;if(!approved(initial))return;
- if(fromQueue&&retryAttempt>=syncRetryDelays.length)return;
+ if(fromQueue&&retryAttempt>=syncRetryDelays.length&&!retryDeferred)return;
  if(!fromRetry&&!fromQueue&&retryAttempt>=syncRetryDelays.length)retryAttempt=0;
+ retryDeferred=false;
  const target=alignRetryTarget(initial),retryGeneration=generation;clearTimeout(timer);timer=null;clearTimeout(retryTimer);retryTimer=null;syncAttemptActive=true;
  try{return await run(async()=>{
   const user=await verified();
@@ -248,7 +249,7 @@ async function sync({fromRetry=false,fromQueue=false}={}){
   statusChanged('Synced at '+new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})+'. Changes share with this household.');
   if(remoteSave)announceSavedHousehold(state.house);
   if(!S.equal(localSnapshot(snapshot),currentSnapshot))queue();
- });retryAttempt=0;}catch(error){scheduleSyncRetry(initial,error,retryGeneration);throw error;}finally{syncAttemptActive=false;if(pendingNotice){pendingNotice=false;queue();}if(syncTarget(U.getBoard().features.browserSync)!==target)alignRetryTarget(U.getBoard().features.browserSync);}
+ });retryAttempt=0;retryDeferred=false;}catch(error){scheduleSyncRetry(initial,error,retryGeneration);throw error;}finally{syncAttemptActive=false;if(pendingNotice){pendingNotice=false;queue();}if(syncTarget(U.getBoard().features.browserSync)!==target)alignRetryTarget(U.getBoard().features.browserSync);}
 }
 
 async function startFreshHousehold(){
@@ -341,5 +342,5 @@ const actions={
  'house-remove':el=>U.confirmDialog('Remove household access?','This removes this member’s access to your house. Previously downloaded copies remain on their device.',()=>{run(async()=>{const house=U.getBoard().features.browserSync;if(house?.kind==='v2')await callNew('remove-member',{p_house_id:house.house,target_member:el.dataset.id});else await call('remove-member',{target_member:el.dataset.id});await refreshHouses();statusChanged('Member access removed.')}).catch(()=>{});},'Remove access'),
 };
 async function submit(form,fd){if(form.id==='house-signin')return run(async()=>{const db=await init(),email=String(fd.get('email')).trim(),redirect=new URL('index.html',location.href).href,{error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:redirect,shouldCreateUser:false}});if(error)throw error;statusChanged('Check your email and open the newest sign-in link in this browser.');});if(form.id==='house-select')return run(()=>preview(String(fd.get('house'))));if(form.id==='house-join')return run(async()=>{const code=String(fd.get('code')).trim();if(!code)throw Error('Paste an invitation code.');let data;try{data=await callNew('join',{invite_code:code});}catch(e){if(!/Invite expired or invalid/i.test(e.message))throw e;data=await call('join',{invite_code:code});}await refreshHouses();clearPendingInvite();statusChanged('Invitation accepted. Preview the shared house before opening it.');if(data.houseId)await preview(data.houseId);});}
-const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{clearTimeout(retryTimer);retryTimer=null;listenForHouseholdChanges();queue({immediate:true});});window.addEventListener('offline',()=>{if(hasPendingChanges()&&approved(U.getBoard().features.browserSync))statusChanged(displayStatus());});document.getElementById('editor')?.addEventListener('close',()=>queue({immediate:true}));document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message,true));if(pendingInvite)U.navigate('settings',undefined,'household');U.onSyncStatus();
+const api={init,panel,actions,submit,queue,sync,people:()=>people,transition:S.transition,_reconcile:reconcile,_protectRemoteRows:protectRemoteRows};window.TidySharing=api;conflicts=U.getBoard().features.browserSync?.conflicts||[];window.dispatchEvent(new Event('tidy-sharing-ready'));/* No 20-second polling. Refresh after local edits, remote changes, and reconnection. */window.addEventListener('online',()=>{if(retryTimer){clearTimeout(retryTimer);retryTimer=null;retryDeferred=true;}listenForHouseholdChanges();queue({immediate:true});});window.addEventListener('offline',()=>{if(hasPendingChanges()&&approved(U.getBoard().features.browserSync))statusChanged(displayStatus());});document.getElementById('editor')?.addEventListener('close',()=>queue({immediate:true}));document.addEventListener('visibilitychange',()=>{if(!document.hidden){listenForHouseholdChanges();queue();}});if(localStorage.getItem(AUTH_KEY))init().catch(e=>statusChanged(e.message,true));if(pendingInvite)U.navigate('settings',undefined,'household');U.onSyncStatus();
 })();

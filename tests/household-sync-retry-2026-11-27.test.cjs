@@ -19,9 +19,11 @@ function fixture(initialBoard,{online=true,editing=false}={}){
  vm.runInNewContext(hooked,ctx,{filename:'sharing.js'});
  async function advance(ms){const end=now+ms;let runs=0;while(true){const item=[...timers.entries()].filter(([,v])=>v.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!item)break;if(++runs>100)throw Error('Timer loop exceeded test bound.');const [id,t]=item;timers.delete(id);now=t.at;await t.fn();}now=end;}
  function closeEditor(){isEditing=false;dialogListeners.close?.();}
- return {api:ctx.window.TidySharing,ctx,timers,scheduledDelays,listeners,storage,advance,closeEditor,status:()=>ctx.window.__testStatus(),setSession:(person,db)=>ctx.window.__setSession(person,db),setEditing:value=>{isEditing=value;}};
+ return {api:ctx.window.TidySharing,ctx,timers,scheduledDelays,listeners,storage,advance,closeEditor,status:()=>ctx.window.__testStatus(),setSession:(person,db)=>ctx.window.__setSession(person,db),setEditing:value=>{isEditing=value;},setOnline:value=>{ctx.navigator.onLine=value;}};
 }
 function pendingBoard(){const board=M.board(),task=M.task({id:'retry-task',title:'Wipe the table'});M.add(board,task);const base=S.project(board,{},'owner');board.features.browserSync={account:'owner',house:'house',kind:'legacy',base,native:S.snapshot(board),initial:false,hidden:[],choices:{},conflicts:[],retired:[]};board.tasks[0].title='Wipe the whole table';return {board,base};}
+async function reachFinalRetry(app,client){await assert.rejects(app.api.sync(),/shared board read failed/);await app.advance(52000);assert.equal(client.readCount,5);assert.deepEqual([...app.timers.values()].map(t=>t.ms),[60000]);}
+async function verifyManualRefreshAfterFinalRetry(app,client){const before=client.readCount;app.api.queue({immediate:true});app.listeners.online();await app.advance(120000);assert.equal(client.readCount,before,'automatic events stay stopped after the deferred final retry actually runs');await assert.rejects(app.api.actions['house-sync'](),/shared board read failed/);assert.equal(client.readCount,before+1);assert.deepEqual([...app.timers.values()].map(t=>t.ms),[2000]);}
 function mockClient({remote,read,casFailures=0,authError=null,rpcErrors={}}={}){
  let activeReads=0,maxConcurrentReads=0,readCount=0,saveCount=0;
  const savedPayloads=[];
@@ -95,6 +97,24 @@ test('transient failures stop after the bounded retry window and keep local edit
  assert.equal(app.timers.size,0);
  await assert.rejects(app.api.actions['house-sync'](),/shared board read failed/);
  assert.deepEqual([...app.timers.values()].map(t=>t.ms),[2000]);
+});
+
+test('the final scheduled retry resumes when its timer fires offline',async()=>{
+ const {board,base}=pendingBoard(),app=fixture(board),client=mockClient({remote:base,read:async()=>{throw new TypeError('Failed to fetch');}});app.setSession({id:'owner'},client);
+ await reachFinalRetry(app,client);app.setOnline(false);await app.advance(60000);
+ assert.equal(client.readCount,5);assert.equal(app.timers.size,0);assert.match(app.status(),/waiting for an internet connection/i);
+ app.setOnline(true);app.listeners.online();await app.advance(0);
+ assert.equal(client.readCount,6,'the reserved final retry runs once after connectivity returns');
+ await verifyManualRefreshAfterFinalRetry(app,client);
+});
+
+test('the final scheduled retry resumes when its timer fires during editing',async()=>{
+ const {board,base}=pendingBoard(),app=fixture(board),client=mockClient({remote:base,read:async()=>{throw new TypeError('Failed to fetch');}});app.setSession({id:'owner'},client);
+ await reachFinalRetry(app,client);app.setEditing(true);await app.advance(60000);
+ assert.equal(client.readCount,5);assert.equal(app.timers.size,0);assert.match(app.status(),/resumes when editing is closed/i);
+ app.closeEditor();await app.advance(0);
+ assert.equal(client.readCount,6,'the reserved final retry runs once after editing closes');
+ await verifyManualRefreshAfterFinalRetry(app,client);
 });
 
 test('authentication and permission failures do not schedule retries',async()=>{
