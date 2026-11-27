@@ -12,6 +12,13 @@
   if(!Number.isFinite(minutes)||!Number.isFinite(deducted)||deducted>elapsed)throw Error('Distraction cannot exceed elapsed time. No changes saved.');
   return {distractionMinutes:minutes,workDurationMs:Math.max(0,elapsed-deducted)};
  }
+ function elapsedMinutesToMs(raw){
+  const value=String(raw??'').trim();if(!value)return 0;
+  if(!/^\d+(?:\.\d+)?$/.test(value))throw Error('Enter elapsed time in minutes as a non-negative number.');
+  const minutes=Number(value),milliseconds=Math.round(minutes*60000);
+  if(!Number.isFinite(minutes)||!Number.isSafeInteger(milliseconds))throw Error('Enter elapsed time in minutes as a non-negative number.');
+  return milliseconds;
+ }
  function learningDuration(r){
   if(!r||r.excludedFromLearning)return null;
   const elapsed=Number(r.durationMs);
@@ -45,5 +52,5 @@
   return {phase:remaining>0?'countdown':'overtime',shownMs:Math.abs(remaining),overdue:remaining<=0,alarmDue:remaining<=0&&!alarmDismissed&&elapsed>=threshold};
  }
  function format(ms){const seconds=Math.floor(Math.max(0,ms)/1000);return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;}
- return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,focusQuestCompleted,focusQuestCompletionId,status,format,valid,distraction,learningDuration});
+ return Object.freeze({BUFFER_MS,REPEAT_MS,SNOOZE_MS,RECENT_LIMIT,DECAY,average,ownerOf,suggested,hasAttempt,focusQuestCompleted,focusQuestCompletionId,status,format,valid,distraction,elapsedMinutesToMs,learningDuration});
 });
