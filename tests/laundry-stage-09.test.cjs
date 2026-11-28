@@ -46,6 +46,16 @@ test('household sync does not carry an old load reminder into a newly started cy
  const accepted=Share.accept(b,payload,state);assert.equal(accepted.features.laundry[0].startedAt,4000);assert.equal(accepted.features.laundry[0].lastReminderAt,undefined);
 });
 
+test('one standard load pause syncs to another device, leaves other loads due, and Undo restores it',()=>{
+ const Share=require('../js/sharing-model.js'),b=M.board(),now=Date.parse('2026-11-18T12:00:00Z'),load=b.features.laundry[0],other={slot:2,route:'rail',step:1,startedAt:now-7200000,lastReminderAt:0,selected:true,manual:true,complete:false,revision:1};
+ load.step=1;load.startedAt=now-7200000;load.lastReminderAt=0;load.revision=1;b.features.laundry.push(other);M.pauseLaundryReminder(load,120,now);
+ const raw=Share.project(b,{},'synthetic'),pauseRow=raw.settings.find(row=>row.id==='laundry-load-1'),otherRow=raw.settings.find(row=>row.id==='laundry-load-2');
+ assert.equal(pauseRow.reminderPauseUntil,now+7200000);assert.equal(pauseRow.reminderPauseStep,1);assert.equal(otherRow.reminderPauseUntil,undefined);
+ const peer=Share.importRaw(raw),peerLoad=peer.features.laundry.find(x=>x.slot===1),peerOther=peer.features.laundry.find(x=>x.slot===2);
+ assert.equal(M.laundryReminderPaused(peerLoad,now+1000),true);assert.equal(M.laundryReminderDue(peerLoad,now+1000),false);assert.equal(M.laundryReminderDue(peerOther,now+1000),true);
+ M.laundry(peer,1);assert.equal(peerLoad.pauseUntil,undefined);assert.equal(M.laundryReminderPaused(peerLoad,now+2000),false);M.undoLaundry(peer,1);assert.equal(peerLoad.pauseUntil,now+7200000);assert.equal(peerLoad.pauseStep,1);assert.equal(M.laundryReminderPaused(peerLoad,now+1000),true);
+});
+
 test('laundry task types stay out of cleaning estimates, recommendations and calendar choices',()=>{
  const Q=require('../js/quest-time-core.js'),Mem=require('../js/quest-memory.js'),Rec=require('../js/quest-recommendations.js'),Calendar=require('../js/owner-calendar.js');
  const b=M.board(),laundry=M.task({id:'laundry-task',title:'Put a wash on',room:'kitchen',taskType:'laundry',calendarEnabled:true}),clean=M.task({id:'clean-task',title:'Wipe counter',room:'kitchen'});b.tasks.push(laundry,clean);
@@ -58,7 +68,7 @@ test('laundry remains second in Doing Now, first on the home grind tile, with a 
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8'),css=require('node:fs').readFileSync(require('node:path').join(__dirname,'../css/care-system.css'),'utf8');
  assert.match(source,/tabs\(\[\['doing','Doing Now'\],\['laundry','Laundry'\]/);
  assert.match(source,/\[\['laundry','Laundry','<small>Laundry cycles<\/small>'\],\['cat','Cat Tray'/);
- assert.match(source,/const readyLaundry=F\(\)\.laundry\.filter\(l=>M\.laundryNeedsAttention\(l\)\)\.map\(l=>l\.slot\)\.sort\(\(a,b\)=>a-b\)\.join\(','\);const alertChanged=readyLaundry!==lastLaundryAttention;lastLaundryAttention=readyLaundry/);
+ assert.match(source,/const readyLaundry=F\(\)\.laundry\.filter\(l=>M\.laundryNeedsAttention\(l\)\)\.map\(l=>\x60\$\{l\.slot\}:\$\{M\.laundryReminderPaused\(l\)\}\x60\)\.sort\(\)\.join\(','\);const alertChanged=readyLaundry!==lastLaundryAttention;lastLaundryAttention=readyLaundry/);
  assert.doesNotMatch(source,/if\(refreshChanged\|\|route==='laundry'\|\|route==='home'/);
  assert.doesNotMatch(source,/route==='doing'&&doingTab==='laundry'\|\|route==='doing'&&nextDoingExpiry/);
  assert.match(css,/\.doing-board \.tabs\.nested button\[data-id="laundry"\]/);assert.match(css,/\.laundry-ready-alert\{animation:/);
