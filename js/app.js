@@ -991,6 +991,31 @@ function dialog(title,body,onSave=null,{saveLabel='Save',dirty=false,afterSave='
 function closeDialog(force=false){if(!force&&dialogDirty&&!confirm('Discard changes? Choose Cancel to keep editing.'))return false;if(dialogCleanup)dialogCleanup();dialogCleanup=null;editor.close();dialogDirty=false;dialogSave=null;taskTitleSuggestionState=null;clearTimeout(taskTitleSuggestionTimer);if(pendingExternal){board=pendingExternal;pendingExternal=null;lastSaved=localStorage.getItem(KEY)||'';render();}return true;}
 editor.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});editor.addEventListener('input',e=>{if(e.target.id==='focus-sound-volume'||editor.querySelector('.phone-timer-panel')&&(e.target.closest('.phone-timer-panel')||e.target.name==='minutes'))return;dialogDirty=true;});editor.addEventListener('submit',async e=>{ e.preventDefault(); const box=editor.querySelector('[data-dialog-save-error]'); if(box){box.hidden=true;box.textContent='';} try { if(dialogSave)await dialogSave(new FormData(e.target),e.target); } catch(err) { showDialogSaveError(err?.message||'Could not save.'); notice(err?.message||'Could not save.'); } }); editor.addEventListener('invalid',e=>{ if(!e.target.closest('#modal-form'))return; let details=e.target.closest('details'); while(details){ details.open=true; details=details.parentElement?.closest('details')||null; } showDialogSaveError('Please check the highlighted field before saving.'); },true);
 function confirmDialog(title,text,action,label='Confirm'){dialog(title,`<p>${esc(text)}</p>`,()=>{if(action()!==false)closeDialog(true);},{saveLabel:label});}
+// A reverse move keeps the existing task family and its destination room.
+function mainTaskMoveBlocker(b,t){
+ if(!t?.side)return 'This task is no longer in Side Tasks.';
+ if(t.room&&!b.rooms.some(r=>r.id===t.room&&!r.archived))return 'Choose an available room before moving this task to Main Tasks.';
+ const family=[t,...t.children],sharedIds=new Set(family.map(item=>item._sharedId||item.id));
+ // Legacy households can contain the same raw ID in both collections. A
+ // reverse move must not overwrite a main task or change an imported local ID.
+ const collision='This task has a conflicting household task ID. Its saved data is unchanged.';
+ if(sharedIds.size!==family.length||family.some(item=>item._sharedId&&item._sharedId!==item.id)||b.tasks.some(other=>!other.side&&[other,...other.children].some(item=>sharedIds.has(item._sharedId||item.id))))return collision;
+ const state=b.features.browserSync,prior=state?.native?.tasks?.find(item=>item.id===t.id&&!item.side);
+ // Permit an immediate reversal of our own not-yet-synced forward move,
+ // but protect main rows that exist in the shared baseline even if hidden locally.
+ const priorIds=new Set(prior?[prior,...prior.children].map(item=>item._sharedId||item.id):[]);
+ if((state?.base?.tasks||[]).some(row=>sharedIds.has(row.id)&&!priorIds.has(row.id)))return collision;
+ return '';
+}
+function moveToMainTask(el){
+ const id=el.dataset.id,t=task(id),blocked=mainTaskMoveBlocker(board,t);
+ if(blocked){notice(blocked);return;}
+ const destination=t.room?(room(t.room)?.name||'Room')+' Tasks':'the Homeless task list';
+ confirmDialog('Move to main task?',`Move “${t.title}” out of Side Tasks and into ${destination}? Its room, subtasks and history stay attached.`,()=>{
+  const ok=change(b=>{const moved=b.tasks.find(x=>x.id===id),blocked=mainTaskMoveBlocker(b,moved);if(blocked)throw Error(blocked);moved.side=false;moved.sideKind='organisation';});
+  if(ok)notice('Moved to Main Tasks');return ok;
+ },'Move');
+}
 function taskEditorTabs(selected){
  const entries=[['task','Add Task'],['saved','Add Saved Task'],['scheduled','Add Scheduled Task']];
  return `<div class="tabs add-task-tabs" role="tablist" aria-label="Choose how to add a task">${entries.map(([id,label])=>button(esc(label),'task-editor-tab',id,id===selected?'active':'',`role="tab" aria-selected="${id===selected}"`)).join('')}</div>`;
@@ -1376,8 +1401,9 @@ const actions={
  extra:()=>dialog('Extra rooms',rooms().filter(r=>!positions[houseKey(r)]).map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')||'<p>No extra rooms</p>'),
  'all-rooms':()=>dialog('All rooms',rooms().map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')),
  'dialog-room':el=>{closeDialog(true);navigate('room',el.dataset.id)},'room-tab':el=>{tab=el.dataset.id;search='';render()},'doing-tab':el=>{doingTab=el.dataset.id;search='';render()},'side-tab':el=>{sideTab=el.dataset.id;render()},
- view:()=>{detailed=!detailed;render()},'set-doing-view':el=>{doingDetailed=el.dataset.id==='detailed';try{localStorage.setItem(DOING_VIEW_KEY,doingDetailed?'detailed':'compact')}catch{}render()},'task-menu':el=>{const t=task(el.dataset.id);if(!t)return;dialog('Task actions · '+t.title,`<div class="doing-menu-grid">${button('✎ Edit task','edit-task',t.id)}${!t.side?button('Move to Side Task','move-side-quest',t.id,'ghost'):''}${button('＋ Add subtask','add-child',t.id)}${button(stopwatch+' Timer','timer',t.id)}${button('Task Data','data-open-task',t.id)}${button('Save reusable','save-template',t.id)}${t.done&&!t.side&&!t.scheduleMakerManaged&&!t.tidyScheduleV3?button('Do again','library-reactivate',t.id,'ghost'):''}${button(t.paused?'Resume task':'Pause task','pause-task',t.id)}${button('Delete task','delete-task',t.id)}</div>${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}`)},search:()=>{uiSearch=!uiSearch;if(!uiSearch)search='';render();$('#task-search')?.focus()},
+ view:()=>{detailed=!detailed;render()},'set-doing-view':el=>{doingDetailed=el.dataset.id==='detailed';try{localStorage.setItem(DOING_VIEW_KEY,doingDetailed?'detailed':'compact')}catch{}render()},'task-menu':el=>{const t=task(el.dataset.id);if(!t)return;dialog('Task actions · '+t.title,`<div class="doing-menu-grid">${button('✎ Edit task','edit-task',t.id)}${!t.side?button('Move to Side Task','move-side-quest',t.id,'ghost'):!mainTaskMoveBlocker(board,t)?button('Move to main task','move-main-task',t.id,'ghost'):''}${button('＋ Add subtask','add-child',t.id)}${button(stopwatch+' Timer','timer',t.id)}${button('Task Data','data-open-task',t.id)}${button('Save reusable','save-template',t.id)}${t.done&&!t.side&&!t.scheduleMakerManaged&&!t.tidyScheduleV3?button('Do again','library-reactivate',t.id,'ghost'):''}${button(t.paused?'Resume task':'Pause task','pause-task',t.id)}${button('Delete task','delete-task',t.id)}</div>${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}`)},search:()=>{uiSearch=!uiSearch;if(!uiSearch)search='';render();$('#task-search')?.focus()},
  'add-task':()=>taskEditor(),'task-title-suggestion-use':el=>useTaskTitleSuggestion(el),'task-title-suggestion-dismiss':()=>dismissTaskTitleSuggestion(),'photo-task-import':()=>openPhotoTaskImport(),'photo-task-read':()=>readPhotoTaskList(),'edit-task':el=>taskEditor(task(el.dataset.id)),'move-side-quest':el=>{const t=task(el.dataset.id);if(!t||t.side)return;confirmDialog('Move to Side Task?',`Move “${t.title}” out of room tasks and into Side Tasks? Its room, subtasks and history stay attached.`,()=>{const ok=change(b=>{const moved=b.tasks.find(x=>x.id===el.dataset.id);if(moved){moved.side=true;moved.sideKind='organisation';}});if(ok)notice('Moved to Side Tasks');return ok;},'Move')},expand:el=>{const id=el.dataset.id;openTasks.has(id)?openTasks.delete(id):openTasks.add(id);render()},
+ 'move-main-task':moveToMainTask,
  'select-task':el=>change(b=>M.select(b,el.dataset.id,el.type==='checkbox'?el.checked:!task(el.dataset.id).doing)),
  'seasonal-home-complete':el=>completeSeasonalHomeTask(el.dataset.id),
  complete:el=>{const t=task(el.dataset.id);if(!t)return;if(!t.done&&hasTimedAttempt(t)){finishTimed(t.id);return;}const complete=()=>change(b=>M.finish(b,t.id,!t.done));if(!t.done&&t.children.some(c=>!c.done)){openTasks.add(t.id);confirmDialog('Done em all',`Complete all subtasks in ${t.title}?`,complete,'Done em all');}else complete()},
