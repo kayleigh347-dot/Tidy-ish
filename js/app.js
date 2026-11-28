@@ -1636,7 +1636,7 @@ function childTargetAt(g,x,y){
  const row=underneath?.closest?.('[data-child-id]');
  if(row&&row.dataset.rootId===g.root&&row.dataset.parentId===g.parent&&row.dataset.childId!==g.child){
   const rect=row.getBoundingClientRect();
-  return {kind:'sibling',id:row.dataset.childId,after:y>=rect.top+rect.height/2};
+  return {kind:'sibling',id:row.dataset.childId,after:y>=rect.top+rect.height/2,card:row};
  }
  // Only the edge of a card or the actual gap can lift a subtask to top-level.
  // Do not accidentally promote when dragging across sibling rows or task buttons.
@@ -1655,10 +1655,23 @@ function childTargetAt(g,x,y){
  if(y>rect.top+edge&&y<rect.bottom-edge)return null;
  return {kind:'root',id:card.dataset.taskId,after:y>=(rect.top+rect.bottom)/2,card};
 }
+// Doing Now renders descendants as flat rows, whereas room cards contain them.
+// An after marker belongs below the visible sibling family, not inside that family.
+function childSiblingBottom(row){
+ let bottom=row.getBoundingClientRect().bottom;
+ if(!row.matches('.doing-child'))return bottom;
+ const card=row.closest('.task[data-task-id]'),family=new Set([row.dataset.childId]);
+ for(const child of card?.querySelectorAll('[data-child-id]')||[]){
+  if(child.dataset.rootId!==row.dataset.rootId||!family.has(child.dataset.parentId))continue;
+  family.add(child.dataset.childId);
+  const rect=child.getBoundingClientRect();if(rect.width>0&&rect.height>0)bottom=Math.max(bottom,rect.bottom);
+ }
+ return bottom;
+}
 function moveChildPreview(g,x,y){
  const next=childTargetAt(g,x,y);childHover=next;
  clearChildOver();hideRootInsertionLine();
- if(next?.kind==='sibling')document.querySelector(`[data-child-id="${CSS.escape(next.id)}"]`)?.classList.add('drag-over',next.after?'child-drop-after':'child-drop-before');
+ if(next?.kind==='sibling')setRootInsertionLine(next.card,next.after?'after':'before',next.after?childSiblingBottom(next.card):undefined);
  if(next?.kind==='root')setRootInsertionLine(next.card,next.after?'after':'before');
  if(g.ghost){g.ghost.style.left=Math.max(8,Math.min(innerWidth-200,x+12))+'px';g.ghost.style.top=Math.max(5,Math.min(innerHeight-45,y-32))+'px';}
 }
@@ -1713,9 +1726,9 @@ document.addEventListener('pointercancel',e=>{if(childGesture?.pointer===e.point
 let rootGesture=null,rootDrop=null,rootHoverTimer=0,rootScrollTimer=0,suppressDragClickUntil=0,rootInsertionLine=null;
 // The insertion line lives on document.body, not inside a clipped task card.
 // It therefore remains visible above the first item and in the gaps between cards.
-function setRootInsertionLine(card,where){
+function setRootInsertionLine(card,where,edgeY){
  if(!rootInsertionLine){rootInsertionLine=document.createElement('div');rootInsertionLine.className='tidy-task-insertion-line';rootInsertionLine.setAttribute('aria-hidden','true');document.body.appendChild(rootInsertionLine);}
- const rect=card.getBoundingClientRect(),y=where==='before'?rect.top:rect.bottom;
+ const rect=card.getBoundingClientRect(),y=edgeY??(where==='before'?rect.top:rect.bottom);
  rootInsertionLine.style.left=Math.max(5,rect.left+4)+'px';
  rootInsertionLine.style.width=Math.max(20,rect.width-8)+'px';
  rootInsertionLine.style.top=y+'px';

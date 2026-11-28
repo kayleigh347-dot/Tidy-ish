@@ -278,7 +278,7 @@ test('Focus assets use refreshed cache versions',()=>{
  const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8');
  assert.match(html,/css\/quest-focus\.css\?v=[^"]+-clearway-links1"/);
  assert.match(html,/js\/quest-focus-ui\.js\?v=[^"]+-clearway-links1"/);
- assert.match(html,/js\/app\.js\?v=[^"]+-clearway-links1-movemain1"/);
+ assert.match(html,/js\/app\.js\?v=[^"]+-clearway-links1-movemain1-dragchildline2"/);
  assert.match(html,/js\/sharing-model\.js\?v=[^"]+-clearway-links1"/);
 });
 

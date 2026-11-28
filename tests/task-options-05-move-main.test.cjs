@@ -171,5 +171,5 @@ test('legacy shared ID collisions, including hidden main rows and nested child c
 test('new action is registered once, routed through existing dispatch, and app cache suffix is current',()=>{
  assert.equal((source.match(/'move-main-task':moveToMainTask/g)||[]).length,1);
  assert.match(source,/const action=actions\[el\.dataset\.action\]/);
- assert.equal((html.match(/src="js\/app\.js\?v=[^"]+-clearway-links1-movemain1"/g)||[]).length,1);
+ assert.equal((html.match(/src="js\/app\.js\?v=[^"]+-clearway-links1-movemain1-dragchildline2"/g)||[]).length,1);
 });
