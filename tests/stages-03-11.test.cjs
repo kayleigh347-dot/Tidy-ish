@@ -107,6 +107,19 @@ test('household-shared Quest Memory visibility survives normalization and sync a
  copy.showInSuggestions=true;assert.equal(Rec.eligible(copy,'','2026-11-01',back,at('2026-11-01')),true);
 });
 
+test('Clear the Way organising-Quest links sync by stable ID without merging collection groups',()=>{
+ const b=M.board(),first=M.task({id:'collected-one',title:'Sort one box',generatedFrom:'clear-way-session:one',clearWayQuestId:'shared-target'}),second=M.task({id:'collected-two',title:'Sort another box',generatedFrom:'clear-way-session:two',clearWayQuestId:'shared-target'}),dangling=M.task({id:'collected-dangling',title:'Sort a third box',generatedFrom:'clear-way-session:three',clearWayQuestId:'deleted-target'}),legacy=M.task({id:'collected-legacy',title:'Sort a fourth box',generatedFrom:'clear-way-session:four'}),target=M.task({id:'local-target',_sharedId:'shared-target',title:'Organise storage',done:true});
+ b.tasks.push(first,second,dangling,legacy,target);const local=M.normalize(M.clone(b));
+ assert.equal(local.tasks.find(t=>t.id===first.id).clearWayQuestId,'shared-target');
+ const raw=Share.project(local,{},'acct'),back=Share.importRaw(raw),groups=back.tasks.filter(t=>String(t.generatedFrom||'').startsWith('clear-way-session:'));
+ assert.deepEqual(groups.map(t=>[t.id,t.clearWayQuestId||'',t.done]),[['collected-one','shared-target',false],['collected-two','shared-target',false],['collected-dangling','deleted-target',false],['collected-legacy','',false]]);
+ assert.equal(back.tasks.find(t=>t.id==='shared-target').done,true);assert.equal(back.features.wins.length,0);
+ const withoutTarget=M.clone(local);withoutTarget.tasks=withoutTarget.tasks.filter(t=>t.id!=='local-target');
+ const danglingBack=Share.importRaw(Share.project(withoutTarget,{},'acct'));
+ assert.equal(danglingBack.tasks.find(t=>t.id==='collected-one').clearWayQuestId,'shared-target');
+ assert.equal(danglingBack.tasks.find(t=>t.id==='collected-one').done,false);assert.equal(danglingBack.features.wins.length,0);
+});
+
 test('occasional calendar exposes only next saved occurrence, never generated phantom repeats',()=>{
  const b=M.board(),t=M.task({id:'oc-next',room:'kitchen',title:'Deep clean the fridge',occasionKind:'occasional',repeatMonths:3,nextDue:'2026-11-01'});M.add(b,t);
  const rows=M.occurrences(b,'2026-10-31','2028-10-31');

@@ -67,6 +67,8 @@
 .quest-focus .quest-source-row .quest-btn{flex:none}
 .quest-focus .quest-row-action{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap;flex-shrink:0}
 .quest-focus .quest-row-action .quest-btn{min-height:34px;padding:6px 8px;font-size:.75rem}
+.quest-focus .quest-return-link-status{grid-column:1/-1;min-width:0;overflow-wrap:anywhere}
+.quest-focus .quest-return-section .quest-row-action{grid-column:1/-1;justify-content:flex-start}
 .quest-focus .quest-active-bottom{display:flex;justify-content:space-between;gap:8px;margin:10px 0}
 .quest-focus .quest-search-wrap input[type=search]{flex:1;min-width:0;width:auto}
 .quest-focus .quest-search-wrap .quest-search-mic{flex:none;min-width:44px;min-height:44px;padding:7px 9px}

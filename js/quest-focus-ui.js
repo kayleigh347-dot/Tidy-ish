@@ -78,7 +78,14 @@ function clearActive(board){
 }
 function returnSection(board){
  const returns=api.returnTasks?.()||[];if(!returns.length)return '';
- return `<section class="quest-sheet quest-return-section"><h3>Return &amp; sort collected items</h3><div class="quest-active-list">${returns.map((t,i)=>`<article class="quest-active-card quest-alt-${i%4}"><strong class="quest-line-title">${esc(t.title)}</strong>${btn('Done','quest-return-complete',t.id,'quest-yes')}</article>`).join('')}</div></section>`;
+ return `<section class="quest-sheet quest-return-section"><h3>Return &amp; sort collected items</h3><div class="quest-active-list">${returns.map((t,i)=>{const key=String(t.clearWayQuestId||''),target=key?api.returnTarget?.(key):null,status=!key?'':target?`${target.done?'Linked Quest completed':target.available===false?'Linked Quest unavailable':'Linked Quest'}: ${target.title}`:'Linked Quest unavailable';return `<article class="quest-active-card quest-alt-${i%4}"><strong class="quest-line-title">${esc(t.title)}</strong>${status?`<small class="small quest-return-link-status">${esc(status)}</small>`:'<small class="small quest-return-link-status">No linked Quest</small>'}<span class="quest-row-action">${btn(key?'Change Quest':'Link Quest','quest-return-link',t.id,'quest-no')}${key?btn('Unlink','quest-return-unlink',t.id,'quest-no'):''}${btn('Done','quest-return-complete',t.id,'quest-yes')}</span></article>`;}).join('')}</div></section>`;
+}
+function returnLinkDialog(id){
+ const task=(api.returnTasks?.()||[]).find(t=>t.id===id);if(!task)return;
+ const current=String(task.clearWayQuestId||''),targets=api.linkableQuests?.(id)||[],linked=current?api.returnTarget?.(current):null,listed=targets.some(t=>String(t.id)===current);
+ const retained=current&&!listed?`<option value="${esc(current)}" selected disabled>Current link: ${esc(linked?.title||'Quest unavailable')}${linked?.done?' · completed':' · unavailable'}</option>`:'';
+ const choices=targets.map(t=>`<option value="${esc(t.id)}" ${String(t.id)===current?'selected':''}>${esc(t.title)}</option>`).join('');
+ modal('Link an organising Quest',`<p>This link is optional. It does not complete the collected-items task or the organising Quest.</p><label class="field">Organising Quest<select id="quest-return-target"><option value="" ${!current?'selected':''}>No linked Quest</option>${retained}${choices}</select></label><div class="quest-actions">${btn('Save link','quest-return-link-save',id,'quest-yes')}${btn('Cancel','quest-return-link-cancel','','quest-no')}</div>`);
 }
 function taskLabel(t,board){const m=Q.estimate(t,board),due=t.nextDue||t.dueDate||'';return `${m} min${due?' · Due '+due:''}`;}
 function choiceRow(t,i,selected,board,roomLabel=''){const searchText=(t.title+' '+(t.notes||'')+' '+(t.children||[]).map(c=>c.title).join(' ')+' '+roomLabel).toLowerCase(),show=!query||searchText.includes(query),meta=taskLabel(t,board);return `<label class="quest-choice-row quest-alt-${i%4}" data-quest-row="${esc(t.id)}" ${show?'':'hidden'} data-search-text="${esc(searchText)}"><input type="checkbox" data-quest-select="${esc(t.id)}" ${selected.has(t.id)?'checked':''}><span class="quest-line-title">${esc(t.title)}</span><span class="quest-inline-meta" title="Priority ${Number(t.priority)||3} · ${esc(meta)}">${esc(meta)}</span></label>`;}
@@ -178,6 +185,10 @@ function handle(el){if(!api||!el?.dataset?.action?.startsWith('quest-'))return f
  case 'quest-floor-open':api.openFloorRoom?.(id);break;
  case 'quest-tools':api.showTools?.(session.phase==='active'?session.startedIds:session.questIds);break;
  case 'quest-return-complete':if(session.phase==='active'){api.completeReturn?.(id);api.render();}break;
+ case 'quest-return-link':if(session.phase==='active')returnLinkDialog(id);break;
+ case 'quest-return-link-save':if(session.phase==='active'){const targetId=String(api.editor().querySelector('#quest-return-target')?.value||'');if(api.setReturnQuestLink?.(id,targetId)){api.closeDialog(true);api.render();}}break;
+ case 'quest-return-unlink':if(session.phase==='active'&&api.setReturnQuestLink?.(id,''))api.render();break;
+ case 'quest-return-link-cancel':api.closeDialog(true);break;
  case 'quest-remove-focus':if(session.phase==='active')set({startedIds:session.startedIds.filter(x=>x!==id)});break;
  case 'quest-move-focus':if(session.phase==='active')moveFocus(id,Number(el.dataset.direction)||0);break;
  case 'quest-add-more':{const selected=session.startedIds.filter(taskId=>{const t=board.tasks.find(x=>x.id===taskId);return canUseTask(board,t)&&!t.done&&!t.archived;});set({phase:'pick',addMethod:'manual',questIds:selected,replaceStarted:selected.length>0,limitMinutes:null,limitCount:null});break;}

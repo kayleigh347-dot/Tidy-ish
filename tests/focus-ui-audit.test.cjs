@@ -8,11 +8,11 @@ globalThis.TidyQuestFocus=Q;
 const DAY='2026-11-01';
 
 function setup(now=Date.now(),options={}){
- const board=M.board(),values=new Map(),dialogs=[],completedReturns=[];let counter=0,leaveForLaterCalls=0;
+ const board=M.board(),values=new Map(),dialogs=[],completedReturns=[],returnLinks=[];let counter=0,leaveForLaterCalls=0,returnTargetValue='';
  delete require.cache[require.resolve('../js/quest-focus-ui.js')];
  const UI=require('../js/quest-focus-ui.js');
- const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:()=>null,querySelectorAll:()=>[]}),returnTasks:()=>options.returnTasks||[],completeReturn:id=>completedReturns.push(id),roomOverview:(_board,_id,scope)=>`<p data-overview-scope="${scope}"></p>`,isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},leaveForLater:()=>{leaveForLaterCalls++;},openFocus:()=>{}};
- UI.init(api);return {board,UI,dialogs,values,completedReturns,leaveForLaterCalls:()=>leaveForLaterCalls};
+ const api={board:()=>board,room:()=> 'kitchen',date:()=>DAY,notice:()=>{},render:()=>{},storage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v)},memberId:()=> 'audit-member',makeId:()=>`audit-${++counter}`,dialog:(title,body)=>dialogs.push({title,body}),closeDialog:()=>{},editor:()=>({querySelector:selector=>selector==='#quest-return-target'?{value:returnTargetValue}:null,querySelectorAll:()=>[]}),returnTasks:()=>options.returnTasks||[],returnTarget:id=>(options.returnTargets||[]).find(t=>t.id===id||t._sharedId===id)||null,linkableQuests:()=>options.linkableQuests||[],setReturnQuestLink:(id,targetId)=>{const task=options.returnTasks?.find(t=>t.id===id);if(task){if(targetId)task.clearWayQuestId=targetId;else delete task.clearWayQuestId;}returnLinks.push([id,targetId]);return true;},completeReturn:id=>completedReturns.push(id),roomOverview:(_board,_id,scope)=>`<p data-overview-scope="${scope}"></p>`,isTaskCompletionVisible:task=>M.isTaskCompletionVisible(board,task,now),taskCompletionTime:task=>M.taskCompletionTime(board,task),renderFocusTask:(task,pos,done)=>`<article class="task ordinary-focus-card ${done?'done':''}" data-focus-task-id="${task.id}">${task.title}</article>`,leave:()=>{},leaveForLater:()=>{leaveForLaterCalls++;},openFocus:()=>{}};
+ UI.init(api);return {board,UI,dialogs,values,completedReturns,returnLinks,selectReturnQuest:value=>{returnTargetValue=value;},leaveForLaterCalls:()=>leaveForLaterCalls};
 }
 const click=(UI,action,id='')=>UI.handle({dataset:{action,id,direction:'-1'}});
 
@@ -197,6 +197,20 @@ test('each Returned control targets one item and Return Later keeps unfinished i
  assert.match(app,/clear-return-later':\(\)=>\{const current=Q\?\.get\(\),destination=current\?\.scope==='doing'\?'doing':'room';closeDialog\(true\);navigate\(destination,current\?\.room\|\|roomId\);notice\('Return and sorting Tasks remain active for later\.'\);\}/);
 });
 
+test('collected return Quest links stay optional and never complete the collection or linked task',()=>{
+ const collected={id:'collected-link',title:'Put ornaments away',generatedFrom:'clear-way-session:one',clearWayQuestId:'quest-shared'},missing={id:'collected-missing',title:'Sort keepsakes',generatedFrom:'clear-way-session:two',clearWayQuestId:'deleted-quest'},unlinked={id:'collected-unlinked',title:'Sort decorations',generatedFrom:'clear-way-session:three'},completedTarget={id:'local-completed',_sharedId:'quest-shared',title:'Organise ornaments',done:true,available:false},activeTarget={id:'quest-active',title:'Organise Christmas storage'},
+  {board,UI,dialogs,completedReturns,returnLinks,selectReturnQuest}=setup(Date.now(),{returnTasks:[collected,missing,unlinked],returnTargets:[completedTarget,activeTarget],linkableQuests:[activeTarget]});
+ board.tasks.push(M.task({...collected}),M.task({...missing}),M.task({...unlinked}),M.task({...completedTarget}),M.task({id:'focus-link',title:'Focus task',room:'kitchen'}));
+ UI.enter(board,'kitchen','focus');UI.pick('focus-link');click(UI,'quest-go');click(UI,'quest-accepted');
+ let html=UI.content(board);assert.match(html,/Linked Quest completed: Organise ornaments/);assert.match(html,/Linked Quest unavailable/);assert.match(html,/No linked Quest/);assert.match(html,/data-action="quest-return-link" data-id="collected-link"/);assert.match(html,/data-action="quest-return-link" data-id="collected-unlinked"/);
+ click(UI,'quest-return-link','collected-link');assert.equal(dialogs.at(-1).title,'Link an organising Quest');assert.match(dialogs.at(-1).body,/No linked Quest/);assert.match(dialogs.at(-1).body,/Current link: Organise ornaments · completed/);assert.match(dialogs.at(-1).body,/Organise Christmas storage/);
+ selectReturnQuest('quest-active');click(UI,'quest-return-link-save','collected-link');assert.deepEqual(returnLinks,[['collected-link','quest-active']]);
+ click(UI,'quest-return-unlink','collected-link');click(UI,'quest-return-link','collected-link');selectReturnQuest('quest-active');click(UI,'quest-return-link-save','collected-link');
+ assert.deepEqual(returnLinks,[['collected-link','quest-active'],['collected-link',''],['collected-link','quest-active']]);
+ click(UI,'quest-return-unlink','collected-missing');assert.deepEqual(returnLinks,[['collected-link','quest-active'],['collected-link',''],['collected-link','quest-active'],['collected-missing','']]);
+ assert.deepEqual(completedReturns,[]);assert.equal(board.tasks.find(t=>t.id==='collected-link').done,false);assert.equal(board.tasks.find(t=>t.id==='local-completed').done,true);
+});
+
 test('a Focus task can be removed from the session without changing the task',()=>{
  const {board,UI}=setup(),task=M.task({id:'focus-remove',title:'Keep in room',room:'kitchen',doing:true});board.tasks.push(task);
  UI.enter(board,'kitchen','focus');UI.pick(task.id);click(UI,'quest-go');click(UI,'quest-accepted');click(UI,'quest-remove-focus',task.id);
@@ -262,9 +276,10 @@ test('shared dialog and Focus selection controls expose accessible names',()=>{
 
 test('Focus assets use refreshed cache versions',()=>{
  const html=require('node:fs').readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8');
- assert.match(html,/css\/quest-focus\.css\?v=20261126-focus-task-selection1-focusnav1"/);
- assert.match(html,/js\/quest-focus-ui\.js\?v=20261126-focus-task-selection1-focusresume1-focusnav1"/);
- assert.match(html,/js\/app\.js\?v=[^"]+-taskcardart1-focusresume1-focusnav1-timeralarmfix1-focusbreak2-elapsedentry1-doingcollapse1-seasonalhomecomplete1-liftduedate1-petcaretabs1-littleoftenlayout1"/);
+ assert.match(html,/css\/quest-focus\.css\?v=[^"]+-clearway-links1"/);
+ assert.match(html,/js\/quest-focus-ui\.js\?v=[^"]+-clearway-links1"/);
+ assert.match(html,/js\/app\.js\?v=[^"]+-clearway-links1"/);
+ assert.match(html,/js\/sharing-model\.js\?v=[^"]+-clearway-links1"/);
 });
 
 test('active Focus removes the old Options disclosure while keeping compact subtask actions',()=>{
