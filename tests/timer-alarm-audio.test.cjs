@@ -104,3 +104,24 @@ test('stopping timer alarms pauses the active sound and drops queued alarms',()=
  played[0].events.ended();
  assert.equal(played.length,1);
 });
+
+test('queued reminders are revalidated before any stale request can start',()=>{
+ const played=[],cancelled=[];
+ class FakeAudio{
+  constructor(src){this.src=src;this.events={};this.paused=false;played.push(this);}
+  addEventListener(name,fn){this.events[name]=fn;}
+  play(){return Promise.resolve();}
+  pause(){this.paused=true;}
+ }
+ const alarm=Alarm.create({AudioCtor:FakeAudio,AudioContextCtor:null,urlForTone:file=>'sounds/'+file});
+ assert.equal(alarm.play({key:'timer:active'}),true);
+ let firstValid=true,secondValid=true;
+ assert.equal(alarm.play({key:'laundry:first',isValid:()=>firstValid,onCancel:()=>cancelled.push('first')}),true);
+ assert.equal(alarm.play({key:'laundry:second',isValid:()=>secondValid,onCancel:()=>cancelled.push('second')}),true);
+ firstValid=false;secondValid=false;
+ assert.equal(alarm.cancel('timer:active'),true);
+ assert.equal(played.length,1);
+ assert.deepEqual(cancelled,['first','second']);
+ assert.equal(alarm.busy(),false);
+ assert.equal(alarm.queued(),0);
+});

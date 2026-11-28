@@ -36,38 +36,58 @@
    loading.set(tone.id,work);
    try{return await work;}finally{loading.delete(tone.id);}
   }
+  function complete(handle){if(current!==handle)return;current=null;if(queue.length)start(queue.shift());}
   function finish(handle){
-   if(current!==handle)return;
-   current=null;
-   if(queue.length)start(queue.shift());
+   if(current!==handle||handle.afterPending)return;
+   if(!handle.afterStarted&&typeof handle.request?.after==='function'){
+    handle.afterStarted=true;let result;
+    try{result=handle.request.after();}catch(error){report(error);}
+    if(result&&typeof result.then==='function'){
+     handle.afterPending=true;
+     Promise.resolve(result).catch(report).finally(()=>{if(current!==handle)return;handle.afterPending=false;complete(handle);});
+     return;
+    }
+   }
+   complete(handle);
   }
   function start(request){
+   if(typeof request.isValid==='function'){
+    let valid=false;try{valid=!!request.isValid();}catch{}
+    if(!valid){try{request.onCancel?.();}catch{}if(queue.length)start(queue.shift());return false;}
+   }
    const ctx=context,buff=ctx&&buffers.get(request.tone.id);
    if(ctx&&buff&&(!ctx.state||ctx.state==='running')){
     try{
-     const source=ctx.createBufferSource(),gain=ctx.createGain(),handle={source,key:request.key};
+     const source=ctx.createBufferSource(),gain=ctx.createGain(),handle={source,key:request.key,request};
      source.buffer=buff;gain.gain.value=request.volume;source.connect(gain);gain.connect(ctx.destination);source.onended=()=>finish(handle);current=handle;source.start(0);return true;
     }catch(error){report(error);current=null;}
    }
    if(!AudioCtor){report(Error('Audio playback is not supported in this browser.'));if(queue.length)start(queue.shift());return false;}
    let audio,reported=false;
-   const handle={audio,key:request.key},fail=error=>{if(reported)return;reported=true;activeAudio.delete(audio);report(error||Error('Timer sound could not play.'));finish(handle);};
+   const handle={audio,key:request.key,request},fail=error=>{if(reported)return;reported=true;activeAudio.delete(audio);report(error||Error('Timer sound could not play.'));finish(handle);};
    try{
     audio=new AudioCtor(urlForTone(request.tone.file));handle.audio=audio;current=handle;activeAudio.add(audio);audio.preload='auto';audio.volume=request.volume;
     audio.addEventListener?.('ended',()=>{activeAudio.delete(audio);finish(handle);},{once:true});
     audio.addEventListener?.('error',()=>fail(Error('Timer sound file could not be played.')),{once:true});
     const result=audio.play();if(result&&typeof result.catch==='function')result.catch(fail);
     return true;
-   }catch(error){fail(error);return false;}
+   }catch(error){fail(error);return current===handle;}
   }
-  function play({preview=false,key=''}={}){
+  function play(options={}){
+   const {preview=false,key=''}=options;
    if(key&&(current?.key===key||queue.some(request=>request.key===key)))return false;
-   const request={tone:selected,volume,key};
+   const request={...options,tone:selected,volume,key};
    if(current){if(preview)return false;queue.push(request);return true;}
    return start(request);
   }
-  function stop(){queue.length=0;if(current?.source){try{current.source.stop();}catch{}}if(current?.audio){try{current.audio.pause();}catch{}activeAudio.delete(current.audio);}current=null;}
- return Object.freeze({tones:TONES,storedVolume,tone:()=>selected,setTone,setVolume,volume:()=>volume,prime,play,stop,busy:()=>!!current,queued:()=>queue.length});
+  function cancel(key){
+   let cancelled=false;
+   for(let i=queue.length-1;i>=0;i--)if(queue[i].key===key){const [request]=queue.splice(i,1);try{request.onCancel?.();}catch{}cancelled=true;}
+   if(current?.key===key){const handle=current;current=null;try{handle.request?.onCancel?.();}catch{}if(handle.source){try{handle.source.stop();}catch{}}if(handle.audio){try{handle.audio.pause();handle.audio.currentTime=0;}catch{}activeAudio.delete(handle.audio);}if(queue.length)start(queue.shift());cancelled=true;}
+   return cancelled;
+  }
+  function stop(){for(const request of queue.splice(0))try{request.onCancel?.();}catch{}if(current){const handle=current;current=null;try{handle.request?.onCancel?.();}catch{}if(handle.source){try{handle.source.stop();}catch{}}if(handle.audio){try{handle.audio.pause();}catch{}activeAudio.delete(handle.audio);}}}
+ return Object.freeze({tones:TONES,storedVolume,tone:()=>selected,setTone,setVolume,volume:()=>volume,prime,play,cancel,stop,busy:()=>!!current,queued:()=>queue.length});
  }
  return Object.freeze({TONES,storedVolume,create});
 });
